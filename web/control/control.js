@@ -81,16 +81,57 @@ function renderLibrary(videos) {
     const li = document.createElement("li");
     li.dataset.index = i;
     li.dataset.file = v.file;
+    li.draggable = true;
     li.innerHTML = `
+      <span class="handle" title="Drag to reorder">⠿</span>
       <span class="vname">${v.name}</span>
       <span class="playing-tag" hidden>on air</span>
       <button class="play">Play</button>
       <button class="del">Delete</button>`;
     li.querySelector(".play").addEventListener("click", () => playVideo(i));
     li.querySelector(".del").addEventListener("click", () => deleteVideo(v.file));
+    li.addEventListener("dragstart", (e) => {
+      if (e.target.tagName === "BUTTON") return e.preventDefault();
+      dragEl = li;
+      li.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    li.addEventListener("dragend", () => {
+      li.classList.remove("dragging");
+      persistOrder();
+    });
     playlistEl.appendChild(li);
   });
   markPlaying();
+}
+
+// ---- drag reorder ----
+let dragEl = null;
+
+function afterElement(y) {
+  const items = [...playlistEl.querySelectorAll("li[data-file]:not(.dragging)")];
+  return items.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      return offset < 0 && offset > closest.offset ? { offset, el: child } : closest;
+    },
+    { offset: -Infinity, el: null }
+  ).el;
+}
+
+playlistEl.addEventListener("dragover", (e) => {
+  if (!dragEl) return;
+  e.preventDefault();
+  const after = afterElement(e.clientY);
+  if (after == null) playlistEl.appendChild(dragEl);
+  else playlistEl.insertBefore(dragEl, after);
+});
+
+async function persistOrder() {
+  const order = [...playlistEl.querySelectorAll("li[data-file]")].map((li) => li.dataset.file);
+  const resp = await post("/api/playlist/order", { order });
+  if (resp.ok) renderLibrary((await resp.json()).videos);
 }
 
 async function loadLibrary() {

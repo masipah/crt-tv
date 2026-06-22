@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>crt-tv preview</title>
+  <link rel="stylesheet" href="preview.css" />
+</head>
+<body>
+  <div class="stage">
+    <!-- simulated Sony PVM-9045Q -->
+    <div class="pvm">
+      <div class="bezel">
+        <div class="screen">
+          <!-- the real display app, exactly as it renders on the CRT -->
+          <iframe id="screen" src="/display" title="CRT output" scrolling="no"></iframe>
+          <!-- glass/curvature/scanline simulation on top -->
+          <div class="glass"></div>
+        </div>
+      </div>
+      <div class="chin">
+        <div class="brand">SONY <span>TRINITRON</span></div>
+        <div class="model">PVM-9045Q</div>
+        <div class="knobs">
+          <span class="led" id="tally"></span>
+          <span class="knob"></span><span class="knob"></span><span class="knob"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- preview controls -->
+    <aside class="panel">
+      <div class="phead">
+        <h1>Preview</h1>
+        <span id="status" class="status off">connecting…</span>
+      </div>
+      <p class="hint">
+        This is exactly what the CRT will show, in a simulated PVM. Switch modes
+        and play with it before you connect the real monitor.
+      </p>
+      <div class="modes">
+        <button class="mode" data-mode="teletext"><span class="ico">▦</span>Teletext</button>
+        <button class="mode" data-mode="weather"><span class="ico">☀</span>Weather</button>
+        <button class="mode" data-mode="video"><span class="ico">►</span>Video</button>
+      </div>
+      <p class="now">Now showing: <strong id="now-mode">—</strong></p>
+      <div class="links">
+        <a href="/">← Full dashboard (manage videos)</a>
+        <a href="/display" target="_blank" rel="noopener">Open raw display ↗</a>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module" src="preview.js"></script>
+</body>
+</html>

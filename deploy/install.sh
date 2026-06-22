@@ -45,7 +45,8 @@ Remaining manual step (one-off): enable composite NTSC video.
   Append deploy/config.txt.snippet to /boot/firmware/config.txt and reboot.
   (On the Pi 4 this disables HDMI — SSH in to manage from here on.)
 
-Control app:  http://<pi-ip>:8000/
+Dashboard:    http://<pi-ip>:8000/         (pick modes, manage + upload videos)
+Preview:      http://<pi-ip>:8000/preview   (simulated CRT, test before the TV)
 Display app:  http://<pi-ip>:8000/display  (this is what the kiosk shows)
 
 Logs:

@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import ROOT, settings
-from .services.playlist import VIDEO_EXTS, list_videos
+from .services.playlist import VIDEO_EXTS, list_videos, set_order
 from .services.weather import fetch_weather
 from .state import VALID_MODES, StateManager
 
@@ -30,6 +30,10 @@ class ModeBody(BaseModel):
 
 class VideoIndexBody(BaseModel):
     index: int
+
+
+class OrderBody(BaseModel):
+    order: list[str]
 
 
 # ---------------------------------------------------------------- control API
@@ -75,6 +79,13 @@ def _unique_dest(name: str) -> Path:
     while (settings.media_path / f"{stem}-{i}{suffix}").exists():
         i += 1
     return settings.media_path / f"{stem}-{i}{suffix}"
+
+
+@app.post("/api/playlist/order")
+async def set_playlist_order(body: OrderBody) -> dict:
+    videos = set_order([Path(n).name for n in body.order])
+    await state.notify_playlist_changed()
+    return {"ok": True, "videos": videos}
 
 
 @app.post("/api/upload")
@@ -136,6 +147,9 @@ app.mount("/media", StaticFiles(directory=str(_media)), name="media")
 
 # The full-screen app shown on the CRT.
 app.mount("/display", StaticFiles(directory=str(WEB / "display"), html=True), name="display")
+
+# A CRT-bezel preview of /display, for testing before the real TV is connected.
+app.mount("/preview", StaticFiles(directory=str(WEB / "preview"), html=True), name="preview")
 
 # The remote control app at "/". Mounted last so it never shadows the above.
 app.mount("/", StaticFiles(directory=str(WEB / "control"), html=True), name="control")

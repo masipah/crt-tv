@@ -38,14 +38,19 @@ crt_tv/              FastAPI service
   state.py           shared mode state + WebSocket broadcast
   services/
     weather.py       Open-Meteo fetch, shaped for the page (cached)
-    playlist.py      scans the media/ folder
+    playlist.py      scans media/, persists play order (.order.json)
 web/
   display/           full-screen app shown on the CRT (teletext/weather/video)
     ws4000.css       WeatherStar 4000 styling + Star4000 @font-face
     weather.js       WeatherStar 4000 screen cycle + ticker
     assets/          fetched fonts + icons (git-ignored; see fetch-assets.sh)
-  control/           control dashboard (mode picker, video library + upload)
-deploy/              Pi 4 config.txt snippet, systemd units, kiosk + installer
+  control/           control dashboard (mode picker, upload, drag-reorder)
+  preview/           CRT-bezel preview of /display (test before the real TV)
+deploy/
+  bootstrap.sh       one-line installer (host at masipah.com)
+  install.sh         per-host setup (venv, services, assets)
+  set-static-ip.sh   assign a static IP via NetworkManager
+  config.txt.snippet composite NTSC settings · *.service systemd units · kiosk.sh
 media/               drop video files here (gitignored)
 scripts/dev.sh       run locally with autoreload
 ```
@@ -63,13 +68,15 @@ No Pi needed to work on the apps:
 
 Then open:
 
-- Control app: <http://localhost:8000/>
-- Display app: <http://localhost:8000/display>
+- Dashboard: <http://localhost:8000/>
+- **Preview** (simulated CRT): <http://localhost:8000/preview>
+- Raw display: <http://localhost:8000/display>
 
-Switching modes in one tab updates the other live over WebSocket. Drop a couple
-of `.mp4` files into `media/` to exercise the video mode. The CRT scanline
-overlay is on by default — it's subtle and intended to layer on top of a real
-CRT's own scanlines.
+The **preview** page is the easiest way to play with this before any hardware:
+it embeds the real display app in a simulated PVM bezel and lets you switch
+modes. Changes propagate live over WebSocket, so the dashboard, preview, and the
+actual CRT all stay in sync. Upload a couple of `.mp4`s from the dashboard (or
+drop them into `media/`) to exercise video mode.
 
 ## Configure
 
@@ -82,6 +89,34 @@ The service runs fine with no config file (defaults to London / metric).
 
 ## Deploy to the Raspberry Pi 4
 
+### One-line install (from masipah.com)
+
+On a fresh Raspberry Pi OS, SSH in and run:
+
+```bash
+curl -sSL https://masipah.com/crt-tv/install.sh | bash
+```
+
+To also pin a **static IP** in the same step:
+
+```bash
+curl -sSL https://masipah.com/crt-tv/install.sh | \
+  CRT_TV_STATIC_IP=192.168.1.50/24 CRT_TV_GATEWAY=192.168.1.1 bash
+```
+
+This downloads the project, runs `deploy/install.sh` (Chromium + X, the venv,
+`config.toml`, the WeatherStar assets, and the `crt-tv` + `crt-tv-kiosk`
+services), optionally sets the static IP, and prints your dashboard URL.
+
+> **Hosting the installer.** Put `deploy/bootstrap.sh` at
+> `https://masipah.com/crt-tv/install.sh`, and publish a tarball of this repo at
+> `https://masipah.com/crt-tv/latest.tar.gz` (a single top-level folder, e.g.
+> `git archive --format=tar.gz --prefix=crt-tv/ -o latest.tar.gz HEAD`). Or skip
+> the tarball and point the installer at a git repo:
+> `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`.
+
+### Manual install
+
 1. Clone the repo to `/home/pi/crt-tv` and run the installer:
 
    ```bash
@@ -89,11 +124,16 @@ The service runs fine with no config file (defaults to London / metric).
    bash deploy/install.sh
    ```
 
-   This installs Chromium + X, builds the venv, writes `config.toml`, and
-   enables two services: `crt-tv` (the FastAPI service) and `crt-tv-kiosk`
-   (Chromium showing `/display`).
+   This installs Chromium + X, builds the venv, writes `config.toml`, fetches the
+   WeatherStar assets, and enables two services: `crt-tv` (the FastAPI service)
+   and `crt-tv-kiosk` (Chromium showing `/display`).
 
-2. **Enable composite NTSC output** (one-off). Append
+2. **Static IP** (optional): `CRT_TV_STATIC_IP=192.168.1.50/24 bash deploy/set-static-ip.sh`
+   (uses NetworkManager; gateway/DNS default sensibly, override with
+   `CRT_TV_GATEWAY` / `CRT_TV_DNS`). This can drop your SSH session — reconnect
+   on the new IP.
+
+3. **Enable composite NTSC output** (one-off). Append
    [`deploy/config.txt.snippet`](deploy/config.txt.snippet) to
    `/boot/firmware/config.txt` and reboot.
 
@@ -130,7 +170,11 @@ Open the dashboard at `http://<pi-ip>:8000/` from any browser on your network.
 - **Video library** — drag-and-drop or browse to **upload** clips (with a
   progress bar); they save to the Pi's `media/` folder. Hit **Play** on any clip
   to put it on the CRT (switches to Video mode and jumps to it); **Delete** to
-  remove it. The CRT refreshes its playlist automatically on upload/delete.
+  remove it. **Drag the ⠿ handle to reorder** the playlist — the order persists
+  (in `media/.order.json`) and is the order the CRT loops through. The CRT
+  refreshes its playlist automatically on upload/delete/reorder.
+- **Preview** (`/preview`) — a simulated PVM bezel showing the live display, so
+  you can pick modes and check things before the real monitor is connected.
 
 Logs: `journalctl -u crt-tv -f` and `journalctl -u crt-tv-kiosk -f`.
 
