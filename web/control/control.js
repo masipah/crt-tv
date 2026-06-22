@@ -121,6 +121,24 @@ async function loadWeatherSettings() {
   }
 }
 
+// When the real ws4kp app is the engine, link to its own control page (it owns
+// the display/units/theme settings; crt-tv only sets the location).
+async function loadEngine() {
+  const note = document.getElementById("ws4kp-note");
+  try {
+    const e = await (await fetch("/api/weather/engine")).json();
+    if (e.engine === "ws4kp") {
+      const url = `http://${location.hostname}:${e.port || 8080}/`;
+      note.innerHTML = `Weather is powered by <b>ws4kp</b> — <a href="${url}" target="_blank" rel="noopener">open its full settings ↗</a>`;
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  } catch (err) {
+    note.hidden = true;
+  }
+}
+
 // ---- displays + speed + theme + ticker + music ----
 function renderOptions(opts) {
   wxScreens.innerHTML = "";
@@ -325,6 +343,7 @@ function connect() {
 }
 
 loadWeatherSettings();
+loadEngine();
 loadOptions();
 loadHeadend();
 loadLibrary();

@@ -101,6 +101,12 @@ async def get_weather() -> dict:
         raise HTTPException(502, f"weather fetch failed: {exc}") from exc
 
 
+@app.get("/api/weather/engine")
+async def get_weather_engine() -> dict:
+    ew = effective_weather()
+    return {"engine": settings.weather_engine, "port": settings.ws4kp_port, "location": ew["location"]}
+
+
 @app.get("/api/weather/settings")
 async def get_weather_settings() -> dict:
     ew = effective_weather()
@@ -172,6 +178,9 @@ async def weather_control(body: WeatherControlBody) -> dict:
 async def get_music() -> dict:
     """Background-music tracks for the weather channel (served from the display
     assets). Empty unless the opt-in fetch-audio.sh has been run."""
+    # ws4kp plays its own music; don't double up.
+    if settings.weather_engine == "ws4kp":
+        return {"enabled": False, "volume": 0, "tracks": []}
     opts = weather_options()
     if not opts["music"]:
         return {"enabled": False, "volume": 0, "tracks": []}

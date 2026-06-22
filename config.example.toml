@@ -3,6 +3,13 @@
 
 default_mode = "weather"    # mode shown on boot: weather | teletext | video
 
+# Weather engine:
+#   "ws4kp"   = run the real WeatherStar 4000+ app (Docker, US/NWS data) and show
+#               it fullscreen. deploy/install.sh sets this on the Pi.
+#   "builtin" = the bundled Open-Meteo WeatherStar (worldwide, no Docker).
+weather_engine = "builtin"
+ws4kp_port = 8080
+
 [server]
 host = "0.0.0.0"            # 0.0.0.0 = reachable from other devices on your LAN
 port = 8000

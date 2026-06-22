@@ -137,6 +137,8 @@ main.zen .headend { display: none; }
 .mode.active { color: #000; background: var(--accent); border-color: var(--accent); }
 .now { color: var(--dim); font-size: 15px; margin: 8px 0 0; }
 .now strong { color: var(--text); text-transform: capitalize; }
+.ws4kp-note { color: var(--dim); font-size: 15px; margin: 6px 0 0; }
+.ws4kp-note b { color: var(--accent); }
 
 /* Selected displays — checkbox list */
 .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }

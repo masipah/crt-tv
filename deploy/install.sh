@@ -36,6 +36,20 @@ bash web/display/assets/fetch-assets.sh || echo "    (skipped — weather mode w
 echo "==> Fetching WeatherStar 4000 background art"
 bash web/display/assets/fetch-backgrounds.sh || echo "    (skipped — weather mode will use a gradient)"
 
+echo "==> Setting up ws4kp (the real WeatherStar 4000+, via Docker)"
+chmod +x deploy/ws4kp.sh
+if bash deploy/ws4kp.sh; then
+  # use the real ws4kp app for the weather channel
+  if grep -q '^weather_engine' config.toml; then
+    sed -i 's/^weather_engine.*/weather_engine = "ws4kp"/' config.toml
+  else
+    printf '\nweather_engine = "ws4kp"\n' >> config.toml
+  fi
+  echo "    weather_engine = ws4kp"
+else
+  echo "    (ws4kp setup failed — keeping the built-in WeatherStar)"
+fi
+
 echo "==> Installing systemd units"
 # Run the services as the installing user, from this repo path (templates use
 # __CRT_TV_USER__ / __CRT_TV_DIR__ placeholders).

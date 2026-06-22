@@ -371,8 +371,24 @@ async function load() {
   }
 }
 
-export function renderWeather(root) {
+export async function renderWeather(root) {
   stopWeather();
+
+  // Weather engine: "ws4kp" shows the real ws4kp app fullscreen; otherwise the
+  // bundled WeatherStar renders below.
+  let engine = null;
+  try {
+    engine = await (await fetch("/api/weather/engine")).json();
+  } catch (err) {
+    /* fall through to builtin */
+  }
+  if (engine && engine.engine === "ws4kp") {
+    const loc = encodeURIComponent(engine.location || "");
+    const url = `http://${location.hostname}:${engine.port || 8080}/?kiosk=true&latLonQuery=${loc}`;
+    root.innerHTML = `<iframe class="ws4kp-frame" src="${url}" title="WeatherStar 4000+" allow="autoplay; fullscreen"></iframe>`;
+    return;
+  }
+
   scaffold(root);
   screenIndex = 0;
   load(); // load() starts the cycle timer using the configured speed
