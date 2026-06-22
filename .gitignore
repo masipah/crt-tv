@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Local config & secrets
+config.toml
+.env
+
+# Media (videos are large; keep the folder, ignore contents)
+media/*
+!media/.gitkeep
+
+# OS
+.DS_Store

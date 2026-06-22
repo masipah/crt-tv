@@ -1,0 +1,19 @@
+# crt-tv configuration.
+# Copy to config.toml and edit. config.toml is gitignored.
+
+default_mode = "teletext"   # teletext | weather | video
+
+[server]
+host = "0.0.0.0"            # 0.0.0.0 = reachable from other devices on your LAN
+port = 8000
+
+[weather]
+location_name = "London"
+latitude = 51.5074
+longitude = -0.1278
+timezone = "Europe/London"  # IANA tz, or "auto"
+units = "metric"            # metric (°C, km/h) | imperial (°F, mph)
+
+[video]
+media_dir = "media"        # folder of video files, relative to repo root or absolute
+shuffle = false            # play the playlist in random order

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>crt-tv display</title>
+  <link rel="stylesheet" href="display.css" />
+</head>
+<body>
+  <!-- safe-area wrapper: keeps content inside CRT overscan -->
+  <div id="overscan">
+    <!-- TELETEXT -->
+    <section id="teletext" class="screen" hidden></section>
+
+    <!-- WEATHER (Ceefax-style) -->
+    <section id="weather" class="screen" hidden></section>
+
+    <!-- VIDEO -->
+    <section id="video" class="screen video" hidden>
+      <video id="player" playsinline muted></video>
+      <div id="video-empty" class="ttx-center" hidden></div>
+    </section>
+  </div>
+
+  <!-- subtle scanline / CRT overlay, drawn over everything -->
+  <div id="crt-overlay"></div>
+
+  <script type="module" src="display.js"></script>
+</body>
+</html>

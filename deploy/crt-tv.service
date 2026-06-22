@@ -1,0 +1,21 @@
+# crt-tv control service (FastAPI/uvicorn).
+# Install: sudo cp deploy/crt-tv.service /etc/systemd/system/
+#          sudo systemctl enable --now crt-tv
+# Assumes the repo is cloned at /home/pi/crt-tv with a venv at .venv.
+
+[Unit]
+Description=crt-tv control service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/crt-tv
+ExecStart=/home/pi/crt-tv/.venv/bin/uvicorn crt_tv.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+Environment=CRT_TV_CONFIG=/home/pi/crt-tv/config.toml
+
+[Install]
+WantedBy=multi-user.target

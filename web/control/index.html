@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>crt-tv remote</title>
+  <link rel="stylesheet" href="control.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>CRT&nbsp;TV</h1>
+      <span id="status" class="status off">connecting…</span>
+    </header>
+
+    <section class="modes">
+      <button class="mode" data-mode="teletext">
+        <span class="ico">▦</span><span class="lbl">Teletext</span>
+      </button>
+      <button class="mode" data-mode="weather">
+        <span class="ico">☀</span><span class="lbl">Weather</span>
+      </button>
+      <button class="mode" data-mode="video">
+        <span class="ico">►</span><span class="lbl">Video</span>
+      </button>
+    </section>
+
+    <section id="video-panel" class="panel" hidden>
+      <h2>Playlist</h2>
+      <ul id="playlist"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="control.js"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+/* crt-tv display styles.
+ *
+ * Target signal: composite NTSC, 720x480 (4:3), heavily overscanned on a PVM.
+ * Everything is sized large and kept inside a title-safe area. Colours are the
+ * classic 8 teletext colours on black. */
+
+:root {
+  /* teletext palette */
+  --ttx-black:   #000000;
+  --ttx-red:     #ff0000;
+  --ttx-green:   #00ff00;
+  --ttx-yellow:  #ffff00;
+  --ttx-blue:    #0000ff;
+  --ttx-magenta: #ff00ff;
+  --ttx-cyan:    #00ffff;
+  --ttx-white:   #ffffff;
+
+  --bg: var(--ttx-black);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ttx-white);
+  overflow: hidden;
+  cursor: none;
+}
+
+/* Title-safe area: composite + CRT overscan can eat ~10% of each edge.
+   Keep all readable content inside this box. */
+#overscan {
+  position: absolute;
+  inset: 6% 7%;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.screen[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- teletext */
+/* 40-column teletext grid feel. Bedstead/MODE7 fonts are ideal if installed;
+   we fall back to a heavy monospace. */
+.ttx {
+  font-family: "Bedstead", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  font-weight: 700;
+  background: var(--ttx-black);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* font scales with viewport so it fills 720x480 nicely */
+  font-size: clamp(18px, 5.2vh, 48px);
+  line-height: 1.18;
+  letter-spacing: 0.04em;
+  white-space: pre;
+}
+
+.ttx-row { display: flex; }
+
+/* header bar like Ceefax: service name + page number + clock */
+.ttx-header {
+  display: flex;
+  justify-content: space-between;
+  background: var(--ttx-blue);
+  color: var(--ttx-white);
+  padding: 0.1em 0.4em;
+}
+.ttx-header .page { color: var(--ttx-white); }
+.ttx-header .clock { color: var(--ttx-yellow); }
+
+.ttx-title {
+  color: var(--ttx-black);
+  background: var(--ttx-cyan);
+  text-align: center;
+  padding: 0.15em 0.4em;
+  font-size: 1.3em;
+}
+
+.ttx-body {
+  flex: 1;
+  padding: 0.4em 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.ttx-center {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: "Bedstead", "DejaVu Sans Mono", monospace;
+  font-weight: 700;
+  font-size: clamp(20px, 6vh, 56px);
+  color: var(--ttx-yellow);
+}
+
+/* colour helpers */
+.c-red { color: var(--ttx-red); }
+.c-green { color: var(--ttx-green); }
+.c-yellow { color: var(--ttx-yellow); }
+.c-blue { color: var(--ttx-blue); }
+.c-magenta { color: var(--ttx-magenta); }
+.c-cyan { color: var(--ttx-cyan); }
+.c-white { color: var(--ttx-white); }
+
+/* coloured "fastext" links row at the bottom */
+.ttx-footer {
+  display: flex;
+  justify-content: space-around;
+  padding: 0.15em 0.3em;
+  font-size: 0.85em;
+}
+.ttx-footer span { padding: 0 0.3em; }
+
+/* ----------------------------------------------------------------- weather */
+.wx-current {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.wx-temp { font-size: 2.4em; color: var(--ttx-yellow); }
+.wx-glyph { font-size: 2.4em; }
+.wx-meta { color: var(--ttx-green); }
+
+.wx-forecast {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.3em;
+  margin-top: 0.4em;
+}
+.wx-day {
+  text-align: center;
+  border-top: 0.12em solid var(--ttx-blue);
+  padding-top: 0.2em;
+}
+.wx-day .d { color: var(--ttx-cyan); }
+.wx-day .hi { color: var(--ttx-yellow); }
+.wx-day .lo { color: var(--ttx-white); opacity: 0.8; }
+.wx-day .g { font-size: 1.6em; }
+
+/* ------------------------------------------------------------------- video */
+.screen.video { background: #000; }
+#player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;  /* letterbox rather than crop */
+  background: #000;
+}
+
+/* --------------------------------------------------------------- CRT overlay */
+/* Faint scanlines + a touch of vignette. Subtle so text stays legible on a
+   real CRT (which already has its own scanlines). Disable via body.no-crt. */
+#crt-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.18) 3px
+    );
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+body.no-crt #crt-overlay { display: none; }

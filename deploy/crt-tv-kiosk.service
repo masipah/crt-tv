@@ -1,0 +1,24 @@
+# Chromium kiosk that shows the crt-tv display app on the composite output.
+# Install: sudo cp deploy/crt-tv-kiosk.service /etc/systemd/system/
+#          sudo systemctl enable --now crt-tv-kiosk
+#
+# Runs an X server on the console (vt1) via xinit and launches deploy/kiosk.sh.
+# Requires: xserver-xorg xinit chromium-browser  (see deploy/install.sh)
+
+[Unit]
+Description=crt-tv Chromium kiosk (composite display)
+After=crt-tv.service systemd-user-sessions.service
+Wants=crt-tv.service
+
+[Service]
+User=pi
+PAMName=login
+TTYPath=/dev/tty1
+# Start X on this console and run the kiosk inside it.
+ExecStart=/usr/bin/xinit /home/pi/crt-tv/deploy/kiosk.sh -- :0 vt1 -nolisten tcp
+Restart=on-failure
+RestartSec=3
+Environment=CRT_TV_DISPLAY_URL=http://localhost:8000/display
+
+[Install]
+WantedBy=multi-user.target

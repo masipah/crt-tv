@@ -1,0 +1,2 @@
+# Drop video files here (.mp4, .mkv, .webm, .mov ...). They are gitignored.
+# For the PVM: 4:3, progressive-encoded H.264 plays back most reliably.

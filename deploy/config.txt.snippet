@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# crt-tv: composite NTSC output on a Raspberry Pi 4 Model B
+#
+# Append to /boot/firmware/config.txt (Bookworm) or /boot/config.txt (older),
+# then reboot. NOTE: on the Pi 4, enabling composite DISABLES HDMI output.
+# ---------------------------------------------------------------------------
+
+[all]
+# Turn on the composite (TV-out) DAC. Required on Pi 4 — it's off by default.
+enable_tvout=1
+
+# Analogue TV standard:
+#   sdtv_mode=0  NTSC        <-- PVM-9045Q is an NTSC monitor; use this
+#   sdtv_mode=1  NTSC-J
+#   sdtv_mode=2  PAL
+#   sdtv_mode=3  PAL-M
+sdtv_mode=0
+
+# Aspect ratio: 1 = 4:3 (the PVM is 4:3)
+sdtv_aspect=1
+
+# The composite pipeline needs the legacy/firmware KMS driver on the Pi 4.
+# (The default full-KMS vc4-kms-v3d does not drive the composite DAC.)
+dtoverlay=vc4-fkms-v3d
+
+# Don't wait for / fall back to HDMI.
+hdmi_ignore_hotplug=1
+
+# Leave overscan compensation OFF — crt-tv keeps content in a title-safe box
+# itself, and disabling firmware overscan gives a cleaner full-bleed signal.
+disable_overscan=1
