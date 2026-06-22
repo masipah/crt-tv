@@ -137,23 +137,6 @@ html, body {
   background: #000;
 }
 
-/* --------------------------------------------------------------- CRT overlay */
-/* Faint scanlines + a touch of vignette. Subtle so text stays legible on a
-   real CRT (which already has its own scanlines). Disable via body.no-crt. */
-#crt-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0) 0px,
-      rgba(0, 0, 0, 0) 2px,
-      rgba(0, 0, 0, 0.18) 3px
-    );
-  mix-blend-mode: multiply;
-  opacity: 0.5;
-}
-body.no-crt #crt-overlay { display: none; }
-/* No software overlay over video — the real CRT/composite path handles it. */
-body.mode-video #crt-overlay { display: none; }
+/* No software CRT effects anywhere — the display is a clean signal. The real
+   CRT (and the composite path) provide the actual look; the preview pages mirror
+   this output as-is. */
