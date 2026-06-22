@@ -12,7 +12,10 @@ sudo apt-get install -y \
   python3 python3-venv python3-pip \
   chromium-browser \
   xserver-xorg xinit x11-xserver-utils \
+  pulseaudio \
   curl
+# pulseaudio gives Chromium an audio sink for the weather-channel music; with
+# HDMI disabled the analog A/V jack is the only output, so sound goes to the TV.
 
 echo "==> Creating Python virtualenv"
 python3 -m venv .venv

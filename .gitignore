@@ -19,6 +19,8 @@ media/*
 # Third-party weather assets (fetched by web/display/assets/fetch-assets.sh)
 web/display/assets/fonts/
 web/display/assets/icons/
+# Background music (fetched by fetch-audio.sh; copyrighted, opt-in)
+web/display/assets/audio/
 
 # OS
 .DS_Store

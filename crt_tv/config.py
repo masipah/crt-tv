@@ -35,6 +35,8 @@ class WeatherConfig:
     location_name: str = ""           # display name; defaults to the geocoded name
     timezone: str = "auto"            # IANA tz, or "auto" to derive from coords
     regional_cities: list = field(default_factory=list)  # Travel/Regional screens
+    music: bool = True                # play background music during weather mode
+    music_volume: float = 0.7         # 0.0 – 1.0
 
 
 @dataclass

@@ -17,6 +17,12 @@ units = "metric"            # metric (°C, km/h) | imperial (°F, mph)
 # Forecast" screens (city names or US ZIPs). Leave empty to hide those screens.
 # regional_cities = ["Dallas", "Houston", "San Antonio", "New Orleans"]
 
+# Background music on the weather channel (the WeatherStar smooth jazz). Fetch
+# the tracks first (opt-in, ~160 MB, copyrighted — personal use only):
+#   web/display/assets/fetch-audio.sh
+music = true
+music_volume = 0.7          # 0.0 – 1.0
+
 # Optional: pin an exact point and skip geocoding (overrides `location`):
 # latitude = 51.5074
 # longitude = -0.1278

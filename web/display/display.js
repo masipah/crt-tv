@@ -5,6 +5,7 @@
 import { renderTeletext, stopTeletext } from "./teletext.js";
 import { renderWeather, stopWeather } from "./weather.js";
 import { startVideo, stopVideo } from "./video.js";
+import { startMusic, stopMusic } from "./music.js";
 
 const sections = {
   teletext: document.getElementById("teletext"),
@@ -30,6 +31,10 @@ function applyMode(state) {
   if (mode === "teletext") renderTeletext(sections.teletext);
   else if (mode === "weather") renderWeather(sections.weather);
   else if (mode === "video") startVideo(sections.video, state.video_index || 0);
+
+  // Background music plays only during the weather channel.
+  if (mode === "weather") startMusic();
+  else stopMusic();
 
   activeMode = mode;
 }

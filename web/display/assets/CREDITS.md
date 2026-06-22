@@ -20,5 +20,15 @@ Weather Channel local-forecast system.
   `icons/` here and are intentionally git-ignored. Refer to TWCClassics for
   their terms of use.
 
+## Background music (fetched by `fetch-audio.sh`, not committed)
+
+- The weather-channel music is the smooth-jazz library used by the original
+  Weather Channel WeatherStar 4000, sourced from the
+  [vbguyny/ws4kp](https://github.com/vbguyny/ws4kp) `Audio/` folder. **This music
+  is copyrighted by the respective artists and/or labels** (Trammell Starks,
+  Brian Hughes, Chris Camozzi, and others). It is fetched at your discretion for
+  **personal, non-commercial use only** and is intentionally git-ignored. Do not
+  redistribute.
+
 This project is a non-commercial hobby build and is not affiliated with or
 endorsed by The Weather Channel.

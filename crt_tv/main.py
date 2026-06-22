@@ -99,6 +99,25 @@ async def set_weather_location(body: WeatherLocationBody) -> dict:
     return {"ok": True, "location": data["location"]}
 
 
+AUDIO_DIR = WEB / "display" / "assets" / "audio"
+AUDIO_EXTS = {".mp3", ".m4a", ".ogg", ".aac"}
+
+
+@app.get("/api/music")
+async def get_music() -> dict:
+    """Background-music tracks for the weather channel (served from the display
+    assets). Empty unless the opt-in fetch-audio.sh has been run."""
+    w = settings.weather
+    if not getattr(w, "music", True):
+        return {"enabled": False, "volume": 0, "tracks": []}
+    tracks = []
+    if AUDIO_DIR.is_dir():
+        for p in sorted(AUDIO_DIR.iterdir()):
+            if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
+                tracks.append(f"/display/assets/audio/{p.name}")
+    return {"enabled": True, "volume": getattr(w, "music_volume", 0.7), "tracks": tracks}
+
+
 @app.get("/api/playlist")
 async def get_playlist() -> dict:
     return {"videos": list_videos()}

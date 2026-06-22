@@ -34,6 +34,10 @@ disable_overscan=1
 # (the kernel/systemd text) and then to WeatherStar when the kiosk starts.
 disable_splash=1
 
+# Enable analog audio so the weather-channel music goes out the A/V jack to the
+# TV (the 4-pole TRRS carries L/R audio alongside composite video).
+dtparam=audio=on
+
 # NOTE on the boot text: the framebuffer console lives on tty1, which is the
 # composite output. Leave /boot/firmware/cmdline.txt WITHOUT a "quiet" flag so
 # the boot messages are visible. The crt-tv-kiosk service then takes over tty1.

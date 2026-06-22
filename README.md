@@ -15,8 +15,9 @@ the Pi plugged into the old TV, and control everything from a browser.
 - **Weather** — a faithful throwback to the old **Weather Channel "WeatherStar
   4000"**: blue screens, the chunky retro font, and pages that rotate through
   current conditions, an hour-by-hour forecast, the next few days, nearby cities,
-  and sunrise/sunset — with a scrolling ticker along the bottom. This is what
-  shows when you turn it on.
+  and sunrise/sunset — with a scrolling ticker along the bottom and, optionally,
+  the classic **smooth-jazz background music**. This is what shows when you turn
+  it on.
 - **Teletext** — an old-school text "page 100" with a live clock, like Ceefax.
 - **Video** — your own video files, played back-to-back on a loop. You upload
   them from the web page.
@@ -89,6 +90,18 @@ sudo reboot
 > cable.
 
 That's it. The Pi now powers on into the weather channel on your TV.
+
+**Optional: add the WeatherStar music.** For the full effect, the weather channel
+can play the original smooth-jazz background music. The tracks aren't included
+(they're copyrighted), but one command on the Pi fetches them for personal use:
+
+```bash
+bash ~/crt-tv/web/display/assets/fetch-audio.sh   # ~160 MB
+sudo systemctl restart crt-tv-kiosk
+```
+
+Sound comes out the same AV cable as the picture (turn the TV's volume up). If
+you don't run this, weather plays silently.
 
 ## Using it day to day
 
@@ -295,6 +308,8 @@ reboots, overrides `config.toml`).
 | `[weather] location_name`  | `""`        | Display-name override                                  |
 | `[weather] timezone`       | `"auto"`    | IANA tz, or `"auto"` from coordinates                  |
 | `[weather] regional_cities`| `[]`        | Cities/ZIPs for Latest Observations + Travel screens   |
+| `[weather] music`          | `true`      | Play background music during weather (needs fetch-audio.sh) |
+| `[weather] music_volume`   | `0.7`       | Music volume, 0.0–1.0                                   |
 | `[video] media_dir`        | `"media"`   | Folder of video files                                  |
 | `[video] shuffle`          | `false`     | Randomise play order (ignores the saved manual order)  |
 
@@ -319,6 +334,7 @@ installer: `CRT_TV_DIR`, `CRT_TV_REPO`, `CRT_TV_REF`, `CRT_TV_TARBALL`.
 | `GET /api/weather`          | —                                 | Full shaped forecast (cached 10 min)            |
 | `GET /api/weather/settings` | —                                 | `{ location, country, units }`                  |
 | `POST /api/weather/location`| `{ location, country?, units? }`  | Validate + persist (502 if unresolvable; old value kept) |
+| `GET /api/music`            | —                                 | `{ enabled, volume, tracks: [url] }`            |
 | `GET /api/playlist`         | —                                 | `{ videos: [ { name, file, url } ] }`           |
 | `POST /api/playlist/order`  | `{ "order": ["b.mp4","a.mp4"] }`  | Persist a new order                             |
 | `POST /api/upload`          | `multipart/form-data` `files`     | Save videos (non-video rejected)                |
@@ -349,6 +365,17 @@ anywhere; US ZIPs via Zippopotam, cities via Open-Meteo geocoding), and the
 see [`web/display/assets/CREDITS.md`](web/display/assets/CREDITS.md); without them
 the weather mode falls back to a monospace font). Not affiliated with The Weather
 Channel.
+
+**Background music.** The weather channel can play the original WeatherStar
+smooth-jazz on a shuffled loop (an `<audio>` element fed by `/api/music`). The
+tracks come from [vbguyny/ws4kp](https://github.com/vbguyny/ws4kp) and are
+**copyrighted by the artists/labels** — so they're **not committed**; run
+`web/display/assets/fetch-audio.sh` to fetch them (~160 MB, personal use,
+git-ignored — see [CREDITS.md](web/display/assets/CREDITS.md)). On the Pi, the
+kiosk's `--autoplay-policy` flag lets it start without a click, `pulseaudio`
+gives Chromium a sink, and `dtparam=audio=on` plus the disabled HDMI route sound
+out the analog A/V jack to the TV. Music plays only in weather mode; toggle it
+with `[weather] music`.
 
 ## systemd operations (on the Pi)
 
