@@ -28,21 +28,23 @@
 }
 
 .ws {
-  --ws-yellow: #ffff00;
-  --ws-white: #ffffff;
+  /* authentic WeatherStar 4000 palette (from ws4kp _colors.scss) */
+  --ws-yellow: #ffff00;   /* titles, column headers, day names */
+  --ws-white: #ffffff;    /* date/time, primary values, highs */
   --ws-cyan: #00ffff;
-  --ws-hi: #ffd200;
-  --ws-lo: #4ad0ff;
-  --ws-shadow: 3px 3px 0 #000a;
+  --ws-hi: #ffffff;       /* high temps are white */
+  --ws-lo: #8080ff;       /* low temps / wind chill are periwinkle */
+  --ws-box: #26235a;      /* the "blue box" panel */
+  --ws-colhead: #200057;  /* column-header background */
+  --ws-shadow: 3px 3px 0 #000;
 
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
   font-family: "Star4000", "Cascadia Mono", "DejaVu Sans Mono", monospace;
-  /* The classic royal-blue gradient backdrop. */
-  background:
-    radial-gradient(120% 100% at 50% 0%, #2b2bb6 0%, #14148e 45%, #08083f 100%);
+  /* The authentic WeatherStar 4000 deep-navy gradient (ws4kp main background). */
+  background: linear-gradient(180deg, #102080 0%, #001040 100%);
   color: var(--ws-white);
   text-shadow: var(--ws-shadow);
   display: flex;
@@ -61,7 +63,7 @@
 .ws-title {
   font-family: "Star4000 Large", "Star4000", monospace;
   line-height: 1.0;
-  color: var(--ws-white);
+  color: var(--ws-yellow);
 }
 .ws-meta {
   text-align: right;
@@ -81,13 +83,15 @@
 .ws-screen { position: absolute; inset: 0 0.8em; }
 .ws-screen[hidden] { display: none; }
 
-/* beveled blue panel */
+/* WeatherStar shows content directly on the gradient — no heavy panels. */
 .ws-box {
-  background: linear-gradient(180deg, #2a2ab2 0%, #15158f 55%, #0e0e74 100%);
-  border-top: 2px solid #5c5cdd;
-  border-left: 2px solid #5c5cdd;
-  border-right: 2px solid #07073a;
-  border-bottom: 2px solid #07073a;
+  background: transparent;
+  border: none;
+}
+/* the dark "blue box" panel, used only where data needs a backing */
+.ws-panel {
+  background: var(--ws-box);
+  border: 2px solid #4a47a0;
 }
 
 /* --- current conditions --- */
