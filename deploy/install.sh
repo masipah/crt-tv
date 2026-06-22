@@ -31,8 +31,14 @@ echo "==> Fetching WeatherStar 4000 fonts + icons (weather display)"
 bash web/display/assets/fetch-assets.sh || echo "    (skipped — weather mode will use fallback fonts)"
 
 echo "==> Installing systemd units"
-sudo cp deploy/crt-tv.service /etc/systemd/system/
-sudo cp deploy/crt-tv-kiosk.service /etc/systemd/system/
+# Run the services as the installing user, from this repo path (templates use
+# __CRT_TV_USER__ / __CRT_TV_DIR__ placeholders).
+RUN_USER="${SUDO_USER:-$(id -un)}"
+echo "    user=$RUN_USER  dir=$REPO_DIR"
+for unit in crt-tv.service crt-tv-kiosk.service; do
+  sed -e "s|__CRT_TV_USER__|$RUN_USER|g" -e "s|__CRT_TV_DIR__|$REPO_DIR|g" \
+    "deploy/$unit" | sudo tee "/etc/systemd/system/$unit" >/dev/null
+done
 sudo systemctl daemon-reload
 sudo systemctl enable --now crt-tv
 sudo systemctl enable --now crt-tv-kiosk
