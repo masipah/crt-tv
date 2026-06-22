@@ -121,15 +121,17 @@ async function loadWeatherSettings() {
   }
 }
 
-// When the real ws4kp app is the engine, link to its own control page (it owns
-// the display/units/theme settings; crt-tv only sets the location).
+// Weather engine: WeatherStar 4000 (ws4kp) / 3000 (ws3kp) / Built-in. The real
+// apps own their own display/units/theme settings (linked); crt-tv sets location.
 async function loadEngine() {
   const note = document.getElementById("ws4kp-note");
   try {
     const e = await (await fetch("/api/weather/engine")).json();
-    if (e.engine === "ws4kp") {
-      const url = `http://${location.hostname}:${e.port || 8080}/`;
-      note.innerHTML = `Weather is powered by <b>ws4kp</b> — <a href="${url}" target="_blank" rel="noopener">open its full settings ↗</a>`;
+    setRadio("wx-engine", e.engine);
+    if (e.engine === "ws4kp" || e.engine === "ws3kp") {
+      const name = e.engine === "ws4kp" ? "WeatherStar 4000+" : "WeatherStar 3000+";
+      const url = `http://${location.hostname}:${e.port}/`;
+      note.innerHTML = `Powered by <b>${name}</b> — <a href="${url}" target="_blank" rel="noopener">open its full settings ↗</a>`;
       note.hidden = false;
     } else {
       note.hidden = true;
@@ -137,6 +139,12 @@ async function loadEngine() {
   } catch (err) {
     note.hidden = true;
   }
+}
+for (const r of document.querySelectorAll('input[name="wx-engine"]')) {
+  r.addEventListener("change", async () => {
+    await post("/api/weather/engine", { engine: radioVal("wx-engine") });
+    loadEngine();
+  });
 }
 
 // ---- displays + speed + theme + ticker + music ----

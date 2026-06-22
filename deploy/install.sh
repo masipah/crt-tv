@@ -36,16 +36,17 @@ bash web/display/assets/fetch-assets.sh || echo "    (skipped — weather mode w
 echo "==> Fetching WeatherStar 4000 background art"
 bash web/display/assets/fetch-backgrounds.sh || echo "    (skipped — weather mode will use a gradient)"
 
-echo "==> Setting up ws4kp (the real WeatherStar 4000+, via Docker)"
-chmod +x deploy/ws4kp.sh
+echo "==> Setting up the real WeatherStar apps (ws4kp + ws3kp, via Docker)"
+chmod +x deploy/ws4kp.sh deploy/ws3kp.sh
 if bash deploy/ws4kp.sh; then
-  # use the real ws4kp app for the weather channel
+  bash deploy/ws3kp.sh || echo "    (ws3kp setup failed — WeatherStar 3000 won't be available)"
+  # default the weather channel to the real WeatherStar 4000 (switch 3000/4000 in the UI)
   if grep -q '^weather_engine' config.toml; then
     sed -i 's/^weather_engine.*/weather_engine = "ws4kp"/' config.toml
   else
     printf '\nweather_engine = "ws4kp"\n' >> config.toml
   fi
-  echo "    weather_engine = ws4kp"
+  echo "    weather_engine = ws4kp  (WeatherStar 3000 also available, switch in the dashboard)"
 else
   echo "    (ws4kp setup failed — keeping the built-in WeatherStar)"
 fi

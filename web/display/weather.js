@@ -382,10 +382,10 @@ export async function renderWeather(root) {
   } catch (err) {
     /* fall through to builtin */
   }
-  if (engine && engine.engine === "ws4kp") {
+  if (engine && engine.engine && engine.engine !== "builtin") {
     const loc = encodeURIComponent(engine.location || "");
     const url = `http://${location.hostname}:${engine.port || 8080}/?kiosk=true&latLonQuery=${loc}`;
-    root.innerHTML = `<iframe class="ws4kp-frame" src="${url}" title="WeatherStar 4000+" allow="autoplay; fullscreen"></iframe>`;
+    root.innerHTML = `<iframe class="ws4kp-frame" src="${url}" title="WeatherStar" allow="autoplay; fullscreen"></iframe>`;
     return;
   }
 

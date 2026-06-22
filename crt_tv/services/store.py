@@ -126,6 +126,19 @@ def weather_options() -> dict[str, Any]:
     }
 
 
+ENGINES = ("builtin", "ws4kp", "ws3kp")
+
+
+def effective_engine() -> str:
+    """The weather engine to use — a UI choice (state.json) overrides config."""
+    e = load_state().get("weather_engine", settings.weather_engine)
+    return e if e in ENGINES else settings.weather_engine
+
+
+def engine_port(engine: str) -> int:
+    return settings.ws3kp_port if engine == "ws3kp" else settings.ws4kp_port
+
+
 def effective_weather() -> dict[str, Any]:
     """Weather settings to actually use: a UI-set location (persisted) overrides
     config.toml; otherwise fall back to config (which may pin lat/lon)."""

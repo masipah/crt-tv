@@ -50,8 +50,9 @@ class Settings:
     host: str = "0.0.0.0"
     port: int = 8000
     default_mode: str = "weather"  # mode shown on boot; video/teletext are picked in the UI
-    weather_engine: str = "builtin"  # "ws4kp" = run the real ws4kp app; "builtin" = the bundled WeatherStar
-    ws4kp_port: int = 8080           # port the ws4kp container serves on
+    weather_engine: str = "builtin"  # "ws4kp" | "ws3kp" (real apps) | "builtin" (bundled WeatherStar)
+    ws4kp_port: int = 8080           # port the ws4kp (WeatherStar 4000+) container serves on
+    ws3kp_port: int = 8083           # port the ws3kp (WeatherStar 3000+) container serves on
     weather: WeatherConfig = field(default_factory=WeatherConfig)
     video: VideoConfig = field(default_factory=VideoConfig)
 
@@ -72,6 +73,7 @@ def load_settings() -> Settings:
     s.default_mode = data.get("default_mode", s.default_mode)
     s.weather_engine = data.get("weather_engine", s.weather_engine)
     s.ws4kp_port = int(data.get("ws4kp_port", s.ws4kp_port))
+    s.ws3kp_port = int(data.get("ws3kp_port", s.ws3kp_port))
 
     server = data.get("server", {})
     s.host = server.get("host", s.host)

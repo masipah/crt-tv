@@ -22,14 +22,15 @@ say "Refreshing weather assets (fonts/icons + backgrounds)"
 bash web/display/assets/fetch-assets.sh || echo "    (skipped)"
 bash web/display/assets/fetch-backgrounds.sh || echo "    (skipped)"
 
-say "Setting up ws4kp (the real WeatherStar 4000+, via Docker)"
+say "Setting up the real WeatherStar apps (ws4kp + ws3kp, via Docker)"
 if bash deploy/ws4kp.sh; then
-  if grep -q '^weather_engine' config.toml 2>/dev/null; then
-    sed -i 's/^weather_engine.*/weather_engine = "ws4kp"/' config.toml
-  else
+  bash deploy/ws3kp.sh || echo "    (ws3kp setup failed)"
+  if ! grep -q '^weather_engine' config.toml 2>/dev/null; then
     printf '\nweather_engine = "ws4kp"\n' >> config.toml
+  elif grep -q '^weather_engine = "builtin"' config.toml 2>/dev/null; then
+    sed -i 's/^weather_engine.*/weather_engine = "ws4kp"/' config.toml
   fi
-  echo "    weather_engine = ws4kp"
+  echo "    WeatherStar 3000 + 4000 ready (switch in the dashboard)"
 else
   echo "    (ws4kp setup failed — keeping the current weather engine)"
 fi

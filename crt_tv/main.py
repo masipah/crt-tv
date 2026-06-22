@@ -19,11 +19,14 @@ from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
 from .services.radar import fetch_radar
 from .services.store import (
+    ENGINES,
     SPEEDS,
     THEMES,
     TICKERS,
     WEATHER_SCREENS,
+    effective_engine,
     effective_weather,
+    engine_port,
     load_state,
     save_state,
     update_state,
@@ -101,10 +104,24 @@ async def get_weather() -> dict:
         raise HTTPException(502, f"weather fetch failed: {exc}") from exc
 
 
+class EngineBody(BaseModel):
+    engine: str
+
+
 @app.get("/api/weather/engine")
 async def get_weather_engine() -> dict:
+    engine = effective_engine()
     ew = effective_weather()
-    return {"engine": settings.weather_engine, "port": settings.ws4kp_port, "location": ew["location"]}
+    return {"engine": engine, "port": engine_port(engine), "location": ew["location"], "engines": list(ENGINES)}
+
+
+@app.post("/api/weather/engine")
+async def set_weather_engine(body: EngineBody) -> dict:
+    if body.engine not in ENGINES:
+        raise HTTPException(400, f"invalid engine: {body.engine!r}")
+    update_state(weather_engine=body.engine)
+    await state.notify_weather_changed()
+    return {"ok": True, "engine": body.engine}
 
 
 @app.get("/api/weather/settings")
@@ -178,8 +195,8 @@ async def weather_control(body: WeatherControlBody) -> dict:
 async def get_music() -> dict:
     """Background-music tracks for the weather channel (served from the display
     assets). Empty unless the opt-in fetch-audio.sh has been run."""
-    # ws4kp plays its own music; don't double up.
-    if settings.weather_engine == "ws4kp":
+    # ws3kp/ws4kp play their own music; don't double up.
+    if effective_engine() != "builtin":
         return {"enabled": False, "volume": 0, "tracks": []}
     opts = weather_options()
     if not opts["music"]:
