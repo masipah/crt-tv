@@ -139,6 +139,9 @@ main.zen .headend { display: none; }
 .now strong { color: var(--text); text-transform: capitalize; }
 .ws4kp-note { color: var(--dim); font-size: 15px; margin: 6px 0 0; }
 .ws4kp-note b { color: var(--accent); }
+.ws4kp-note code { color: var(--text); background: #1a1a1a; padding: 0 4px; }
+.rad.offline { opacity: 0.55; }
+.rad.offline::after { content: "offline"; margin-left: 6px; font-size: 11px; color: var(--off); }
 
 /* Selected displays — checkbox list */
 .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }

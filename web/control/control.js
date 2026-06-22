@@ -127,11 +127,22 @@ async function loadEngine() {
   const note = document.getElementById("ws4kp-note");
   try {
     const e = await (await fetch("/api/weather/engine")).json();
-    setRadio("wx-engine", e.engine);
-    if (e.engine === "ws4kp" || e.engine === "ws3kp") {
-      const name = e.engine === "ws4kp" ? "WeatherStar 4000+" : "WeatherStar 3000+";
-      const url = `http://${location.hostname}:${e.port}/`;
-      note.innerHTML = `Powered by <b>${name}</b> — <a href="${url}" target="_blank" rel="noopener">open its full settings ↗</a>`;
+    const requested = e.requested || e.engine;
+    setRadio("wx-engine", requested);
+    const avail = e.available || {};
+    // mark real engines that aren't running (still selectable)
+    for (const r of document.querySelectorAll('input[name="wx-engine"]')) {
+      const off = (r.value === "ws4kp" || r.value === "ws3kp") && !avail[r.value];
+      r.closest(".rad").classList.toggle("offline", off);
+    }
+    if (requested === "ws4kp" || requested === "ws3kp") {
+      const name = requested === "ws4kp" ? "WeatherStar 4000+" : "WeatherStar 3000+";
+      if (e.engine !== requested) {
+        note.innerHTML = `<b>${name}</b> isn't running — showing Built-in. On the Pi run <code>update.sh</code> to install Docker + the app.`;
+      } else {
+        const url = `http://${location.hostname}:${e.port}/`;
+        note.innerHTML = `Powered by <b>${name}</b> — <a href="${url}" target="_blank" rel="noopener">open its full settings ↗</a>`;
+      }
       note.hidden = false;
     } else {
       note.hidden = true;

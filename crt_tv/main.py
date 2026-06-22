@@ -108,11 +108,48 @@ class EngineBody(BaseModel):
     engine: str
 
 
+_engine_up_cache: dict[int, tuple] = {}
+
+
+async def _engine_up(port: int) -> bool:
+    """Is a real WeatherStar container actually serving on this port? Cached ~20s."""
+    import time
+
+    cached = _engine_up_cache.get(port)
+    now = time.time()
+    if cached and now - cached[0] < 20:
+        return cached[1]
+    up = False
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get(f"http://127.0.0.1:{port}/")
+            up = resp.status_code < 500
+    except Exception:
+        up = False
+    _engine_up_cache[port] = (now, up)
+    return up
+
+
 @app.get("/api/weather/engine")
 async def get_weather_engine() -> dict:
-    engine = effective_engine()
+    requested = effective_engine()
     ew = effective_weather()
-    return {"engine": engine, "port": engine_port(engine), "location": ew["location"], "engines": list(ENGINES)}
+    available = {e: await _engine_up(engine_port(e)) for e in ("ws4kp", "ws3kp")}
+    # If the chosen real app isn't running, fall back to built-in so the CRT
+    # shows weather instead of a blank iframe.
+    engine = requested
+    if requested != "builtin" and not available.get(requested, False):
+        engine = "builtin"
+    return {
+        "engine": engine,
+        "requested": requested,
+        "port": engine_port(engine),
+        "available": available,
+        "location": ew["location"],
+        "engines": list(ENGINES),
+    }
 
 
 @app.post("/api/weather/engine")
