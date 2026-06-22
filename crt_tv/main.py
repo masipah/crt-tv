@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
 from .services.store import (
+    SPEEDS,
     WEATHER_SCREENS,
     effective_weather,
     load_state,
@@ -54,6 +55,7 @@ class WeatherLocationBody(BaseModel):
 
 class WeatherOptionsBody(BaseModel):
     screens: Optional[list] = None       # enabled screen keys
+    speed: Optional[str] = None          # slow | normal | fast
     music: Optional[bool] = None
     music_volume: Optional[float] = None
 
@@ -125,8 +127,10 @@ async def get_weather_options() -> dict:
 async def set_weather_options(body: WeatherOptionsBody) -> dict:
     updates: dict = {}
     if body.screens is not None:
-        valid = {k for k, _ in WEATHER_SCREENS}
+        valid = {k for k, _, impl in WEATHER_SCREENS if impl}
         updates["weather_screens"] = [k for k in body.screens if k in valid]
+    if body.speed is not None and body.speed in SPEEDS:
+        updates["weather_speed"] = body.speed
     if body.music is not None:
         updates["music_enabled"] = bool(body.music)
     if body.music_volume is not None:

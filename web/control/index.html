@@ -3,91 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="theme-color" content="#000000" />
   <title>crt-tv control</title>
   <link rel="stylesheet" href="control.css" />
 </head>
 <body>
-  <div class="wrap">
+  <main>
     <header>
       <h1>CRT&nbsp;TV<span class="sub">control</span></h1>
-      <div class="head-right">
-        <a class="navlink" href="/preview" target="_blank" rel="noopener">Preview ↗</a>
-        <span id="status" class="status off">connecting…</span>
-      </div>
+      <span id="status" class="status off">connecting…</span>
     </header>
 
     <!-- live output: exactly what the CRT is showing right now -->
-    <section class="card">
-      <h2>Live output <span class="live-dot">● LIVE</span></h2>
-      <div class="screen-frame">
-        <iframe id="screen" src="/display" title="live CRT output" scrolling="no"></iframe>
-      </div>
-    </section>
+    <div class="screen-frame">
+      <iframe id="screen" src="/display" title="live CRT output" scrolling="no"></iframe>
+    </div>
 
-    <!-- what's on the CRT -->
-    <section class="card">
-      <h2>Display</h2>
-      <div class="modes">
-        <button class="mode" data-mode="teletext">
-          <span class="ico">▦</span><span class="lbl">Teletext</span>
-        </button>
-        <button class="mode" data-mode="weather">
-          <span class="ico">☀</span><span class="lbl">Weather</span>
-        </button>
-        <button class="mode" data-mode="video">
-          <span class="ico">►</span><span class="lbl">Video</span>
-        </button>
-      </div>
-      <p class="now">Now showing: <strong id="now-mode">—</strong></p>
-    </section>
+    <div class="heading">Channel</div>
+    <div class="modes">
+      <button class="mode" data-mode="weather">Weather</button>
+      <button class="mode" data-mode="teletext">Teletext</button>
+      <button class="mode" data-mode="video">Video</button>
+    </div>
+    <p class="now">Now showing: <strong id="now-mode">—</strong></p>
 
-    <!-- weather location -->
-    <section class="card">
-      <h2>Weather location</h2>
-      <form id="wx-form" class="wx-form">
-        <input id="wx-location" type="text" autocomplete="off"
-               placeholder="City or US ZIP — e.g. Austin or 78701" />
-        <select id="wx-units" aria-label="units">
-          <option value="imperial">°F</option>
-          <option value="metric">°C</option>
+    <div class="heading">Selected displays</div>
+    <div id="wx-screens" class="checklist"></div>
+
+    <div class="heading">Settings</div>
+    <div class="settings">
+      <div class="srow">
+        <label for="wx-location">Location</label>
+        <input id="wx-location" type="text" autocomplete="off" placeholder="City or US ZIP" />
+        <button id="wx-loc-set">Set</button>
+      </div>
+      <div class="srow">
+        <label for="wx-units">Units</label>
+        <select id="wx-units">
+          <option value="imperial">US</option>
+          <option value="metric">Metric</option>
         </select>
-        <button type="submit">Save</button>
-      </form>
-      <p class="wx-status" id="wx-status">Saved and remembered across reboots.</p>
-    </section>
-
-    <!-- weather channel options -->
-    <section class="card">
-      <h2>Weather screens &amp; music</h2>
-      <p class="opt-hint">Pick which screens the weather channel cycles through.</p>
-      <div id="wx-screens" class="wx-screens"></div>
-      <div class="wx-music-row">
-        <label class="wx-toggle">
-          <input type="checkbox" id="wx-music" /> Background music
-        </label>
-        <span class="wx-vol-wrap">
-          <span class="wx-vol-ico">🔊</span>
-          <input type="range" id="wx-vol" min="0" max="100" step="5" />
-        </span>
       </div>
-    </section>
+      <div class="srow">
+        <label for="wx-speed">Speed</label>
+        <select id="wx-speed">
+          <option value="slow">Slow</option>
+          <option value="normal">Normal</option>
+          <option value="fast">Fast</option>
+        </select>
+      </div>
+      <div class="srow">
+        <label class="chk"><input type="checkbox" id="wx-music" /> Music</label>
+        <input type="range" id="wx-vol" min="0" max="100" step="5" />
+      </div>
+      <p class="wx-status" id="wx-status"></p>
+    </div>
 
-    <!-- video library + upload -->
-    <section class="card">
-      <h2>Video library</h2>
+    <div class="heading">Video library</div>
+    <label id="drop" class="drop" for="file-input">
+      <input id="file-input" type="file" accept="video/*,.mkv,.webm,.mov,.m4v,.avi,.ogv" multiple hidden />
+      <span class="drop-main">Drop video files here or <u>browse</u></span>
+      <span class="drop-sub">mp4 · mkv · webm · mov · m4v · avi · ogv</span>
+    </label>
+    <ul id="uploads" class="uploads"></ul>
+    <ul id="playlist" class="playlist"></ul>
 
-      <label id="drop" class="drop" for="file-input">
-        <input id="file-input" type="file" accept="video/*,.mkv,.webm,.mov,.m4v,.avi,.ogv" multiple hidden />
-        <span class="drop-main">Drop video files here or <u>browse</u></span>
-        <span class="drop-sub">mp4 · mkv · webm · mov · m4v · avi · ogv</span>
-      </label>
-
-      <ul id="uploads" class="uploads"></ul>
-
-      <ul id="playlist" class="playlist"></ul>
-    </section>
-  </div>
+    <div class="heading">Headend Information</div>
+    <div id="headend" class="headend"></div>
+  </main>
 
   <script type="module" src="control.js"></script>
 </body>

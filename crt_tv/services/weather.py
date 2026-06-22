@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 
+from .. import __version__
 from .store import effective_weather
 
 _API = "https://api.open-meteo.com/v1/forecast"
@@ -340,6 +341,13 @@ async def fetch_weather() -> dict[str, Any]:
     today = datetime.date.fromisoformat(times[0]) if times else datetime.date.today()
     data = {
         "location": loc["name"],
+        "headend": {
+            "latitude": round(float(loc["lat"]), 4),
+            "longitude": round(float(loc["lon"]), 4),
+            "timezone": raw.get("timezone", loc["tz"]),
+            "source": "Open-Meteo",
+            "version": __version__,
+        },
         "units": {
             "temp": "C" if metric else "F",
             "wind": "km/h" if metric else "mph",

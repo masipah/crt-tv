@@ -96,6 +96,23 @@ function screenHourly(w) {
   return `<div class="ws-hourly ws-box">${rows}</div>`;
 }
 
+function screenHourlyGraph(w) {
+  const hrs = w.hourly.slice(0, 12);
+  const temps = hrs.map((h) => h.temp);
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const span = Math.max(1, max - min);
+  const bars = hrs
+    .map((h) => {
+      const pct = 12 + ((h.temp - min) / span) * 76; // 12%..88% tall
+      return `<div class="ws-bar"><span class="bt">${h.temp}&deg;</span>
+        <span class="bcol" style="height:${pct}%"></span>
+        <span class="bh">${h.time.replace(/(AM|PM)/, "")}</span></div>`;
+    })
+    .join("");
+  return `<div class="ws-graph ws-box">${bars}</div>`;
+}
+
 function screenLocalForecast(w) {
   const periods = w.local_forecast
     .slice(0, 3)
@@ -160,7 +177,7 @@ function screenAlmanac(w) {
 
 // The cycle of screens, built from the data plus the user's enabled-screen
 // selection (from /api/weather/options). City screens also need regional_cities.
-const ALL_KEYS = ["current", "regional", "hourly", "local", "extended", "travel", "almanac"];
+const ALL_KEYS = ["current", "regional", "hourly", "hourly_graph", "local", "extended", "travel", "almanac"];
 
 function buildScreens(w, opts) {
   const on = new Set((opts && opts.enabled_keys) || ALL_KEYS);
@@ -170,6 +187,8 @@ function buildScreens(w, opts) {
     screens.push({ title: "Latest<br>Observations", build: screenRegional });
   if (on.has("hourly") && w.hourly && w.hourly.length)
     screens.push({ title: "Hourly<br>Forecast", build: screenHourly });
+  if (on.has("hourly_graph") && w.hourly && w.hourly.length)
+    screens.push({ title: "Hourly<br>Graph", build: screenHourlyGraph });
   if (on.has("local") && w.local_forecast && w.local_forecast.length)
     screens.push({ title: "Local<br>Forecast", build: screenLocalForecast });
   if (on.has("extended")) {
@@ -189,6 +208,7 @@ function buildScreens(w, opts) {
 let data = null;
 let screens = [];
 let screenIndex = 0;
+let cycleMs = 12000;
 let clockTimer = null;
 let cycleTimer = null;
 let refreshTimer = null;
@@ -243,6 +263,16 @@ async function load() {
     const opts = oResp.ok ? await oResp.json() : null;
     screens = buildScreens(data, opts);
     if (screenIndex >= screens.length) screenIndex = 0;
+    // apply the configured cycle speed
+    const ms = (opts && opts.speed_ms) || 12000;
+    if (ms !== cycleMs || !cycleTimer) {
+      cycleMs = ms;
+      if (cycleTimer) clearInterval(cycleTimer);
+      cycleTimer = setInterval(() => {
+        screenIndex += 1;
+        paintScreen();
+      }, cycleMs);
+    }
     ldlEl.textContent = ticker(data);
     paintScreen();
     updateClock();
@@ -260,14 +290,10 @@ export function renderWeather(root) {
   stopWeather();
   scaffold(root);
   screenIndex = 0;
-  load();
+  load(); // load() starts the cycle timer using the configured speed
   updateClock();
 
   clockTimer = setInterval(updateClock, 1000);
-  cycleTimer = setInterval(() => {
-    screenIndex += 1;
-    paintScreen();
-  }, CYCLE_MS);
   refreshTimer = setInterval(load, 5 * 60 * 1000);
 }
 

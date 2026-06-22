@@ -339,7 +339,7 @@ installer: `CRT_TV_DIR`, `CRT_TV_REPO`, `CRT_TV_REF`, `CRT_TV_TARBALL`.
 | `GET /api/weather/settings` | —                                 | `{ location, country, units }`                  |
 | `POST /api/weather/location`| `{ location, country?, units? }`  | Validate + persist (502 if unresolvable; old value kept) |
 | `GET /api/weather/options`  | —                                 | `{ screens: [{key,label,enabled}], enabled_keys, music, music_volume }` |
-| `POST /api/weather/options` | `{ screens?, music?, music_volume? }` | Persist which screens show + music settings (live) |
+| `POST /api/weather/options` | `{ screens?, speed?, music?, music_volume? }` | Persist which screens show + cycle speed + music (live) |
 | `GET /api/music`            | —                                 | `{ enabled, volume, tracks: [url] }`            |
 | `GET /api/playlist`         | —                                 | `{ videos: [ { name, file, url } ] }`           |
 | `POST /api/playlist/order`  | `{ "order": ["b.mp4","a.mp4"] }`  | Persist a new order                             |
@@ -360,16 +360,20 @@ MIT). The rotation:
 | Current Conditions  | current obs                   | always                       |
 | Latest Observations | `regional_cities` current     | `regional_cities` configured |
 | Hourly Forecast     | next 12 hours                 | always                       |
+| Hourly Graph        | next 12 hours (bar chart)     | always                       |
 | Local Forecast      | daily narrative               | always                       |
 | Extended Forecast   | days 1–3 and 4–6 (two pages)  | always                       |
 | Travel Forecast     | `regional_cities` hi/lo       | `regional_cities` configured |
 | Almanac             | sunrise/sunset/moon           | always                       |
 
-**Each screen is toggleable from the dashboard** ("Weather screens & music"
-card); the selection persists in `data/state.json` and applies to the CRT live
-(via `GET`/`POST /api/weather/options`). City screens additionally need
-`[weather] regional_cities`. The same card toggles the background music and
-volume.
+The **dashboard is styled after the ws4kp control page** — black background, the
+Star4000 font, a "Selected displays" checklist (the full WeatherStar 4000 list;
+displays crt-tv doesn't render — Hazards, Regional Forecast, SPC Outlook, Local
+Radar — appear greyed/disabled, as ws4kp greys no-data displays), a "Settings"
+section (location, units, cycle **speed**, music + volume), and a "Headend
+Information" block (location, coordinates, data source, version). Toggles persist
+in `data/state.json` and apply to the CRT live via `GET`/`POST
+/api/weather/options`. City screens additionally need `[weather] regional_cities`.
 
 Differences from ws4kp: **data is Open-Meteo, not the US-only NWS** (so it works
 anywhere; US ZIPs via Zippopotam, cities via Open-Meteo geocoding), and the

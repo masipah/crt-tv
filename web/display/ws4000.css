@@ -170,6 +170,33 @@
 .ws-hr .tp { color: var(--ws-white); text-align: right; }
 .ws-hr .pp { color: var(--ws-lo); text-align: right; font-size: 0.8em; }
 
+/* --- hourly graph: bar chart of the next hours --- */
+.ws-graph {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 0.2em;
+  padding: 0.5em 0.5em 0.2em;
+}
+.ws-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.15em;
+  font-size: 0.7em;
+}
+.ws-bar .bt { color: var(--ws-white); }
+.ws-bar .bcol {
+  width: 60%;
+  background: var(--ws-yellow);
+  box-shadow: 2px 2px 0 #000;
+}
+.ws-bar .bh { color: var(--ws-yellow); }
+
 /* --- local forecast: narrative periods --- */
 .ws-localfc {
   height: 100%;

@@ -72,33 +72,47 @@ def update_state(**values: Any) -> dict[str, Any]:
     return state
 
 
-# The weather-channel screens, in cycle order, with their UI labels. Keys are
-# stable identifiers used by the display's buildScreens() and the options API.
+# The full WeatherStar 4000 display list (ws4kp order + labels). The third field
+# is whether crt-tv actually renders it; unimplemented ones appear in the admin
+# checklist but disabled (greyed), exactly as ws4kp greys no-data displays.
 WEATHER_SCREENS = [
-    ("current", "Current Conditions"),
-    ("regional", "Latest Observations"),
-    ("hourly", "Hourly Forecast"),
-    ("local", "Local Forecast"),
-    ("extended", "Extended Forecast"),
-    ("travel", "Travel Forecast"),
-    ("almanac", "Almanac"),
+    ("hazards", "Hazards", False),
+    ("current", "Current Conditions", True),
+    ("regional", "Latest Observations", True),
+    ("hourly", "Hourly Forecast", True),
+    ("hourly_graph", "Hourly Graph", True),
+    ("travel", "Travel Forecast", True),
+    ("regional_forecast", "Regional Forecast", False),
+    ("local", "Local Forecast", True),
+    ("extended", "Extended Forecast", True),
+    ("almanac", "Almanac", True),
+    ("spc", "SPC Outlook", False),
+    ("radar", "Local Radar", False),
 ]
-_SCREEN_KEYS = [k for k, _ in WEATHER_SCREENS]
+_IMPLEMENTED = [k for k, _, impl in WEATHER_SCREENS if impl]
+
+# Display cycle speed -> milliseconds per screen (ws4kp Slow/Normal/Fast).
+SPEEDS = {"slow": 16000, "normal": 12000, "fast": 8000}
 
 
 def weather_options() -> dict[str, Any]:
-    """User-selectable weather-channel options (which screens show, music)."""
+    """User-selectable weather-channel options (which screens, speed, music)."""
     s = load_state()
     w = settings.weather
     enabled = s.get("weather_screens")
     if not isinstance(enabled, list) or not enabled:
-        enabled = list(_SCREEN_KEYS)
+        enabled = list(_IMPLEMENTED)
+    speed = s.get("weather_speed", "normal")
+    if speed not in SPEEDS:
+        speed = "normal"
     return {
         "screens": [
-            {"key": k, "label": label, "enabled": k in enabled}
-            for k, label in WEATHER_SCREENS
+            {"key": k, "label": label, "available": impl, "enabled": impl and k in enabled}
+            for k, label, impl in WEATHER_SCREENS
         ],
-        "enabled_keys": [k for k in _SCREEN_KEYS if k in enabled],
+        "enabled_keys": [k for k in _IMPLEMENTED if k in enabled],
+        "speed": speed,
+        "speed_ms": SPEEDS[speed],
         "music": bool(s.get("music_enabled", w.music)),
         "music_volume": float(s.get("music_volume", w.music_volume)),
     }
