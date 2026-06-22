@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -125,6 +126,18 @@ async def delete_video(filename: str) -> dict:
 @app.get("/api/health")
 async def health() -> dict:
     return {"ok": True, "mode": state.state.mode}
+
+
+# Convenience redirects so the bare paths work (the StaticFiles mounts only
+# serve the trailing-slash form, e.g. /preview/).
+@app.get("/preview")
+async def preview_redirect() -> RedirectResponse:
+    return RedirectResponse("/preview/")
+
+
+@app.get("/display")
+async def display_redirect() -> RedirectResponse:
+    return RedirectResponse("/display/")
 
 
 # ----------------------------------------------------------------- state WS
