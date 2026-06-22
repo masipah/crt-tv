@@ -160,6 +160,31 @@ Take the composite (yellow RCA) line into a **RCA→BNC** adapter and feed the
 PVM-9045Q's composite **VIDEO IN** (BNC). Set the monitor's input to LINE. If the
 other input has a 75Ω termination switch, leave the unused one terminated.
 
+## Boot & power behaviour
+
+Designed to be left plugged in and survive being switched off at the wall:
+
+- **Starts on every boot.** Both services are systemd-enabled, so power-on (or
+  any unexpected reboot) brings the app back with no intervention.
+- **Boots into Weather, on your saved location.** `default_mode = "weather"` and
+  the location lives in `data/state.json`, so the CRT comes up showing
+  WeatherStar 4000 for your city without anyone touching the dashboard.
+- **What the CRT shows on power-up:** the Linux boot console (kernel/systemd
+  text on tty1 = the composite output), then the `crt-tv-kiosk` service takes
+  over tty1 and Chromium fills it with the display → boot code, then WeatherStar.
+  `disable_splash=1` skips the rainbow so it reads as "code → weather"; keep
+  `/boot/firmware/cmdline.txt` free of `quiet` so the boot text stays visible.
+- **Survives abrupt power loss.** Saved state (`state.json`, playlist
+  `.order.json`) is written atomically (temp file → fsync → rename), so a yank
+  mid-write can't corrupt it. Services use `Restart=on-failure`. If the network
+  isn't up yet at boot, the weather screen shows “WAITING FOR WEATHER…” and
+  retries every 15s until it resolves.
+
+> For maximum resilience against SD-card wear/corruption you can also enable the
+> read-only overlay filesystem (`raspi-config` → Performance → Overlay FS), but
+> then `media/` uploads and location changes won't persist — leave it off if you
+> want those saved.
+
 ## Usage
 
 Open the dashboard at `http://<pi-ip>:8000/` from any browser on your network.

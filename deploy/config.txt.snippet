@@ -29,3 +29,11 @@ hdmi_ignore_hotplug=1
 # Leave overscan compensation OFF — crt-tv keeps content in a title-safe box
 # itself, and disabling firmware overscan gives a cleaner full-bleed signal.
 disable_overscan=1
+
+# Skip the rainbow splash so the CRT goes straight to the Linux boot console
+# (the kernel/systemd text) and then to WeatherStar when the kiosk starts.
+disable_splash=1
+
+# NOTE on the boot text: the framebuffer console lives on tty1, which is the
+# composite output. Leave /boot/firmware/cmdline.txt WITHOUT a "quiet" flag so
+# the boot messages are visible. The crt-tv-kiosk service then takes over tty1.

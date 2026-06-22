@@ -6,8 +6,11 @@
 
 [Unit]
 Description=crt-tv Chromium kiosk (composite display)
-After=crt-tv.service systemd-user-sessions.service
+After=crt-tv.service systemd-user-sessions.service getty@tty1.service
 Wants=crt-tv.service
+# Take over tty1 from the login prompt once the kernel boot text has scrolled,
+# so the CRT shows: boot console -> WeatherStar.
+Conflicts=getty@tty1.service
 
 [Service]
 User=__CRT_TV_USER__

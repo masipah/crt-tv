@@ -7,11 +7,33 @@ user changes from the web UI — currently the weather location. It lives in
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from ..config import ROOT, settings
 
 STATE_PATH = ROOT / "data" / "state.json"
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write a file so it can't be left half-written by a power loss: write a
+    temp file in the same dir, fsync it, then atomically rename over the target."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-", suffix=path.suffix)
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)  # atomic on the same filesystem
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def load_state() -> dict[str, Any]:
@@ -26,8 +48,7 @@ def load_state() -> dict[str, Any]:
 
 
 def save_state(state: dict[str, Any]) -> None:
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2))
+    atomic_write_text(STATE_PATH, json.dumps(state, indent=2))
 
 
 def update_state(**values: Any) -> dict[str, Any]:

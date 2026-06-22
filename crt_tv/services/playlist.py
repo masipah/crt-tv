@@ -11,6 +11,7 @@ import random
 from pathlib import Path
 
 from ..config import settings
+from .store import atomic_write_text
 
 VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".ogv"}
 ORDER_FILENAME = ".order.json"
@@ -43,8 +44,7 @@ def load_order() -> list[str]:
 
 
 def save_order(order: list[str]) -> None:
-    settings.media_path.mkdir(parents=True, exist_ok=True)
-    _order_path().write_text(json.dumps(order, indent=2))
+    atomic_write_text(_order_path(), json.dumps(order, indent=2))
 
 
 def _ordered_names(files: dict[str, Path]) -> list[str]:

@@ -107,6 +107,7 @@ let screenIndex = 0;
 let clockTimer = null;
 let cycleTimer = null;
 let refreshTimer = null;
+let retryTimer = null;
 let titleEl = null;
 let metaEl = null;
 let bodyEl = null;
@@ -143,6 +144,10 @@ function scaffold(root) {
 }
 
 async function load() {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
   try {
     const resp = await fetch("/api/weather");
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -152,7 +157,11 @@ async function load() {
     updateClock();
   } catch (err) {
     console.error("weather load failed", err);
-    if (bodyEl) bodyEl.innerHTML = `<div class="ws-screen"><div class="ws-box" style="height:100%;display:flex;align-items:center;justify-content:center">WEATHER UNAVAILABLE</div></div>`;
+    // On a cold boot the network may not be up yet — show a waiting message and
+    // retry soon instead of waiting for the 5-minute refresh.
+    if (bodyEl)
+      bodyEl.innerHTML = `<div class="ws-screen"><div class="ws-box" style="height:100%;display:flex;align-items:center;justify-content:center">WAITING FOR WEATHER&hellip;</div></div>`;
+    retryTimer = setTimeout(load, 15000);
   }
 }
 
@@ -173,5 +182,6 @@ export function renderWeather(root) {
 
 export function stopWeather() {
   for (const t of [clockTimer, cycleTimer, refreshTimer]) if (t) clearInterval(t);
-  clockTimer = cycleTimer = refreshTimer = null;
+  if (retryTimer) clearTimeout(retryTimer);
+  clockTimer = cycleTimer = refreshTimer = retryTimer = null;
 }
