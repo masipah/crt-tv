@@ -4,4 +4,4 @@ Modes: teletext, weather, and a continuous 480i video playlist, switchable
 from a web control app. See README.md.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

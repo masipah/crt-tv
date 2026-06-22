@@ -69,6 +69,12 @@ curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap
 It downloads everything and sets it up automatically. When it finishes it prints
 a web address.
 
+To pin a **known-good release** instead of the latest `main`:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/v1.0.0/deploy/bootstrap.sh | CRT_TV_REF=v1.0.0 bash
+```
+
 **4. Open the control page.**
 On your phone or laptop (same Wi-Fi), open `http://<pi-address>:8000/`. You'll
 see a live picture of what's on the TV plus buttons to control it. Type your
@@ -213,7 +219,7 @@ A/V cable + RCA→BNC adapter; a composite **NTSC** CRT (target: Sony PVM-9045Q)
 | X server        | `xserver-xorg` + `xinit` (runs Chromium on tty1)         |
 
 **Local development (no Pi):** Python **3.9+** is enough; the web apps are
-dependency-free vanilla JS (no Node build step). This repo is **crt-tv v0.1.0**.
+dependency-free vanilla JS (no Node build step). This repo is **crt-tv v1.0.0**.
 
 ## How it works (architecture)
 
