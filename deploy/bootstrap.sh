@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
-# crt-tv one-line installer — host this at masipah.com and run on the Pi with:
+# crt-tv one-line installer.
+#
+# The code is hosted on GitHub; masipah.com (Vercel) just proxies this script.
+# On a fresh Raspberry Pi OS, SSH in and run:
 #
 #   curl -sSL https://masipah.com/crt-tv/install.sh | bash
 #
-# Optional environment overrides:
-#   CRT_TV_DIR       install location           (default: $HOME/crt-tv)
-#   CRT_TV_TARBALL   .tar.gz of the project      (default: masipah.com tarball)
-#   CRT_TV_REPO      git URL (used instead of the tarball if set)
-#   CRT_TV_REF       git branch/tag              (default: main)
-#   Static IP (optional — only applied if CRT_TV_STATIC_IP is set):
-#   CRT_TV_STATIC_IP e.g. 192.168.1.50/24
-#   CRT_TV_GATEWAY   e.g. 192.168.1.1
-#   CRT_TV_DNS       e.g. "192.168.1.1 1.1.1.1"
-#   CRT_TV_IFACE     e.g. eth0   (default: the active interface)
+# (equivalently: curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap.sh | bash)
 #
-# Example with a static IP:
-#   curl -sSL https://masipah.com/crt-tv/install.sh | \
-#     CRT_TV_STATIC_IP=192.168.1.50/24 CRT_TV_GATEWAY=192.168.1.1 bash
+# Optional environment overrides:
+#   CRT_TV_DIR      install location     (default: $HOME/crt-tv)
+#   CRT_TV_REPO     git URL              (default: https://github.com/masipah/crt-tv.git)
+#   CRT_TV_REF      git branch/tag       (default: main)
+#   CRT_TV_TARBALL  if set, fetch this .tar.gz instead of git-cloning
 set -euo pipefail
 
 DIR="${CRT_TV_DIR:-$HOME/crt-tv}"
-TARBALL="${CRT_TV_TARBALL:-https://masipah.com/crt-tv/latest.tar.gz}"
-REPO="${CRT_TV_REPO:-}"
+REPO="${CRT_TV_REPO:-https://github.com/masipah/crt-tv.git}"
 REF="${CRT_TV_REF:-main}"
+TARBALL="${CRT_TV_TARBALL:-}"
 
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 
@@ -35,22 +31,18 @@ say "Installing prerequisites (git, curl)"
 sudo apt-get update -y
 sudo apt-get install -y git curl ca-certificates tar
 
-# --- fetch the project -------------------------------------------------------
-if [ -n "$REPO" ]; then
-  if [ -d "$DIR/.git" ]; then
-    say "Updating existing checkout in $DIR"
-    git -C "$DIR" fetch --depth 1 origin "$REF"
-    git -C "$DIR" reset --hard "origin/$REF"
-  else
-    say "Cloning $REPO -> $DIR"
-    git clone --depth 1 --branch "$REF" "$REPO" "$DIR"
-  fi
-else
+# --- fetch the project from GitHub ------------------------------------------
+if [ -n "$TARBALL" ]; then
   say "Downloading $TARBALL -> $DIR"
   mkdir -p "$DIR"
-  # Tarball is expected to have a single top-level folder (e.g. from
-  # `git archive` or GitHub's auto-tarballs); strip it as we extract.
   curl -fsSL "$TARBALL" | tar xz --strip-components=1 -C "$DIR"
+elif [ -d "$DIR/.git" ]; then
+  say "Updating existing checkout in $DIR"
+  git -C "$DIR" fetch --depth 1 origin "$REF"
+  git -C "$DIR" reset --hard "origin/$REF"
+else
+  say "Cloning $REPO -> $DIR"
+  git clone --depth 1 --branch "$REF" "$REPO" "$DIR"
 fi
 
 # --- run the per-host installer ---------------------------------------------
@@ -58,15 +50,7 @@ say "Running installer"
 cd "$DIR"
 bash deploy/install.sh
 
-# --- optional static IP (do this last; it can drop your SSH session) --------
-if [ -n "${CRT_TV_STATIC_IP:-}" ]; then
-  say "Configuring static IP ${CRT_TV_STATIC_IP}"
-  echo "    (this may interrupt your current SSH connection)"
-  bash deploy/set-static-ip.sh || echo "    static IP step failed — set it manually if needed"
-fi
-
-IP="${CRT_TV_STATIC_IP%%/*}"
-[ -n "$IP" ] || IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 say "Done."
 cat <<EOF
 

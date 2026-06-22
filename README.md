@@ -47,9 +47,9 @@ web/
   control/           control dashboard (mode picker, upload, drag-reorder)
   preview/           CRT-bezel preview of /display (test before the real TV)
 deploy/
-  bootstrap.sh       one-line installer (host at masipah.com)
+  bootstrap.sh       one-line installer (clones from GitHub, runs install.sh)
   install.sh         per-host setup (venv, services, assets)
-  set-static-ip.sh   assign a static IP via NetworkManager
+  vercel/            masipah.com rewrite that proxies /crt-tv/install.sh
   config.txt.snippet composite NTSC settings · *.service systemd units · kiosk.sh
 media/               drop video files here (gitignored)
 scripts/dev.sh       run locally with autoreload
@@ -89,51 +89,41 @@ The service runs fine with no config file (defaults to London / metric).
 
 ## Deploy to the Raspberry Pi 4
 
-### One-line install (from masipah.com)
+### One-line install
 
-On a fresh Raspberry Pi OS, SSH in and run:
+The code is hosted on GitHub (`github.com/masipah/crt-tv`); masipah.com just
+proxies the installer. On a fresh Raspberry Pi OS, SSH in and run:
 
 ```bash
 curl -sSL https://masipah.com/crt-tv/install.sh | bash
 ```
 
-To also pin a **static IP** in the same step:
+This `git clone`s the repo to `~/crt-tv`, runs `deploy/install.sh` (Chromium + X,
+the venv, `config.toml`, the WeatherStar assets, and the `crt-tv` +
+`crt-tv-kiosk` services), and prints your dashboard URL. Re-running it updates an
+existing checkout. Static IP isn't handled here — set it on your router/network.
 
-```bash
-curl -sSL https://masipah.com/crt-tv/install.sh | \
-  CRT_TV_STATIC_IP=192.168.1.50/24 CRT_TV_GATEWAY=192.168.1.1 bash
-```
-
-This downloads the project, runs `deploy/install.sh` (Chromium + X, the venv,
-`config.toml`, the WeatherStar assets, and the `crt-tv` + `crt-tv-kiosk`
-services), optionally sets the static IP, and prints your dashboard URL.
-
-> **Hosting the installer.** Put `deploy/bootstrap.sh` at
-> `https://masipah.com/crt-tv/install.sh`, and publish a tarball of this repo at
-> `https://masipah.com/crt-tv/latest.tar.gz` (a single top-level folder, e.g.
-> `git archive --format=tar.gz --prefix=crt-tv/ -o latest.tar.gz HEAD`). Or skip
-> the tarball and point the installer at a git repo:
-> `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`.
+> **Hosting.** Push this repo to `github.com/masipah/crt-tv`, then add the Vercel
+> rewrite in [`deploy/vercel/`](deploy/vercel/) to your masipah.com project so
+> `/crt-tv/install.sh` proxies to `deploy/bootstrap.sh` on GitHub raw. Nothing to
+> copy or rebuild — it always serves the latest script. Different repo owner?
+> Update `CRT_TV_REPO` in `deploy/bootstrap.sh` and the rewrite destination, or
+> pass `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`.
 
 ### Manual install
 
 1. Clone the repo to `/home/pi/crt-tv` and run the installer:
 
    ```bash
-   cd ~/crt-tv
-   bash deploy/install.sh
+   git clone https://github.com/masipah/crt-tv.git ~/crt-tv
+   cd ~/crt-tv && bash deploy/install.sh
    ```
 
    This installs Chromium + X, builds the venv, writes `config.toml`, fetches the
    WeatherStar assets, and enables two services: `crt-tv` (the FastAPI service)
    and `crt-tv-kiosk` (Chromium showing `/display`).
 
-2. **Static IP** (optional): `CRT_TV_STATIC_IP=192.168.1.50/24 bash deploy/set-static-ip.sh`
-   (uses NetworkManager; gateway/DNS default sensibly, override with
-   `CRT_TV_GATEWAY` / `CRT_TV_DNS`). This can drop your SSH session — reconnect
-   on the new IP.
-
-3. **Enable composite NTSC output** (one-off). Append
+2. **Enable composite NTSC output** (one-off). Append
    [`deploy/config.txt.snippet`](deploy/config.txt.snippet) to
    `/boot/firmware/config.txt` and reboot.
 
