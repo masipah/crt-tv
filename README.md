@@ -308,8 +308,9 @@ reboots, overrides `config.toml`).
 | Key                        | Default     | Meaning                                                |
 |----------------------------|-------------|--------------------------------------------------------|
 | `default_mode`             | `"weather"` | Mode on boot: `weather` \| `teletext` \| `video`       |
-| `weather_engine`           | `"builtin"` | `"ws4kp"` runs the real WeatherStar 4000+ (Docker, US/NWS); `"builtin"` = bundled Open-Meteo |
-| `ws4kp_port`               | `8080`      | Port the ws4kp container serves on                     |
+| `weather_engine`           | `"builtin"` | `"ws4kp"` / `"ws3kp"` run the real WeatherStar 4000+/3000+ (Docker, US/NWS); `"builtin"` = bundled Open-Meteo. Switchable in the dashboard. |
+| `ws4kp_port`               | `8080`      | Port the ws4kp (4000+) container serves on             |
+| `ws3kp_port`               | `8083`      | Port the ws3kp (3000+) container serves on             |
 | `[server] host`            | `"0.0.0.0"` | Bind address (`0.0.0.0` = reachable on the LAN)        |
 | `[server] port`            | `8000`      | HTTP port                                              |
 | `[weather] location`       | `"London"`  | City name or US ZIP — geocoded automatically           |
@@ -363,16 +364,21 @@ reconnects every 2 s.
 
 ## The weather screens (WeatherStar 4000)
 
-**Two weather engines** (`weather_engine` in `config.toml`):
+**Three weather engines** (`weather_engine`, switchable from the dashboard's
+**Star 4000 / Star 3000 / Built-in** selector):
 
-- **`ws4kp`** — runs the *real* [WeatherStar 4000+](https://github.com/netbymatt/ws4kp)
-  as a Docker container (`deploy/ws4kp.sh`, port 8080) and shows it fullscreen in
-  kiosk mode; crt-tv passes the location via `?latLonQuery=`. The most authentic
-  option (it *is* ws4kp, with its own control page at `http://<pi>:8080/`), but it
-  uses **US/NWS data** so it's blank outside the US. `deploy/install.sh` sets this
-  on the Pi.
+- **`ws4kp`** — the *real* [WeatherStar 4000+](https://github.com/netbymatt/ws4kp)
+  as a Docker container (`deploy/ws4kp.sh`, port 8080), fullscreen in kiosk mode;
+  its own control page is at `http://<pi>:8080/`.
+- **`ws3kp`** — the *real* [WeatherSTAR 3000+](https://github.com/netbymatt/ws3kp)
+  (`deploy/ws3kp.sh`, port 8083) — the older, even more retro look with the
+  scrolling forecast; control page at `http://<pi>:8083/`.
 - **`builtin`** — the bundled Open-Meteo recreation below; works worldwide, no
   Docker. Used for local dev / the Mac preview.
+
+The two real apps use **US/NWS data** (blank outside the US). `deploy/install.sh`
+sets both up on the Pi and defaults to ws4kp; crt-tv passes the location via
+`?latLonQuery=`.
 
 The built-in rotation, modelled on ws4kp:
 
