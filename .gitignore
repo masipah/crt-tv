@@ -21,6 +21,8 @@ web/display/assets/fonts/
 web/display/assets/icons/
 # Background music (fetched by fetch-audio.sh; copyrighted, opt-in)
 web/display/assets/audio/
+# WeatherStar background art (fetched by fetch-backgrounds.sh)
+web/display/assets/backgrounds/
 
 # OS
 .DS_Store

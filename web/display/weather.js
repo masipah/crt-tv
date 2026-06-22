@@ -181,27 +181,26 @@ const ALL_KEYS = ["current", "regional", "hourly", "hourly_graph", "local", "ext
 
 function buildScreens(w, opts) {
   const on = new Set((opts && opts.enabled_keys) || ALL_KEYS);
-  const screens = [];
-  if (on.has("current")) screens.push({ title: "Current<br>Conditions", build: screenCurrent });
+  const s = [];
+  if (on.has("current")) s.push({ title: "Current<br>Conditions", bg: "BackGround1.png", zone: "bg1", build: screenCurrent });
   if (on.has("regional") && w.regional && w.regional.length)
-    screens.push({ title: "Latest<br>Observations", build: screenRegional });
+    s.push({ title: "Latest<br>Observations", bg: "BackGround6.png", zone: "bg6", build: screenRegional });
   if (on.has("hourly") && w.hourly && w.hourly.length)
-    screens.push({ title: "Hourly<br>Forecast", build: screenHourly });
+    s.push({ title: "Hourly<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenHourly });
   if (on.has("hourly_graph") && w.hourly && w.hourly.length)
-    screens.push({ title: "Hourly<br>Graph", build: screenHourlyGraph });
+    s.push({ title: "Hourly<br>Graph", bg: "BackGround6.png", zone: "bg6", build: screenHourlyGraph });
   if (on.has("local") && w.local_forecast && w.local_forecast.length)
-    screens.push({ title: "Local<br>Forecast", build: screenLocalForecast });
+    s.push({ title: "Local<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenLocalForecast });
   if (on.has("extended")) {
-    screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 1) });
+    s.push({ title: "Extended<br>Forecast", bg: "BackGround2.png", zone: "bg2", build: (d) => screenExtended(d, 1) });
     if (w.forecast && w.forecast.length > 4)
-      screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 4) });
+      s.push({ title: "Extended<br>Forecast", bg: "BackGround2.png", zone: "bg2", build: (d) => screenExtended(d, 4) });
   }
   if (on.has("travel") && w.regional && w.regional.length)
-    screens.push({ title: "Travel<br>Forecast", build: screenTravel });
-  if (on.has("almanac")) screens.push({ title: "Almanac", build: screenAlmanac });
-  // never leave the channel blank
-  if (!screens.length) screens.push({ title: "Current<br>Conditions", build: screenCurrent });
-  return screens;
+    s.push({ title: "Travel<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenTravel });
+  if (on.has("almanac")) s.push({ title: "Almanac", bg: "BackGround1.png", zone: "bg1", build: screenAlmanac });
+  if (!s.length) s.push({ title: "Current<br>Conditions", bg: "BackGround1.png", zone: "bg1", build: screenCurrent });
+  return s;
 }
 
 // ---- controller ----
@@ -213,16 +212,20 @@ let clockTimer = null;
 let cycleTimer = null;
 let refreshTimer = null;
 let retryTimer = null;
+let stageEl = null;
 let titleEl = null;
 let metaEl = null;
-let bodyEl = null;
+let contentEl = null;
 let ldlEl = null;
+let fitHandler = null;
 
 function paintScreen() {
   if (!data || !screens.length) return;
   const s = screens[screenIndex % screens.length];
   titleEl.innerHTML = s.title;
-  bodyEl.innerHTML = `<div class="ws-screen">${s.build(data)}</div>`;
+  stageEl.style.backgroundImage = `url("assets/backgrounds/${s.bg}")`;
+  contentEl.className = `ws-content ${s.zone}`;
+  contentEl.innerHTML = s.build(data);
 }
 
 function updateClock() {
@@ -232,20 +235,34 @@ function updateClock() {
     `<div>${date}</div><div>${time}</div>`;
 }
 
+// scale the fixed 640x480 stage to fill the CRT area
+function fitStage() {
+  if (!stageEl) return;
+  const wrap = stageEl.parentElement;
+  const scale = Math.min(wrap.clientWidth / 640, wrap.clientHeight / 480);
+  stageEl.style.transform = `scale(${scale})`;
+}
+
 function scaffold(root) {
   root.innerHTML = `
-    <div class="ws">
-      <div class="ws-header">
-        <div class="ws-title" id="ws-title">Weather</div>
-        <div class="ws-meta" id="ws-meta"></div>
+    <div class="ws-fit">
+      <div class="ws" id="ws-stage">
+        <div class="ws-head">
+          <div class="ws-title" id="ws-title">Weather</div>
+          <div class="ws-meta" id="ws-meta"></div>
+        </div>
+        <div class="ws-content bg1" id="ws-content"></div>
+        <div class="ws-ldl"><div class="track" id="ws-ldl">Loading weather&hellip;</div></div>
       </div>
-      <div class="ws-body" id="ws-body"></div>
-      <div class="ws-ldl"><div class="track" id="ws-ldl">Loading weather&hellip;</div></div>
     </div>`;
+  stageEl = root.querySelector("#ws-stage");
   titleEl = root.querySelector("#ws-title");
   metaEl = root.querySelector("#ws-meta");
-  bodyEl = root.querySelector("#ws-body");
+  contentEl = root.querySelector("#ws-content");
   ldlEl = root.querySelector("#ws-ldl");
+  fitStage();
+  fitHandler = () => fitStage();
+  window.addEventListener("resize", fitHandler);
 }
 
 async function load() {
@@ -276,6 +293,7 @@ async function load() {
     ldlEl.textContent = ticker(data);
     paintScreen();
     updateClock();
+    fitStage();
   } catch (err) {
     console.error("weather load failed", err);
     // On a cold boot the network may not be up yet — show a waiting message and
@@ -300,5 +318,6 @@ export function renderWeather(root) {
 export function stopWeather() {
   for (const t of [clockTimer, cycleTimer, refreshTimer]) if (t) clearInterval(t);
   if (retryTimer) clearTimeout(retryTimer);
-  clockTimer = cycleTimer = refreshTimer = retryTimer = null;
+  if (fitHandler) window.removeEventListener("resize", fitHandler);
+  clockTimer = cycleTimer = refreshTimer = retryTimer = fitHandler = null;
 }

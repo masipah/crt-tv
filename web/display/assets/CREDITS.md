@@ -20,6 +20,13 @@ Weather Channel local-forecast system.
   `icons/` here and are intentionally git-ignored. Refer to TWCClassics for
   their terms of use.
 
+## Background art (fetched by `fetch-backgrounds.sh`, not committed)
+
+- The 640×480 WeatherStar 4000 background images (`BackGround*.png`) come from the
+  [vbguyny/ws4kp](https://github.com/vbguyny/ws4kp) `Images/` folder. They are
+  fetched into `backgrounds/` and git-ignored; the weather display falls back to
+  a CSS gradient if they're absent.
+
 ## Background music (fetched by `fetch-audio.sh`, not committed)
 
 - The weather-channel music is the smooth-jazz library used by the original

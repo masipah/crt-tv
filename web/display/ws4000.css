@@ -1,269 +1,158 @@
-/* WeatherStar 4000-style weather display.
- *
- * Visual style modelled on the WeatherStar 4000+ project
- * (github.com/netbymatt/ws4kp, MIT). The Star4000 font set and the
- * current-conditions icons are TWCClassics assets fetched separately into
- * web/display/assets/ (see assets/fetch-assets.sh). Everything degrades to a
- * monospace fallback + text labels if those assets are absent. */
+/* WeatherStar 4000 weather channel — rendered on a fixed 640x480 stage using the
+ * real vbguyny/ws4kp background art (assets/backgrounds/, fetched by
+ * fetch-backgrounds.sh) with the Star4000 fonts. The stage is scaled by JS to
+ * fit the CRT. If the backgrounds aren't fetched it falls back to a navy
+ * gradient. Backgrounds:
+ *   BackGround1 = single blue panel (Current Conditions, Almanac)
+ *   BackGround2 = three vertical panels (Extended Forecast)
+ *   BackGround6 = full blue field (Hourly, Local, Latest Obs, Travel)
+ */
 
-@font-face {
-  font-family: "Star4000";
-  src: url("assets/fonts/Star4000.woff") format("woff");
-  font-display: swap;
-}
-@font-face {
-  font-family: "Star4000 Large";
-  src: url("assets/fonts/Star4000 Large.woff") format("woff");
-  font-display: swap;
-}
-@font-face {
-  font-family: "Star4000 Extended";
-  src: url("assets/fonts/Star4000 Extended.woff") format("woff");
-  font-display: swap;
-}
-@font-face {
-  font-family: "Star4000 Small";
-  src: url("assets/fonts/Star4000 Small.woff") format("woff");
-  font-display: swap;
-}
+@font-face { font-family: "Star4000"; src: url("assets/fonts/Star4000.woff") format("woff"); font-display: swap; }
+@font-face { font-family: "Star4000 Large"; src: url("assets/fonts/Star4000 Large.woff") format("woff"); font-display: swap; }
+@font-face { font-family: "Star4000 Extended"; src: url("assets/fonts/Star4000 Extended.woff") format("woff"); font-display: swap; }
+@font-face { font-family: "Star4000 Small"; src: url("assets/fonts/Star4000 Small.woff") format("woff"); font-display: swap; }
 
-.ws {
-  /* authentic WeatherStar 4000 palette (from ws4kp _colors.scss) */
-  --ws-yellow: #ffff00;   /* titles, column headers, day names */
-  --ws-white: #ffffff;    /* date/time, primary values, highs */
-  --ws-cyan: #00ffff;
-  --ws-hi: #ffffff;       /* high temps are white */
-  --ws-lo: #8080ff;       /* low temps / wind chill are periwinkle */
-  --ws-box: #26235a;      /* the "blue box" panel */
-  --ws-colhead: #200057;  /* column-header background */
-  --ws-shadow: 3px 3px 0 #000;
-
-  position: relative;
-  width: 100%;
-  height: 100%;
+/* fit wrapper centres + scales the fixed stage */
+.ws-fit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  font-family: "Star4000", "Cascadia Mono", "DejaVu Sans Mono", monospace;
-  /* The authentic WeatherStar 4000 deep-navy gradient (ws4kp main background). */
-  background: linear-gradient(180deg, #102080 0%, #001040 100%);
-  color: var(--ws-white);
-  text-shadow: var(--ws-shadow);
-  display: flex;
-  flex-direction: column;
+  background: #000;
 }
 
-/* --- header: two-line title (left) + location/date/time (right) --- */
-.ws-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 0.5em 0.7em 0.2em;
-  font-size: clamp(16px, 4.4vh, 40px);
-  flex: 0 0 auto;
+/* the fixed WeatherStar canvas */
+.ws {
+  position: relative;
+  width: 640px;
+  height: 480px;
+  transform-origin: center center;
+  background: linear-gradient(180deg, #102080 0%, #001040 100%); /* fallback */
+  background-size: 640px 480px;
+  background-repeat: no-repeat;
+  font-family: "Star4000", "DejaVu Sans Mono", monospace;
+  font-size: 20px;
+  color: #fff;
+  text-shadow: 3px 2px 0 #000;
+  --hi: #ffffff;
+  --lo: #8080ff;
+  --yel: #ffff00;
 }
+
+/* header: product title (left) + location/date/time (right) over the top stripe */
+.ws-head { position: absolute; left: 0; top: 0; width: 640px; height: 80px; }
 .ws-title {
+  position: absolute;
+  left: 20px;
+  top: 8px;
   font-family: "Star4000 Large", "Star4000", monospace;
-  line-height: 1.0;
-  color: var(--ws-yellow);
+  font-size: 28px;
+  line-height: 1.05;
+  color: #fff;
 }
 .ws-meta {
+  position: absolute;
+  right: 16px;
+  top: 10px;
   text-align: right;
   font-family: "Star4000 Small", "Star4000", monospace;
-  font-size: 0.82em;
-  color: var(--ws-white);
+  font-size: 19px;
+  line-height: 1.2;
 }
-.ws-meta .loc { color: var(--ws-yellow); }
+.ws-meta .loc { color: var(--yel); }
 
-/* --- body fills the middle; each screen swaps in here --- */
-.ws-body {
-  flex: 1 1 auto;
-  position: relative;
-  padding: 0.3em 0.8em;
-  font-size: clamp(15px, 4vh, 38px);
-}
-.ws-screen { position: absolute; inset: 0 0.8em; }
-.ws-screen[hidden] { display: none; }
+/* content area — positioned to each background's panel(s) */
+.ws-content { position: absolute; }
+.ws-content.bg1 { left: 56px; top: 94px; width: 528px; height: 294px; }
+.ws-content.bg2 { left: 40px; top: 92px; width: 560px; height: 306px; }
+.ws-content.bg6 { left: 44px; top: 100px; width: 552px; height: 296px; }
 
-/* WeatherStar shows content directly on the gradient — no heavy panels. */
-.ws-box {
-  background: transparent;
-  border: none;
-}
-/* the dark "blue box" panel, used only where data needs a backing */
-.ws-panel {
-  background: var(--ws-box);
-  border: 2px solid #4a47a0;
-}
-
-/* --- current conditions --- */
-.ws-cc {
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6em;
-  align-items: center;
-}
-.ws-cc-left {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1em;
-}
-.ws-cc-left img { width: 42%; max-height: 38%; object-fit: contain; image-rendering: pixelated; }
-.ws-cc-temp {
-  font-family: "Star4000 Large", "Star4000", monospace;
-  font-size: 2.4em;
-  color: var(--ws-white);
-  line-height: 1;
-}
-.ws-cc-label { color: var(--ws-yellow); }
-.ws-cc-right {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.18em;
-}
-.ws-row { display: flex; justify-content: space-between; }
-.ws-row .k { color: var(--ws-white); }
-.ws-row .v { color: var(--ws-yellow); }
-
-/* --- extended forecast: three day columns --- */
-.ws-ext {
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5em;
-}
-.ws-ext-day {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.3em 0.2em;
-}
-.ws-ext-day .name { color: var(--ws-yellow); }
-.ws-ext-day img { width: 56%; max-height: 40%; object-fit: contain; image-rendering: pixelated; }
-.ws-ext-day .cond { font-family: "Star4000 Small", "Star4000", monospace; font-size: 0.7em; }
-.ws-ext-day .temps { display: flex; gap: 0.6em; }
-.ws-ext-day .lo { color: var(--ws-lo); }
-.ws-ext-day .hi { color: var(--ws-hi); }
-
-/* --- hourly forecast: 12 hours in two columns --- */
-.ws-hourly {
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: 1fr;
-  gap: 0.1em 1em;
-  padding: 0.3em 0.6em;
-  font-size: 0.92em;
-}
-.ws-hr {
-  display: grid;
-  grid-template-columns: 2.6em 1.6em 1fr 2.4em;
-  align-items: center;
-  gap: 0.4em;
-}
-.ws-hr .t { color: var(--ws-yellow); }
-.ws-hr img { width: 1.4em; height: 1.4em; object-fit: contain; image-rendering: pixelated; }
-.ws-hr .tp { color: var(--ws-white); text-align: right; }
-.ws-hr .pp { color: var(--ws-lo); text-align: right; font-size: 0.8em; }
-
-/* --- hourly graph: bar chart of the next hours --- */
-.ws-graph {
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  gap: 0.2em;
-  padding: 0.5em 0.5em 0.2em;
-}
-.ws-bar {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.15em;
-  font-size: 0.7em;
-}
-.ws-bar .bt { color: var(--ws-white); }
-.ws-bar .bcol {
-  width: 60%;
-  background: var(--ws-yellow);
-  box-shadow: 2px 2px 0 #000;
-}
-.ws-bar .bh { color: var(--ws-yellow); }
-
-/* --- local forecast: narrative periods --- */
-.ws-localfc {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.5em;
-  padding: 0.4em 0.7em;
-}
-.ws-lf .lf-title { color: var(--ws-yellow); }
-.ws-lf .lf-text { color: var(--ws-white); font-size: 0.86em; line-height: 1.25; }
-
-/* --- regional observations / travel: a list of cities --- */
-.ws-cities {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.12em;
-  padding: 0.3em 0.7em;
-  font-size: 0.94em;
-}
-.ws-city {
-  display: grid;
-  grid-template-columns: 1fr 1.8em 4.5em 2.4em;
-  align-items: center;
-  gap: 0.4em;
-}
-.ws-city .cn { color: var(--ws-yellow); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-city img { width: 1.5em; height: 1.5em; object-fit: contain; image-rendering: pixelated; }
-.ws-city .rc { font-family: "Star4000 Small", "Star4000", monospace; font-size: 0.74em; color: var(--ws-white); }
-.ws-city .tp { color: var(--ws-white); text-align: right; }
-.ws-city .lo { color: var(--ws-lo); text-align: right; }
-.ws-city .hi { color: var(--ws-hi); text-align: right; }
-.ws-city-head { color: var(--ws-cyan); }
-.ws-city-head .lo, .ws-city-head .hi { color: var(--ws-cyan); }
-
-/* --- almanac --- */
-.ws-alm {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.3em;
-  padding: 0 0.4em;
-}
-.ws-alm .ws-row .v { color: var(--ws-cyan); }
-
-/* --- lower display line: scrolling ticker --- */
+/* lower display line (ticker) over the bottom blue bar */
 .ws-ldl {
-  flex: 0 0 auto;
-  height: 1.7em;
-  background: linear-gradient(180deg, #1f1f9c, #0c0c5e);
-  border-top: 2px solid #5c5cdd;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 640px;
+  height: 60px;
   overflow: hidden;
   display: flex;
   align-items: center;
   font-family: "Star4000 Small", "Star4000", monospace;
-  font-size: clamp(14px, 3.4vh, 30px);
+  font-size: 22px;
 }
-.ws-ldl .track {
-  white-space: nowrap;
-  padding-left: 100%;
-  animation: ws-scroll 28s linear infinite;
-  color: var(--ws-white);
+.ws-ldl .track { white-space: nowrap; padding-left: 100%; animation: ws-scroll 30s linear infinite; }
+@keyframes ws-scroll { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+
+/* ---------------------------------------------------------- current conditions */
+.ws-cc { width: 100%; height: 100%; position: relative; }
+.ws-cc-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  text-align: center;
 }
-@keyframes ws-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
+.ws-cc-left img { width: 90px; height: 90px; object-fit: contain; image-rendering: pixelated; margin: 8px auto 2px; display: block; }
+.ws-cc-temp { font-family: "Star4000 Large", "Star4000", monospace; font-size: 42px; line-height: 1; color: #fff; }
+.ws-cc-label { color: var(--yel); margin-top: 6px; }
+.ws-cc-right {
+  position: absolute;
+  right: 0;
+  top: 6px;
+  width: 268px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
+.ws-row { display: flex; justify-content: space-between; }
+.ws-row .k { color: #fff; }
+.ws-row .v { color: var(--yel); }
+
+/* ---------------------------------------------------------- extended (3 panels) */
+.ws-ext { width: 100%; height: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; }
+.ws-ext-day { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 6px 0 10px; }
+.ws-ext-day .name { color: var(--yel); }
+.ws-ext-day img { width: 80px; height: 80px; object-fit: contain; image-rendering: pixelated; }
+.ws-ext-day .cond { font-family: "Star4000 Small", "Star4000", monospace; font-size: 15px; }
+.ws-ext-day .temps { display: flex; gap: 14px; }
+.ws-ext-day .lo { color: var(--lo); }
+.ws-ext-day .hi { color: var(--hi); }
+
+/* ------------------------------------------------------------------ hourly list */
+.ws-hourly { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 0 40px; }
+.ws-hr { display: grid; grid-template-columns: 3em 1.7em 1fr 2.6em; align-items: center; gap: 8px; }
+.ws-hr .t { color: var(--yel); }
+.ws-hr img { width: 26px; height: 26px; object-fit: contain; image-rendering: pixelated; }
+.ws-hr .tp { text-align: right; }
+.ws-hr .pp { text-align: right; font-size: 15px; color: var(--lo); }
+
+/* ----------------------------------------------------------------- hourly graph */
+.ws-graph { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: space-around; gap: 6px; padding-bottom: 4px; }
+.ws-bar { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; font-size: 16px; }
+.ws-bar .bcol { width: 58%; background: var(--yel); box-shadow: 2px 2px 0 #000; }
+.ws-bar .bh { color: var(--yel); }
+
+/* ---------------------------------------------------------------- local forecast */
+.ws-localfc { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 0 6px; }
+.ws-lf .lf-title { color: var(--yel); }
+.ws-lf .lf-text { font-size: 19px; line-height: 1.3; }
+
+/* --------------------------------------------------------- regional / travel list */
+.ws-cities { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.ws-city { display: grid; grid-template-columns: 1fr 1.9em 5em 2.6em; align-items: center; gap: 8px; }
+.ws-city .cn { color: var(--yel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-city img { width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; }
+.ws-city .rc { font-family: "Star4000 Small", "Star4000", monospace; font-size: 14px; }
+.ws-city .tp { text-align: right; }
+.ws-city .lo { color: var(--lo); text-align: right; }
+.ws-city .hi { color: var(--hi); text-align: right; }
+.ws-city-head { color: var(--yel); }
+.ws-city-head .lo, .ws-city-head .hi { color: var(--yel); }
+
+/* ----------------------------------------------------------------------- almanac */
+.ws-alm { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 0 16px; }
+.ws-alm .ws-row .v { color: var(--lo); }

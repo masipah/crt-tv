@@ -28,10 +28,13 @@ if [ ! -f config.toml ]; then
   echo "    created config.toml (edit your location + media dir)"
 fi
 
-chmod +x deploy/kiosk.sh web/display/assets/fetch-assets.sh
+chmod +x deploy/kiosk.sh web/display/assets/fetch-assets.sh web/display/assets/fetch-backgrounds.sh
 
 echo "==> Fetching WeatherStar 4000 fonts + icons (weather display)"
 bash web/display/assets/fetch-assets.sh || echo "    (skipped — weather mode will use fallback fonts)"
+
+echo "==> Fetching WeatherStar 4000 background art"
+bash web/display/assets/fetch-backgrounds.sh || echo "    (skipped — weather mode will use a gradient)"
 
 echo "==> Installing systemd units"
 # Run the services as the installing user, from this repo path (templates use
