@@ -6,7 +6,7 @@
 // clock and a scrolling "lower display line" ticker. Icons fall back to text if
 // the ws4kp asset set hasn't been fetched into assets/.
 
-import { startRadar, stopRadar } from "./radar.js";
+import { startRadar, startRegionalForecast, stopMap } from "./radar.js";
 
 const ICON_BASE = "assets/icons/current-conditions/";
 const CYCLE_MS = 12000;
@@ -179,15 +179,33 @@ function screenAlmanac(w) {
 
 // The cycle of screens, built from the data plus the user's enabled-screen
 // selection (from /api/weather/options). City screens also need regional_cities.
-const ALL_KEYS = ["current", "regional", "hourly", "hourly_graph", "local", "extended", "travel", "almanac", "radar"];
+const ALL_KEYS = ["hazards", "current", "regional", "hourly", "hourly_graph", "travel", "regional_forecast", "local", "extended", "almanac", "spc", "radar"];
 
 function screenRadar() {
   return `<div class="ws-radar"></div>`;
 }
 
+function screenRegionalForecast() {
+  return `<div class="ws-radar"></div>`;
+}
+
+function screenSpc() {
+  return `<img class="ws-spc" alt="SPC Day 1 Outlook" src="https://www.spc.noaa.gov/products/outlook/day1otlk.gif" />`;
+}
+
+function screenHazards(w) {
+  const items = (w.hazards || [])
+    .map((h) => `<div class="hz"><div class="hz-event">${h.event}</div><div class="hz-head">${h.headline || ""}</div></div>`)
+    .join("");
+  return `<div class="ws-hazards">${items || '<div class="hz-none">NO ACTIVE WATCHES OR WARNINGS</div>'}</div>`;
+}
+
 function buildScreens(w, opts) {
   const on = new Set((opts && opts.enabled_keys) || ALL_KEYS);
   const s = [];
+  // Hazards only appears when there's actually an active alert (like ws4kp).
+  if (on.has("hazards") && w.hazards && w.hazards.length)
+    s.push({ key: "hazards", title: "Hazards", bg: "BackGround1.png", zone: "bg1", build: screenHazards });
   if (on.has("current")) s.push({ title: "Current<br>Conditions", bg: "BackGround1.png", zone: "bg1", build: screenCurrent });
   if (on.has("regional") && w.regional && w.regional.length)
     s.push({ title: "Latest<br>Observations", bg: "BackGround6.png", zone: "bg6", build: screenRegional });
@@ -204,7 +222,11 @@ function buildScreens(w, opts) {
   }
   if (on.has("travel") && w.regional && w.regional.length)
     s.push({ title: "Travel<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenTravel });
+  if (on.has("regional_forecast") && w.regional && w.regional.length)
+    s.push({ key: "regional_forecast", title: "Regional<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenRegionalForecast });
   if (on.has("almanac")) s.push({ title: "Almanac", bg: "BackGround1.png", zone: "bg1", build: screenAlmanac });
+  if (on.has("spc"))
+    s.push({ key: "spc", title: "SPC<br>Outlook", bg: "BackGround6.png", zone: "bg6", build: screenSpc });
   if (on.has("radar"))
     s.push({ key: "radar", title: "Local<br>Radar", bg: "BackGround6.png", zone: "bg6", build: screenRadar });
   if (!s.length) s.push({ title: "Current<br>Conditions", bg: "BackGround1.png", zone: "bg1", build: screenCurrent });
@@ -218,7 +240,7 @@ let screenIndex = 0;
 let cycleMs = 12000;
 let currentOpts = null;
 let paused = false;
-let radarActive = false;
+let mapActive = false;
 
 const THEME_FILTER = {
   classic: "none",
@@ -239,7 +261,7 @@ let fitHandler = null;
 
 function paintScreen() {
   if (!data || !screens.length) return;
-  if (radarActive) { stopRadar(); radarActive = false; }
+  if (mapActive) { stopMap(); mapActive = false; }
   const idx = ((screenIndex % screens.length) + screens.length) % screens.length;
   const s = screens[idx];
   titleEl.innerHTML = s.title;
@@ -247,10 +269,14 @@ function paintScreen() {
   stageEl.style.filter = THEME_FILTER[(currentOpts && currentOpts.theme) || "classic"] || "none";
   contentEl.className = `ws-content ${s.zone}`;
   contentEl.innerHTML = s.build(data);
+  const h = data.headend || {};
   if (s.key === "radar") {
-    const h = data.headend || {};
     startRadar(contentEl.querySelector(".ws-radar"), h.latitude, h.longitude);
-    radarActive = true;
+    mapActive = true;
+  } else if (s.key === "regional_forecast") {
+    const cities = (data.regional || []).map((c) => ({ ...c, icon: ICON_BASE + c.icon }));
+    startRegionalForecast(contentEl.querySelector(".ws-radar"), [h.latitude, h.longitude], cities);
+    mapActive = true;
   }
 }
 
@@ -360,6 +386,6 @@ export function stopWeather() {
   for (const t of [clockTimer, cycleTimer, refreshTimer]) if (t) clearInterval(t);
   if (retryTimer) clearTimeout(retryTimer);
   if (fitHandler) window.removeEventListener("resize", fitHandler);
-  if (radarActive) { stopRadar(); radarActive = false; }
+  if (mapActive) { stopMap(); mapActive = false; }
   clockTimer = cycleTimer = refreshTimer = retryTimer = fitHandler = null;
 }

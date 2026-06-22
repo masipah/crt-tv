@@ -17,6 +17,7 @@ from typing import Any
 import httpx
 
 from .. import __version__
+from .hazards import fetch_hazards
 from .store import effective_weather
 
 _API = "https://api.open-meteo.com/v1/forecast"
@@ -261,7 +262,7 @@ async def _fetch_regional(client: httpx.AsyncClient, cities: list[str], metric: 
     items = payload if isinstance(payload, list) else [payload]
 
     out = []
-    for name, item in zip(names, items):
+    for name, (clat, clon), item in zip(names, coords, items):
         cur = item.get("current", {})
         daily = item.get("daily", {})
         is_day = bool(cur.get("is_day", 1))
@@ -270,6 +271,8 @@ async def _fetch_regional(client: httpx.AsyncClient, cities: list[str], metric: 
         lo = (daily.get("temperature_2m_min") or [None])[0]
         out.append({
             "name": name,
+            "lat": clat,
+            "lon": clon,
             "temp": round(cur.get("temperature_2m", 0)),
             "label": label,
             "icon": glyph,
@@ -314,6 +317,11 @@ async def fetch_weather() -> dict[str, Any]:
                 regional = await _fetch_regional(client, ew["regional_cities"], metric)
             except Exception:
                 regional = []
+
+        try:
+            hazards = await fetch_hazards(client, loc["lat"], loc["lon"])
+        except Exception:
+            hazards = []
 
     cur = raw.get("current", {})
     is_day = bool(cur.get("is_day", 1))
@@ -370,6 +378,7 @@ async def fetch_weather() -> dict[str, Any]:
         "hourly": _build_hourly(raw, cur.get("time", "")),
         "local_forecast": _local_forecast(forecast, "C" if metric else "F"),
         "regional": regional,
+        "hazards": hazards,
         "almanac": {
             "sunrise": _fmt_time(daily.get("sunrise", [""])[0]),
             "sunset": _fmt_time(daily.get("sunset", [""])[0]),

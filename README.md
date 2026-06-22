@@ -357,25 +357,32 @@ reconnects every 2 s.
 Modelled on **WeatherStar 4000+** ([netbymatt/ws4kp](https://github.com/netbymatt/ws4kp),
 MIT). The rotation:
 
-| Screen              | Source                        | Shown when…                  |
-|---------------------|-------------------------------|------------------------------|
-| Current Conditions  | current obs                   | always                       |
-| Latest Observations | `regional_cities` current     | `regional_cities` configured |
-| Hourly Forecast     | next 12 hours                 | always                       |
-| Hourly Graph        | next 12 hours (bar chart)     | always                       |
-| Local Forecast      | daily narrative               | always                       |
-| Extended Forecast   | days 1–3 and 4–6 (two pages)  | always                       |
-| Travel Forecast     | `regional_cities` hi/lo       | `regional_cities` configured |
-| Almanac             | sunrise/sunset/moon           | always                       |
-| Local Radar         | RainViewer + Leaflet base map | always (needs internet)      |
+| Screen              | Source                              | Shown when…                       |
+|---------------------|-------------------------------------|-----------------------------------|
+| Hazards             | NWS active alerts (US only)         | an alert is active for the point  |
+| Current Conditions  | current obs                         | always                            |
+| Latest Observations | `regional_cities` current           | `regional_cities` configured      |
+| Hourly Forecast     | next 12 hours                       | always                            |
+| Hourly Graph        | next 12 hours (bar chart)           | always                            |
+| Travel Forecast     | `regional_cities` hi/lo             | `regional_cities` configured      |
+| Regional Forecast   | `regional_cities` on a Leaflet map  | `regional_cities` configured      |
+| Local Forecast      | daily narrative                     | always                            |
+| Extended Forecast   | days 1–3 and 4–6 (two pages)        | always                            |
+| Almanac             | sunrise/sunset/moon                 | always                            |
+| SPC Outlook         | NOAA SPC day-1 outlook image        | always (US national map)          |
+| Local Radar         | RainViewer + Leaflet base map       | always (needs internet)           |
+
+All 12 displays are now selectable. The US-specific ones (Hazards, SPC Outlook)
+use NOAA sources: **Hazards** appears only when the NWS has an active alert for
+your point (US coverage); **SPC Outlook** shows the official US national day-1
+convective outlook image. Outside the US these simply have nothing to show.
 
 The **dashboard is styled after the ws4kp control page** — black background, the
 Star4000 font, a control bar (prev/next/play-pause/refresh/mute/fullscreen that
 drives the live display), a "Selected displays" checklist (the full WeatherStar
-4000 list; displays crt-tv doesn't render — Hazards, Regional Forecast, SPC
-Outlook — appear greyed/disabled, as ws4kp greys no-data displays), a "Settings"
-section (location, units, cycle **speed**, **themes**, music + volume), a
-"Scroll Options" section (ticker content), and a "Headend Information" block. Toggles persist
+4000 list — all twelve implemented), a "Settings" section (location, units, cycle
+**speed**, **themes**, music + volume), a "Scroll Options" section (ticker
+content), and a "Headend Information" block. Toggles persist
 in `data/state.json` and apply to the CRT live via `GET`/`POST
 /api/weather/options`. City screens additionally need `[weather] regional_cities`.
 
@@ -431,7 +438,8 @@ sudo systemctl disable --now crt-tv-kiosk   # silence the kiosk before the CRT i
 - **Weather data** — [Open-Meteo](https://open-meteo.com); **US ZIP geocoding** —
   [Zippopotam.us](https://www.zippopotam.us); **radar** —
   [RainViewer](https://www.rainviewer.com) over a [Leaflet](https://leafletjs.com)
-  + [CARTO](https://carto.com) base map.
+  + [CARTO](https://carto.com) base map; **hazards + SPC outlook** —
+  [NOAA / NWS](https://www.weather.gov).
 
 A non-commercial hobby build, not affiliated with The Weather Channel, Sony, or
 the Raspberry Pi Foundation.

@@ -76,17 +76,17 @@ def update_state(**values: Any) -> dict[str, Any]:
 # is whether crt-tv actually renders it; unimplemented ones appear in the admin
 # checklist but disabled (greyed), exactly as ws4kp greys no-data displays.
 WEATHER_SCREENS = [
-    ("hazards", "Hazards", False),
+    ("hazards", "Hazards", True),
     ("current", "Current Conditions", True),
     ("regional", "Latest Observations", True),
     ("hourly", "Hourly Forecast", True),
     ("hourly_graph", "Hourly Graph", True),
     ("travel", "Travel Forecast", True),
-    ("regional_forecast", "Regional Forecast", False),
+    ("regional_forecast", "Regional Forecast", True),
     ("local", "Local Forecast", True),
     ("extended", "Extended Forecast", True),
     ("almanac", "Almanac", True),
-    ("spc", "SPC Outlook", False),
+    ("spc", "SPC Outlook", True),
     ("radar", "Local Radar", True),
 ]
 _IMPLEMENTED = [k for k, _, impl in WEATHER_SCREENS if impl]

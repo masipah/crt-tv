@@ -153,10 +153,24 @@
 .ws-city-head { color: var(--yel); }
 .ws-city-head .lo, .ws-city-head .hi { color: var(--yel); }
 
-/* ------------------------------------------------------------------- local radar */
+/* ----------------------------------------------------- radar / regional map */
 .ws-radar { position: absolute; inset: 0; overflow: hidden; background: #0a0a2a; }
 .ws-radar .leaflet-container { width: 100%; height: 100%; background: #0a0a2a; text-shadow: none; }
 .ws-radar-msg { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--yel); }
+.rf-divicon { background: none; border: none; }
+.rf-mark { text-align: center; font-family: "Star4000", monospace; text-shadow: 2px 1px 0 #000; line-height: 1; }
+.rf-mark img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; display: block; margin: 0 auto; }
+.rf-mark span { color: #fff; font-size: 17px; }
+.rf-mark b { display: block; color: var(--yel); font-size: 12px; font-weight: normal; }
+
+/* ----------------------------------------------------------------------- hazards */
+.ws-hazards { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 0 8px; color: #ff3030; }
+.hz-event { font-family: "Star4000 Large", "Star4000", monospace; font-size: 24px; }
+.hz-head { font-size: 17px; line-height: 1.25; color: #ff6a6a; }
+.hz-none { color: var(--yel); text-align: center; }
+
+/* -------------------------------------------------------------------- SPC outlook */
+.ws-spc { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 
 /* ----------------------------------------------------------------------- almanac */
 .ws-alm { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 0 16px; }

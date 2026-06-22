@@ -79,7 +79,38 @@ function play() {
   }, 550);
 }
 
-export function stopRadar() {
+// Regional Forecast — a base map with each city's current weather marked.
+export async function startRegionalForecast(el, center, cities) {
+  if (!el) return;
+  try {
+    await ensureLeaflet();
+  } catch (err) {
+    el.innerHTML = '<div class="ws-radar-msg">MAP OFFLINE</div>';
+    return;
+  }
+  el.innerHTML = "";
+  map = L.map(el, {
+    zoomControl: false, attributionControl: false, dragging: false,
+    scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
+    keyboard: false, touchZoom: false,
+  }).setView(center, 6);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", { subdomains: "abcd" }).addTo(map);
+  const markers = (cities || []).map((c) =>
+    L.marker([c.lat, c.lon], {
+      icon: L.divIcon({
+        className: "rf-divicon",
+        html: `<div class="rf-mark"><img src="${c.icon}"><span>${c.temp}&deg;</span><b>${c.name}</b></div>`,
+        iconSize: [70, 56],
+      }),
+    }).addTo(map)
+  );
+  if (markers.length > 1) {
+    try { map.fitBounds(L.featureGroup(markers).getBounds().pad(0.35)); } catch (e) { /* keep view */ }
+  }
+}
+
+// Tear down whichever map (radar or regional) is showing.
+export function stopMap() {
   if (timer) { clearInterval(timer); timer = null; }
   if (map) { map.remove(); map = null; }
   layers = [];
