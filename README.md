@@ -99,8 +99,10 @@ curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap
 This `git clone`s `github.com/masipah/crt-tv` to `~/crt-tv`, runs
 `deploy/install.sh` (Chromium + X, the venv, `config.toml`, the WeatherStar
 assets, and the `crt-tv` + `crt-tv-kiosk` services), and prints your dashboard
-URL. Re-running it updates an existing checkout. Static IP isn't handled here —
-set it on your router/network.
+URL. The services are configured to run as **the user that runs the installer**
+(no hardcoded `pi`). **Re-running it updates an existing checkout and restarts
+the services** — that's how you pull a fix onto a running Pi. Static IP isn't
+handled here — set it on your router/network.
 
 > Different repo owner/name? Update `CRT_TV_REPO` in `deploy/bootstrap.sh`, or
 > pass `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`. The repo must be
@@ -108,7 +110,7 @@ set it on your router/network.
 
 ### Manual install
 
-1. Clone the repo to `/home/pi/crt-tv` and run the installer:
+1. Clone the repo into your home directory and run the installer:
 
    ```bash
    git clone https://github.com/masipah/crt-tv.git ~/crt-tv
@@ -117,7 +119,8 @@ set it on your router/network.
 
    This installs Chromium + X, builds the venv, writes `config.toml`, fetches the
    WeatherStar assets, and enables two services: `crt-tv` (the FastAPI service)
-   and `crt-tv-kiosk` (Chromium showing `/display`).
+   and `crt-tv-kiosk` (Chromium showing `/display`). The systemd units are
+   generated for the installing user and repo path, so any username works.
 
 2. **Enable composite NTSC output** (one-off). Append
    [`deploy/config.txt.snippet`](deploy/config.txt.snippet) to

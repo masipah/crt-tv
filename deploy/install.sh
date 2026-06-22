@@ -40,8 +40,9 @@ for unit in crt-tv.service crt-tv-kiosk.service; do
     "deploy/$unit" | sudo tee "/etc/systemd/system/$unit" >/dev/null
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now crt-tv
-sudo systemctl enable --now crt-tv-kiosk
+sudo systemctl enable crt-tv crt-tv-kiosk
+# restart (not just start) so re-running the installer picks up code updates
+sudo systemctl restart crt-tv crt-tv-kiosk
 
 cat <<'EOF'
 
