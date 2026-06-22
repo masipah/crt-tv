@@ -53,9 +53,11 @@ function connect() {
         stopVideo(sections.video);
         startVideo(sections.video, 0);
       } else if (msg.type === "weather" && activeMode === "weather") {
-        // location changed while showing weather: re-render with new data
+        // location/options changed while showing weather: re-render + re-apply music
         stopWeather();
         renderWeather(sections.weather);
+        stopMusic();
+        startMusic();
       }
     } catch (err) {
       console.error("bad ws message", err);

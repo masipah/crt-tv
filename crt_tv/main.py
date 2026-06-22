@@ -17,7 +17,14 @@ from pydantic import BaseModel
 
 from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
-from .services.store import effective_weather, load_state, save_state, update_state
+from .services.store import (
+    WEATHER_SCREENS,
+    effective_weather,
+    load_state,
+    save_state,
+    update_state,
+    weather_options,
+)
 from .services.weather import fetch_weather, reset_caches as reset_weather_caches
 from .state import VALID_MODES, StateManager
 
@@ -43,6 +50,12 @@ class WeatherLocationBody(BaseModel):
     location: str
     country: Optional[str] = None
     units: Optional[str] = None
+
+
+class WeatherOptionsBody(BaseModel):
+    screens: Optional[list] = None       # enabled screen keys
+    music: Optional[bool] = None
+    music_volume: Optional[float] = None
 
 
 # ---------------------------------------------------------------- control API
@@ -103,19 +116,40 @@ AUDIO_DIR = WEB / "display" / "assets" / "audio"
 AUDIO_EXTS = {".mp3", ".m4a", ".ogg", ".aac"}
 
 
+@app.get("/api/weather/options")
+async def get_weather_options() -> dict:
+    return weather_options()
+
+
+@app.post("/api/weather/options")
+async def set_weather_options(body: WeatherOptionsBody) -> dict:
+    updates: dict = {}
+    if body.screens is not None:
+        valid = {k for k, _ in WEATHER_SCREENS}
+        updates["weather_screens"] = [k for k in body.screens if k in valid]
+    if body.music is not None:
+        updates["music_enabled"] = bool(body.music)
+    if body.music_volume is not None:
+        updates["music_volume"] = max(0.0, min(1.0, float(body.music_volume)))
+    if updates:
+        update_state(**updates)
+    await state.notify_weather_changed()
+    return {"ok": True, **weather_options()}
+
+
 @app.get("/api/music")
 async def get_music() -> dict:
     """Background-music tracks for the weather channel (served from the display
     assets). Empty unless the opt-in fetch-audio.sh has been run."""
-    w = settings.weather
-    if not getattr(w, "music", True):
+    opts = weather_options()
+    if not opts["music"]:
         return {"enabled": False, "volume": 0, "tracks": []}
     tracks = []
     if AUDIO_DIR.is_dir():
         for p in sorted(AUDIO_DIR.iterdir()):
             if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
                 tracks.append(f"/display/assets/audio/{p.name}")
-    return {"enabled": True, "volume": getattr(w, "music_volume", 0.7), "tracks": tracks}
+    return {"enabled": True, "volume": opts["music_volume"], "tracks": tracks}
 
 
 @app.get("/api/playlist")

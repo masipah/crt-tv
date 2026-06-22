@@ -179,6 +179,40 @@ h1 .sub {
 .wx-status.ok { color: var(--on); }
 .wx-status.err { color: var(--danger); }
 
+/* weather options: screen toggles + music */
+.opt-hint { margin: 0 0 12px; color: var(--dim); font-size: 12px; }
+.wx-screens {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+}
+@media (max-width: 460px) { .wx-screens { grid-template-columns: 1fr; } }
+.wx-screen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: #1b1b1b;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wx-screen input,
+.wx-toggle input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+.wx-music-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.wx-toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.wx-vol-wrap { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 220px; }
+.wx-vol-wrap input[type="range"] { flex: 1; accent-color: var(--accent); }
+
 /* upload dropzone */
 .drop {
   display: flex;

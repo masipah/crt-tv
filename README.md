@@ -112,6 +112,10 @@ Open `http://<pi-address>:8000/` from any phone or computer on your network:
 - **Switch what's showing.** Tap **Weather**, **Teletext**, or **Video**.
 - **Change the weather city.** Type a city or ZIP and Save. It updates the TV
   right away and is remembered forever (even after unplugging).
+- **Pick which weather screens show.** Tick/untick screens (Current Conditions,
+  Hourly, Local Forecast, Extended, Almanac, and — if you list nearby cities —
+  Latest Observations and Travel), and turn the background **music** on/off and
+  set its volume. Changes apply to the TV instantly and stick across reboots.
 - **Add videos.** Drag video files onto the page (or tap to browse). Tap **Play**
   on one to put it on the TV, drag the **⠿** handle to reorder the loop, or
   **Delete** to remove it.
@@ -334,6 +338,8 @@ installer: `CRT_TV_DIR`, `CRT_TV_REPO`, `CRT_TV_REF`, `CRT_TV_TARBALL`.
 | `GET /api/weather`          | —                                 | Full shaped forecast (cached 10 min)            |
 | `GET /api/weather/settings` | —                                 | `{ location, country, units }`                  |
 | `POST /api/weather/location`| `{ location, country?, units? }`  | Validate + persist (502 if unresolvable; old value kept) |
+| `GET /api/weather/options`  | —                                 | `{ screens: [{key,label,enabled}], enabled_keys, music, music_volume }` |
+| `POST /api/weather/options` | `{ screens?, music?, music_volume? }` | Persist which screens show + music settings (live) |
 | `GET /api/music`            | —                                 | `{ enabled, volume, tracks: [url] }`            |
 | `GET /api/playlist`         | —                                 | `{ videos: [ { name, file, url } ] }`           |
 | `POST /api/playlist/order`  | `{ "order": ["b.mp4","a.mp4"] }`  | Persist a new order                             |
@@ -358,6 +364,12 @@ MIT). The rotation:
 | Extended Forecast   | days 1–3 and 4–6 (two pages)  | always                       |
 | Travel Forecast     | `regional_cities` hi/lo       | `regional_cities` configured |
 | Almanac             | sunrise/sunset/moon           | always                       |
+
+**Each screen is toggleable from the dashboard** ("Weather screens & music"
+card); the selection persists in `data/state.json` and applies to the CRT live
+(via `GET`/`POST /api/weather/options`). City screens additionally need
+`[weather] regional_cities`. The same card toggles the background music and
+volume.
 
 Differences from ws4kp: **data is Open-Meteo, not the US-only NWS** (so it works
 anywhere; US ZIPs via Zippopotam, cities via Open-Meteo geocoding), and the

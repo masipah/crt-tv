@@ -158,23 +158,30 @@ function screenAlmanac(w) {
     </div>`;
 }
 
-// The cycle of screens, built from whatever data is available — the same
-// rotation a WeatherStar 4000 runs. City screens only appear if regional_cities
-// are configured.
-function buildScreens(w) {
-  const screens = [{ title: "Current<br>Conditions", build: screenCurrent }];
-  if (w.regional && w.regional.length)
+// The cycle of screens, built from the data plus the user's enabled-screen
+// selection (from /api/weather/options). City screens also need regional_cities.
+const ALL_KEYS = ["current", "regional", "hourly", "local", "extended", "travel", "almanac"];
+
+function buildScreens(w, opts) {
+  const on = new Set((opts && opts.enabled_keys) || ALL_KEYS);
+  const screens = [];
+  if (on.has("current")) screens.push({ title: "Current<br>Conditions", build: screenCurrent });
+  if (on.has("regional") && w.regional && w.regional.length)
     screens.push({ title: "Latest<br>Observations", build: screenRegional });
-  if (w.hourly && w.hourly.length)
+  if (on.has("hourly") && w.hourly && w.hourly.length)
     screens.push({ title: "Hourly<br>Forecast", build: screenHourly });
-  if (w.local_forecast && w.local_forecast.length)
+  if (on.has("local") && w.local_forecast && w.local_forecast.length)
     screens.push({ title: "Local<br>Forecast", build: screenLocalForecast });
-  screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 1) });
-  if (w.forecast && w.forecast.length > 4)
-    screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 4) });
-  if (w.regional && w.regional.length)
+  if (on.has("extended")) {
+    screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 1) });
+    if (w.forecast && w.forecast.length > 4)
+      screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 4) });
+  }
+  if (on.has("travel") && w.regional && w.regional.length)
     screens.push({ title: "Travel<br>Forecast", build: screenTravel });
-  screens.push({ title: "Almanac", build: screenAlmanac });
+  if (on.has("almanac")) screens.push({ title: "Almanac", build: screenAlmanac });
+  // never leave the channel blank
+  if (!screens.length) screens.push({ title: "Current<br>Conditions", build: screenCurrent });
   return screens;
 }
 
@@ -227,10 +234,14 @@ async function load() {
     retryTimer = null;
   }
   try {
-    const resp = await fetch("/api/weather");
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    data = await resp.json();
-    screens = buildScreens(data);
+    const [wResp, oResp] = await Promise.all([
+      fetch("/api/weather"),
+      fetch("/api/weather/options"),
+    ]);
+    if (!wResp.ok) throw new Error(`HTTP ${wResp.status}`);
+    data = await wResp.json();
+    const opts = oResp.ok ? await oResp.json() : null;
+    screens = buildScreens(data, opts);
     if (screenIndex >= screens.length) screenIndex = 0;
     ldlEl.textContent = ticker(data);
     paintScreen();

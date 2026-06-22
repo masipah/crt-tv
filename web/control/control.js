@@ -11,6 +11,9 @@ const wxForm = document.getElementById("wx-form");
 const wxLocation = document.getElementById("wx-location");
 const wxUnits = document.getElementById("wx-units");
 const wxStatus = document.getElementById("wx-status");
+const wxScreens = document.getElementById("wx-screens");
+const wxMusic = document.getElementById("wx-music");
+const wxVol = document.getElementById("wx-vol");
 const dropEl = document.getElementById("drop");
 const fileInput = document.getElementById("file-input");
 const uploadsEl = document.getElementById("uploads");
@@ -85,6 +88,48 @@ wxForm.addEventListener("submit", async (e) => {
     wxStatus.textContent = "Save failed.";
   }
 });
+
+// ----------------------------------------------------------- weather options
+function renderOptions(opts) {
+  wxScreens.innerHTML = "";
+  for (const s of opts.screens) {
+    const label = document.createElement("label");
+    label.className = "wx-screen";
+    label.innerHTML = `<input type="checkbox" data-key="${s.key}" ${s.enabled ? "checked" : ""}> ${s.label}`;
+    label.querySelector("input").addEventListener("change", saveOptions);
+    wxScreens.appendChild(label);
+  }
+  wxMusic.checked = !!opts.music;
+  wxVol.value = Math.round((opts.music_volume ?? 0.7) * 100);
+}
+
+async function saveOptions() {
+  const screens = [...wxScreens.querySelectorAll("input[data-key]")]
+    .filter((c) => c.checked)
+    .map((c) => c.dataset.key);
+  const body = { screens, music: wxMusic.checked, music_volume: Number(wxVol.value) / 100 };
+  try {
+    const resp = await fetch("/api/weather/options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) renderOptions(await resp.json());
+  } catch (err) {
+    console.error("save options failed", err);
+  }
+}
+
+async function loadOptions() {
+  try {
+    renderOptions(await (await fetch("/api/weather/options")).json());
+  } catch (err) {
+    console.error("options load failed", err);
+  }
+}
+
+wxMusic.addEventListener("change", saveOptions);
+wxVol.addEventListener("change", saveOptions);
 
 // ----------------------------------------------------------------- library
 function markPlaying() {
@@ -267,5 +312,6 @@ function connect() {
 }
 
 loadWeatherSettings();
+loadOptions();
 loadLibrary();
 connect();
