@@ -94,6 +94,11 @@ _IMPLEMENTED = [k for k, _, impl in WEATHER_SCREENS if impl]
 # Display cycle speed -> milliseconds per screen (ws4kp Slow/Normal/Fast).
 SPEEDS = {"slow": 16000, "normal": 12000, "fast": 8000}
 
+# Color themes (applied to the display as a CSS filter; Classic = the real art).
+THEMES = ("classic", "dark", "seafoam", "cosmic")
+# What the bottom ticker scrolls.
+TICKERS = ("conditions", "custom")
+
 
 def weather_options() -> dict[str, Any]:
     """User-selectable weather-channel options (which screens, speed, music)."""
@@ -113,6 +118,9 @@ def weather_options() -> dict[str, Any]:
         "enabled_keys": [k for k in _IMPLEMENTED if k in enabled],
         "speed": speed,
         "speed_ms": SPEEDS[speed],
+        "theme": s.get("weather_theme", "classic"),
+        "ticker": s.get("weather_ticker", "conditions"),
+        "ticker_text": s.get("weather_ticker_text", ""),
         "music": bool(s.get("music_enabled", w.music)),
         "music_volume": float(s.get("music_volume", w.music_volume)),
     }

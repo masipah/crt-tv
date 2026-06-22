@@ -3,7 +3,7 @@
 // recovers on its own if the service restarts.
 
 import { renderTeletext, stopTeletext } from "./teletext.js";
-import { renderWeather, stopWeather } from "./weather.js";
+import { renderWeather, stopWeather, weatherCommand } from "./weather.js";
 import { startVideo, stopVideo } from "./video.js";
 import { startMusic, stopMusic } from "./music.js";
 
@@ -58,6 +58,8 @@ function connect() {
         renderWeather(sections.weather);
         stopMusic();
         startMusic();
+      } else if (msg.type === "wxcmd" && activeMode === "weather") {
+        weatherCommand(msg.action);
       }
     } catch (err) {
       console.error("bad ws message", err);

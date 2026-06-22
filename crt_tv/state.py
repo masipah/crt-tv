@@ -55,8 +55,12 @@ class StateManager:
         await self._send_all(json.dumps({"type": "playlist"}))
 
     async def notify_weather_changed(self) -> None:
-        """Tell clients the weather location changed, so the display refreshes."""
+        """Tell clients the weather location/options changed, so the display refreshes."""
         await self._send_all(json.dumps({"type": "weather"}))
+
+    async def send_weather_command(self, action: str) -> None:
+        """Transient control-bar command for the weather display (prev/next/…)."""
+        await self._send_all(json.dumps({"type": "wxcmd", "action": action}))
 
     async def _send_all(self, text: str) -> None:
         dead: list[WebSocket] = []

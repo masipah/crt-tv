@@ -19,6 +19,8 @@ from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
 from .services.store import (
     SPEEDS,
+    THEMES,
+    TICKERS,
     WEATHER_SCREENS,
     effective_weather,
     load_state,
@@ -56,8 +58,18 @@ class WeatherLocationBody(BaseModel):
 class WeatherOptionsBody(BaseModel):
     screens: Optional[list] = None       # enabled screen keys
     speed: Optional[str] = None          # slow | normal | fast
+    theme: Optional[str] = None          # classic | dark | seafoam | cosmic
+    ticker: Optional[str] = None         # conditions | custom
+    ticker_text: Optional[str] = None
     music: Optional[bool] = None
     music_volume: Optional[float] = None
+
+
+class WeatherControlBody(BaseModel):
+    action: str                          # prev | next | pause | play | refresh
+
+
+WX_ACTIONS = {"prev", "next", "pause", "play", "refresh"}
 
 
 # ---------------------------------------------------------------- control API
@@ -131,6 +143,12 @@ async def set_weather_options(body: WeatherOptionsBody) -> dict:
         updates["weather_screens"] = [k for k in body.screens if k in valid]
     if body.speed is not None and body.speed in SPEEDS:
         updates["weather_speed"] = body.speed
+    if body.theme is not None and body.theme in THEMES:
+        updates["weather_theme"] = body.theme
+    if body.ticker is not None and body.ticker in TICKERS:
+        updates["weather_ticker"] = body.ticker
+    if body.ticker_text is not None:
+        updates["weather_ticker_text"] = body.ticker_text[:200]
     if body.music is not None:
         updates["music_enabled"] = bool(body.music)
     if body.music_volume is not None:
@@ -139,6 +157,14 @@ async def set_weather_options(body: WeatherOptionsBody) -> dict:
         update_state(**updates)
     await state.notify_weather_changed()
     return {"ok": True, **weather_options()}
+
+
+@app.post("/api/weather/control")
+async def weather_control(body: WeatherControlBody) -> dict:
+    if body.action not in WX_ACTIONS:
+        raise HTTPException(400, f"invalid action: {body.action!r}")
+    await state.send_weather_command(body.action)
+    return {"ok": True, "action": body.action}
 
 
 @app.get("/api/music")

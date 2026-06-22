@@ -339,7 +339,8 @@ installer: `CRT_TV_DIR`, `CRT_TV_REPO`, `CRT_TV_REF`, `CRT_TV_TARBALL`.
 | `GET /api/weather/settings` | —                                 | `{ location, country, units }`                  |
 | `POST /api/weather/location`| `{ location, country?, units? }`  | Validate + persist (502 if unresolvable; old value kept) |
 | `GET /api/weather/options`  | —                                 | `{ screens: [{key,label,enabled}], enabled_keys, music, music_volume }` |
-| `POST /api/weather/options` | `{ screens?, speed?, music?, music_volume? }` | Persist which screens show + cycle speed + music (live) |
+| `POST /api/weather/options` | `{ screens?, speed?, theme?, ticker?, ticker_text?, music?, music_volume? }` | Persist displays + speed + theme + ticker + music (live) |
+| `POST /api/weather/control` | `{ action }` | Control bar: `prev`/`next`/`pause`/`play`/`refresh` (transient) |
 | `GET /api/music`            | —                                 | `{ enabled, volume, tracks: [url] }`            |
 | `GET /api/playlist`         | —                                 | `{ videos: [ { name, file, url } ] }`           |
 | `POST /api/playlist/order`  | `{ "order": ["b.mp4","a.mp4"] }`  | Persist a new order                             |

@@ -15,8 +15,28 @@
     </header>
 
     <!-- live output: exactly what the CRT is showing right now -->
-    <div class="screen-frame">
+    <div class="screen-frame" id="screen-frame">
       <iframe id="screen" src="/display" title="live CRT output" scrolling="no"></iframe>
+    </div>
+
+    <!-- ws4kp-style control bar -->
+    <div class="ctrlbar">
+      <button class="cb" id="cb-menu" aria-label="Toggle settings" title="Settings">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <button class="cb" id="cb-prev" aria-label="Previous display" title="Previous">
+        <svg viewBox="0 0 24 24"><path d="M7 5v14M19 5l-9 7 9 7z" fill="currentColor" stroke="none"/></svg></button>
+      <button class="cb" id="cb-next" aria-label="Next display" title="Next">
+        <svg viewBox="0 0 24 24"><path d="M17 5v14M5 5l9 7-9 7z" fill="currentColor" stroke="none"/></svg></button>
+      <button class="cb" id="cb-play" aria-label="Play or pause" title="Play / pause">
+        <svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z" fill="currentColor" stroke="none"/></svg></button>
+      <span class="cb-spacer"></span>
+      <button class="cb" id="cb-refresh" aria-label="Refresh" title="Refresh">
+        <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-1.6 5.4M20 4v6h-6"/></svg></button>
+      <span class="cb-spacer"></span>
+      <button class="cb" id="cb-mute" aria-label="Mute music" title="Mute">
+        <svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9z" fill="currentColor" stroke="none"/><path d="M19 9l-4 6M15 9l4 6" stroke="currentColor"/></svg></button>
+      <button class="cb" id="cb-fs" aria-label="Fullscreen" title="Fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
 
     <div class="heading">Channel</div>
@@ -38,25 +58,40 @@
         <button id="wx-loc-set">Set</button>
       </div>
       <div class="srow">
-        <label for="wx-units">Units</label>
-        <select id="wx-units">
-          <option value="imperial">US</option>
-          <option value="metric">Metric</option>
-        </select>
+        <span class="slabel">Units:</span>
+        <label class="rad"><input type="radio" name="wx-units" value="imperial" checked /> English</label>
+        <label class="rad"><input type="radio" name="wx-units" value="metric" /> Metric</label>
       </div>
       <div class="srow">
-        <label for="wx-speed">Speed</label>
-        <select id="wx-speed">
-          <option value="slow">Slow</option>
-          <option value="normal">Normal</option>
-          <option value="fast">Fast</option>
-        </select>
+        <span class="slabel">Speed:</span>
+        <label class="rad"><input type="radio" name="wx-speed" value="slow" /> Slow</label>
+        <label class="rad"><input type="radio" name="wx-speed" value="normal" checked /> Normal</label>
+        <label class="rad"><input type="radio" name="wx-speed" value="fast" /> Fast</label>
+      </div>
+      <div class="srow">
+        <span class="slabel">Themes:</span>
+        <label class="rad"><input type="radio" name="wx-theme" value="classic" checked /> Classic</label>
+        <label class="rad"><input type="radio" name="wx-theme" value="dark" /> Dark</label>
+        <label class="rad"><input type="radio" name="wx-theme" value="seafoam" /> Sea Foam</label>
+        <label class="rad"><input type="radio" name="wx-theme" value="cosmic" /> Cosmic</label>
       </div>
       <div class="srow">
         <label class="chk"><input type="checkbox" id="wx-music" /> Music</label>
         <input type="range" id="wx-vol" min="0" max="100" step="5" />
       </div>
       <p class="wx-status" id="wx-status"></p>
+    </div>
+
+    <div class="heading">Scroll Options</div>
+    <div class="settings">
+      <label class="rad"><input type="radio" name="wx-ticker" value="conditions" checked /> Current Conditions</label>
+      <div class="srow">
+        <label class="rad"><input type="radio" name="wx-ticker" value="custom" /> Custom Text:</label>
+        <input id="wx-ticker-text" type="text" autocomplete="off" placeholder="Your message" />
+        <button id="wx-ticker-set">Set</button>
+      </div>
+      <label class="rad disabled"><input type="radio" disabled /> RSS Feed (not available)</label>
+      <label class="rad disabled"><input type="checkbox" disabled /> Hazardous Weather (US only)</label>
     </div>
 
     <div class="heading">Video library</div>

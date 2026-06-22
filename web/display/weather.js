@@ -208,6 +208,15 @@ let data = null;
 let screens = [];
 let screenIndex = 0;
 let cycleMs = 12000;
+let currentOpts = null;
+let paused = false;
+
+const THEME_FILTER = {
+  classic: "none",
+  dark: "brightness(0.78)",
+  seafoam: "hue-rotate(115deg) saturate(1.1)",
+  cosmic: "hue-rotate(265deg) saturate(1.25)",
+};
 let clockTimer = null;
 let cycleTimer = null;
 let refreshTimer = null;
@@ -221,11 +230,35 @@ let fitHandler = null;
 
 function paintScreen() {
   if (!data || !screens.length) return;
-  const s = screens[screenIndex % screens.length];
+  const idx = ((screenIndex % screens.length) + screens.length) % screens.length;
+  const s = screens[idx];
   titleEl.innerHTML = s.title;
   stageEl.style.backgroundImage = `url("assets/backgrounds/${s.bg}")`;
+  stageEl.style.filter = THEME_FILTER[(currentOpts && currentOpts.theme) || "classic"] || "none";
   contentEl.className = `ws-content ${s.zone}`;
   contentEl.innerHTML = s.build(data);
+}
+
+function restartCycle() {
+  if (cycleTimer) {
+    clearInterval(cycleTimer);
+    cycleTimer = null;
+  }
+  if (!paused) {
+    cycleTimer = setInterval(() => {
+      screenIndex += 1;
+      paintScreen();
+    }, cycleMs);
+  }
+}
+
+// Control-bar commands from the dashboard.
+export function weatherCommand(action) {
+  if (action === "next") { screenIndex += 1; paintScreen(); restartCycle(); }
+  else if (action === "prev") { screenIndex -= 1; paintScreen(); restartCycle(); }
+  else if (action === "pause") { paused = true; restartCycle(); }
+  else if (action === "play") { paused = false; restartCycle(); }
+  else if (action === "refresh") { load(); }
 }
 
 function updateClock() {
@@ -277,20 +310,13 @@ async function load() {
     ]);
     if (!wResp.ok) throw new Error(`HTTP ${wResp.status}`);
     data = await wResp.json();
-    const opts = oResp.ok ? await oResp.json() : null;
-    screens = buildScreens(data, opts);
+    currentOpts = oResp.ok ? await oResp.json() : null;
+    screens = buildScreens(data, currentOpts);
     if (screenIndex >= screens.length) screenIndex = 0;
-    // apply the configured cycle speed
-    const ms = (opts && opts.speed_ms) || 12000;
-    if (ms !== cycleMs || !cycleTimer) {
-      cycleMs = ms;
-      if (cycleTimer) clearInterval(cycleTimer);
-      cycleTimer = setInterval(() => {
-        screenIndex += 1;
-        paintScreen();
-      }, cycleMs);
-    }
-    ldlEl.textContent = ticker(data);
+    cycleMs = (currentOpts && currentOpts.speed_ms) || 12000;
+    restartCycle();
+    const custom = currentOpts && currentOpts.ticker === "custom" && currentOpts.ticker_text;
+    ldlEl.textContent = custom ? currentOpts.ticker_text : ticker(data);
     paintScreen();
     updateClock();
     fitStage();
