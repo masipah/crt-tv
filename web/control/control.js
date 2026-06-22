@@ -7,6 +7,10 @@
 const statusEl = document.getElementById("status");
 const nowModeEl = document.getElementById("now-mode");
 const modeButtons = [...document.querySelectorAll(".mode")];
+const wxForm = document.getElementById("wx-form");
+const wxLocation = document.getElementById("wx-location");
+const wxUnits = document.getElementById("wx-units");
+const wxStatus = document.getElementById("wx-status");
 const dropEl = document.getElementById("drop");
 const fileInput = document.getElementById("file-input");
 const uploadsEl = document.getElementById("uploads");
@@ -44,6 +48,43 @@ function reflect(state) {
 for (const btn of modeButtons) {
   btn.addEventListener("click", () => post("/api/mode", { mode: btn.dataset.mode }));
 }
+
+// ----------------------------------------------------------------- weather location
+async function loadWeatherSettings() {
+  try {
+    const s = await (await fetch("/api/weather/settings")).json();
+    wxLocation.value = s.location || "";
+    wxUnits.value = s.units === "metric" ? "metric" : "imperial";
+  } catch (err) {
+    console.error("weather settings load failed", err);
+  }
+}
+
+wxForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const location = wxLocation.value.trim();
+  if (!location) return;
+  wxStatus.className = "wx-status";
+  wxStatus.textContent = "Saving…";
+  try {
+    const resp = await fetch("/api/weather/location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ location, units: wxUnits.value }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      wxStatus.className = "wx-status ok";
+      wxStatus.textContent = `Saved: ${data.location} — remembered across reboots.`;
+    } else {
+      wxStatus.className = "wx-status err";
+      wxStatus.textContent = data.detail || "Could not find that location.";
+    }
+  } catch (err) {
+    wxStatus.className = "wx-status err";
+    wxStatus.textContent = "Save failed.";
+  }
+});
 
 // ----------------------------------------------------------------- library
 function markPlaying() {
@@ -225,5 +266,6 @@ function connect() {
   ws.onerror = () => ws.close();
 }
 
+loadWeatherSettings();
 loadLibrary();
 connect();

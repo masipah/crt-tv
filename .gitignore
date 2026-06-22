@@ -9,6 +9,9 @@ venv/
 config.toml
 .env
 
+# Persisted runtime state (UI-set weather location, etc.)
+data/
+
 # Media (videos are large; keep the folder, ignore contents)
 media/*
 !media/.gitkeep

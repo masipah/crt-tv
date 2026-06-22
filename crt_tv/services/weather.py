@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from ..config import settings
+from .store import effective_weather
 
 _API = "https://api.open-meteo.com/v1/forecast"
 _GEOCODE_API = "https://geocoding-api.open-meteo.com/v1/search"
@@ -113,50 +113,59 @@ def _moon_phase(d: datetime.date) -> str:
     return _MOON_PHASES[int(pos * 8 + 0.5) % 8]
 
 
-async def _resolve_location(client: httpx.AsyncClient) -> dict[str, Any]:
-    """Turn the configured location (city or US zip) into coordinates. Cached
-    after the first lookup. An explicit lat/lon in config skips geocoding."""
+def reset_caches() -> None:
+    """Forget the resolved location and cached forecast — call after the user
+    changes the location so the next fetch re-resolves and re-downloads."""
+    global _resolved_location
+    _resolved_location = None
+    _cache["data"] = None
+    _cache["ts"] = 0.0
+
+
+async def _resolve_location(client: httpx.AsyncClient, ew: dict[str, Any]) -> dict[str, Any]:
+    """Turn the effective location (city or US zip) into coordinates. Cached
+    after the first lookup. An explicit lat/lon skips geocoding."""
     global _resolved_location
     if _resolved_location is not None:
         return _resolved_location
 
-    w = settings.weather
-    if w.latitude is not None and w.longitude is not None:
+    if ew["latitude"] is not None and ew["longitude"] is not None:
         _resolved_location = {
-            "lat": w.latitude,
-            "lon": w.longitude,
-            "name": w.location_name or w.location,
-            "tz": w.timezone or "auto",
+            "lat": ew["latitude"],
+            "lon": ew["longitude"],
+            "name": ew["location_name"] or ew["location"],
+            "tz": ew["timezone"] or "auto",
         }
         return _resolved_location
 
-    query = (w.location or "").strip()
+    query = (ew["location"] or "").strip()
     if re.fullmatch(r"\d{5}", query):  # US ZIP code
         resp = await client.get(f"{_ZIP_API}/{query}")
         resp.raise_for_status()
         place = resp.json()["places"][0]
-        name = w.location_name or f"{place['place name']}, {place['state abbreviation']}"
+        name = ew["location_name"] or f"{place['place name']}, {place['state abbreviation']}"
         _resolved_location = {
             "lat": float(place["latitude"]),
             "lon": float(place["longitude"]),
             "name": name,
-            "tz": w.timezone or "auto",
+            "tz": ew["timezone"] or "auto",
         }
     else:  # city / place name
         resp = await client.get(_GEOCODE_API, params={"name": query, "count": 10, "format": "json"})
         resp.raise_for_status()
         results = resp.json().get("results") or []
-        if w.country:
-            cc = w.country.upper()
+        if ew["country"]:
+            cc = ew["country"].upper()
             results = [r for r in results if r.get("country_code", "").upper() == cc] or results
         if not results:
             raise RuntimeError(f"could not geocode location: {query!r}")
         g = results[0]
+        tz = ew["timezone"]
         _resolved_location = {
             "lat": g["latitude"],
             "lon": g["longitude"],
-            "name": w.location_name or g["name"],
-            "tz": w.timezone if w.timezone and w.timezone != "auto" else g.get("timezone", "auto"),
+            "name": ew["location_name"] or g["name"],
+            "tz": tz if tz and tz != "auto" else g.get("timezone", "auto"),
         }
     return _resolved_location
 
@@ -166,10 +175,10 @@ async def fetch_weather() -> dict[str, Any]:
     if _cache["data"] is not None and now - _cache["ts"] < _TTL_SECONDS:
         return _cache["data"]
 
-    w = settings.weather
-    metric = w.units != "imperial"
+    ew = effective_weather()
+    metric = ew["units"] != "imperial"
     async with httpx.AsyncClient(timeout=10) as client:
-        loc = await _resolve_location(client)
+        loc = await _resolve_location(client, ew)
         params = {
             "latitude": loc["lat"],
             "longitude": loc["lon"],

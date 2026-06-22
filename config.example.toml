@@ -1,7 +1,7 @@
 # crt-tv configuration.
 # Copy to config.toml and edit. config.toml is gitignored.
 
-default_mode = "teletext"   # teletext | weather | video
+default_mode = "weather"    # mode shown on boot: weather | teletext | video
 
 [server]
 host = "0.0.0.0"            # 0.0.0.0 = reachable from other devices on your LAN

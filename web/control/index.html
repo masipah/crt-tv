@@ -34,6 +34,21 @@
       <p class="now">Now showing: <strong id="now-mode">—</strong></p>
     </section>
 
+    <!-- weather location -->
+    <section class="card">
+      <h2>Weather location</h2>
+      <form id="wx-form" class="wx-form">
+        <input id="wx-location" type="text" autocomplete="off"
+               placeholder="City or US ZIP — e.g. Austin or 78701" />
+        <select id="wx-units" aria-label="units">
+          <option value="imperial">°F</option>
+          <option value="metric">°C</option>
+        </select>
+        <button type="submit">Save</button>
+      </form>
+      <p class="wx-status" id="wx-status">Saved and remembered across reboots.</p>
+    </section>
+
     <!-- video library + upload -->
     <section class="card">
       <h2>Video library</h2>

@@ -46,7 +46,7 @@ class VideoConfig:
 class Settings:
     host: str = "0.0.0.0"
     port: int = 8000
-    default_mode: str = "teletext"
+    default_mode: str = "weather"  # mode shown on boot; video/teletext are picked in the UI
     weather: WeatherConfig = field(default_factory=WeatherConfig)
     video: VideoConfig = field(default_factory=VideoConfig)
 

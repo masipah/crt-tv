@@ -37,8 +37,9 @@ crt_tv/              FastAPI service
   config.py          TOML config loader (+ defaults)
   state.py           shared mode state + WebSocket broadcast
   services/
-    weather.py       Open-Meteo fetch, shaped for the page (cached)
+    weather.py       Open-Meteo fetch + geocoding, shaped for the page (cached)
     playlist.py      scans media/, persists play order (.order.json)
+    store.py         persisted runtime state (UI-set weather location)
 web/
   display/           full-screen app shown on the CRT (teletext/weather/video)
     ws4000.css       WeatherStar 4000 styling + Star4000 @font-face
@@ -51,6 +52,7 @@ deploy/
   install.sh         per-host setup (venv, services, assets)
   config.txt.snippet composite NTSC settings · *.service systemd units · kiosk.sh
 media/               drop video files here (gitignored)
+data/                persisted runtime state, e.g. state.json (gitignored)
 scripts/dev.sh       run locally with autoreload
 ```
 
@@ -83,19 +85,17 @@ drop them into `media/`) to exercise video mode.
 cp config.example.toml config.toml
 ```
 
-Edit `config.toml` for your weather location, units, port, and media folder.
-For the weather location just set a **city name or US ZIP** — it's geocoded
-automatically (`location = "Austin"` or `location = "78701"`); add
-`country = "US"` to disambiguate same-named cities, or pin exact
-`latitude`/`longitude` to skip geocoding. The service runs fine with no config
-file (defaults to London / metric).
+`config.toml` holds install-time defaults: `default_mode` (the mode shown on
+boot — defaults to **weather**), the initial weather location, units, port, and
+media folder. The service runs fine with no config file (defaults to London /
+metric, booting into weather).
 
-To change the location on a running Pi:
-
-```bash
-nano ~/crt-tv/config.toml          # set:  location = "Austin"   (units = "imperial" for the US)
-sudo systemctl restart crt-tv      # picks up the new location
-```
+**The weather location is normally set from the dashboard, not here** — see
+Usage below. That choice is saved in `data/state.json` and survives reboots,
+overriding `config.toml`. `config.toml` is just the starting point: set a **city
+name or US ZIP** (`location = "Austin"` or `"78701"`), `country = "US"` to
+disambiguate same-named cities, or pin exact `latitude`/`longitude` to skip
+geocoding.
 
 ## Deploy to the Raspberry Pi 4
 
@@ -164,9 +164,17 @@ other input has a 75Ω termination switch, leave the unused one terminated.
 
 Open the dashboard at `http://<pi-ip>:8000/` from any browser on your network.
 
+On boot the Pi shows **Weather** (the default mode) — it needs no input.
+**Teletext** and **Video** are opt-in: you switch to them from the dashboard
+(and Video needs clips uploaded first).
+
 - **Display** — pick **Teletext**, **Weather**, or **Video**; the PVM switches
   instantly. "Now showing" reflects the live state (and updates if changed from
   another browser).
+- **Weather location** — type a **city or US ZIP** and Save. It's geocoded,
+  applied to the CRT immediately, and **saved across reboots** (in
+  `data/state.json`), so you set it once. A bad entry is rejected without losing
+  your last good location.
 - **Video library** — drag-and-drop or browse to **upload** clips (with a
   progress bar); they save to the Pi's `media/` folder. Hit **Play** on any clip
   to put it on the CRT (switches to Video mode and jumps to it); **Delete** to

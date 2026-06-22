@@ -47,6 +47,10 @@ function connect() {
         // library changed (upload/delete) while showing video: reload it
         stopVideo(sections.video);
         startVideo(sections.video, 0);
+      } else if (msg.type === "weather" && activeMode === "weather") {
+        // location changed while showing weather: re-render with new data
+        stopWeather();
+        renderWeather(sections.weather);
       }
     } catch (err) {
       console.error("bad ws message", err);

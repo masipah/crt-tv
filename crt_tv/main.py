@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
@@ -16,7 +17,8 @@ from pydantic import BaseModel
 
 from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
-from .services.weather import fetch_weather
+from .services.store import effective_weather, load_state, save_state, update_state
+from .services.weather import fetch_weather, reset_caches as reset_weather_caches
 from .state import VALID_MODES, StateManager
 
 app = FastAPI(title="crt-tv", version="0.1.0")
@@ -35,6 +37,12 @@ class VideoIndexBody(BaseModel):
 
 class OrderBody(BaseModel):
     order: list[str]
+
+
+class WeatherLocationBody(BaseModel):
+    location: str
+    country: Optional[str] = None
+    units: Optional[str] = None
 
 
 # ---------------------------------------------------------------- control API
@@ -63,6 +71,32 @@ async def get_weather() -> dict:
         return await fetch_weather()
     except Exception as exc:  # noqa: BLE001 - surface upstream failure to client
         raise HTTPException(502, f"weather fetch failed: {exc}") from exc
+
+
+@app.get("/api/weather/settings")
+async def get_weather_settings() -> dict:
+    ew = effective_weather()
+    return {"location": ew["location"], "country": ew["country"], "units": ew["units"]}
+
+
+@app.post("/api/weather/location")
+async def set_weather_location(body: WeatherLocationBody) -> dict:
+    loc = body.location.strip()
+    if not loc:
+        raise HTTPException(400, "location is required")
+    # Apply tentatively, then verify it resolves before keeping it — so a typo
+    # never gets persisted and breaks weather on the next boot.
+    previous = load_state()
+    update_state(weather_location=loc, weather_country=(body.country or ""), weather_units=body.units)
+    reset_weather_caches()
+    try:
+        data = await fetch_weather()
+    except Exception as exc:  # noqa: BLE001
+        save_state(previous)  # roll back the bad location
+        reset_weather_caches()
+        raise HTTPException(502, f"could not find location {loc!r}") from exc
+    await state.notify_weather_changed()
+    return {"ok": True, "location": data["location"]}
 
 
 @app.get("/api/playlist")
