@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "crt-tv",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["crt_tv.main:app", "--host", "127.0.0.1", "--port", "8050"],
+      "port": 8050
+    }
+  ]
+}

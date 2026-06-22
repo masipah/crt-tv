@@ -1,0 +1,180 @@
+/* WeatherStar 4000-style weather display.
+ *
+ * Visual style modelled on the WeatherStar 4000+ project
+ * (github.com/netbymatt/ws4kp, MIT). The Star4000 font set and the
+ * current-conditions icons are TWCClassics assets fetched separately into
+ * web/display/assets/ (see assets/fetch-assets.sh). Everything degrades to a
+ * monospace fallback + text labels if those assets are absent. */
+
+@font-face {
+  font-family: "Star4000";
+  src: url("assets/fonts/Star4000.woff") format("woff");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Star4000 Large";
+  src: url("assets/fonts/Star4000 Large.woff") format("woff");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Star4000 Extended";
+  src: url("assets/fonts/Star4000 Extended.woff") format("woff");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Star4000 Small";
+  src: url("assets/fonts/Star4000 Small.woff") format("woff");
+  font-display: swap;
+}
+
+.ws {
+  --ws-yellow: #ffff00;
+  --ws-white: #ffffff;
+  --ws-cyan: #00ffff;
+  --ws-hi: #ffd200;
+  --ws-lo: #4ad0ff;
+  --ws-shadow: 3px 3px 0 #000a;
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Star4000", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  /* The classic royal-blue gradient backdrop. */
+  background:
+    radial-gradient(120% 100% at 50% 0%, #2b2bb6 0%, #14148e 45%, #08083f 100%);
+  color: var(--ws-white);
+  text-shadow: var(--ws-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- header: two-line title (left) + location/date/time (right) --- */
+.ws-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.5em 0.7em 0.2em;
+  font-size: clamp(16px, 4.4vh, 40px);
+  flex: 0 0 auto;
+}
+.ws-title {
+  font-family: "Star4000 Large", "Star4000", monospace;
+  line-height: 1.0;
+  color: var(--ws-white);
+}
+.ws-meta {
+  text-align: right;
+  font-family: "Star4000 Small", "Star4000", monospace;
+  font-size: 0.82em;
+  color: var(--ws-white);
+}
+.ws-meta .loc { color: var(--ws-yellow); }
+
+/* --- body fills the middle; each screen swaps in here --- */
+.ws-body {
+  flex: 1 1 auto;
+  position: relative;
+  padding: 0.3em 0.8em;
+  font-size: clamp(15px, 4vh, 38px);
+}
+.ws-screen { position: absolute; inset: 0 0.8em; }
+.ws-screen[hidden] { display: none; }
+
+/* beveled blue panel */
+.ws-box {
+  background: linear-gradient(180deg, #2a2ab2 0%, #15158f 55%, #0e0e74 100%);
+  border-top: 2px solid #5c5cdd;
+  border-left: 2px solid #5c5cdd;
+  border-right: 2px solid #07073a;
+  border-bottom: 2px solid #07073a;
+}
+
+/* --- current conditions --- */
+.ws-cc {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6em;
+  align-items: center;
+}
+.ws-cc-left {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+}
+.ws-cc-left img { width: 42%; max-height: 38%; object-fit: contain; image-rendering: pixelated; }
+.ws-cc-temp {
+  font-family: "Star4000 Large", "Star4000", monospace;
+  font-size: 2.4em;
+  color: var(--ws-white);
+  line-height: 1;
+}
+.ws-cc-label { color: var(--ws-yellow); }
+.ws-cc-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.18em;
+}
+.ws-row { display: flex; justify-content: space-between; }
+.ws-row .k { color: var(--ws-white); }
+.ws-row .v { color: var(--ws-yellow); }
+
+/* --- extended forecast: three day columns --- */
+.ws-ext {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5em;
+}
+.ws-ext-day {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3em 0.2em;
+}
+.ws-ext-day .name { color: var(--ws-yellow); }
+.ws-ext-day img { width: 56%; max-height: 40%; object-fit: contain; image-rendering: pixelated; }
+.ws-ext-day .cond { font-family: "Star4000 Small", "Star4000", monospace; font-size: 0.7em; }
+.ws-ext-day .temps { display: flex; gap: 0.6em; }
+.ws-ext-day .lo { color: var(--ws-lo); }
+.ws-ext-day .hi { color: var(--ws-hi); }
+
+/* --- almanac --- */
+.ws-alm {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3em;
+  padding: 0 0.4em;
+}
+.ws-alm .ws-row .v { color: var(--ws-cyan); }
+
+/* --- lower display line: scrolling ticker --- */
+.ws-ldl {
+  flex: 0 0 auto;
+  height: 1.7em;
+  background: linear-gradient(180deg, #1f1f9c, #0c0c5e);
+  border-top: 2px solid #5c5cdd;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  font-family: "Star4000 Small", "Star4000", monospace;
+  font-size: clamp(14px, 3.4vh, 30px);
+}
+.ws-ldl .track {
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: ws-scroll 28s linear infinite;
+  color: var(--ws-white);
+}
+@keyframes ws-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}

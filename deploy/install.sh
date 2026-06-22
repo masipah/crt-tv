@@ -25,7 +25,10 @@ if [ ! -f config.toml ]; then
   echo "    created config.toml (edit your location + media dir)"
 fi
 
-chmod +x deploy/kiosk.sh
+chmod +x deploy/kiosk.sh web/display/assets/fetch-assets.sh
+
+echo "==> Fetching WeatherStar 4000 fonts + icons (weather display)"
+bash web/display/assets/fetch-assets.sh || echo "    (skipped — weather mode will use fallback fonts)"
 
 echo "==> Installing systemd units"
 sudo cp deploy/crt-tv.service /etc/systemd/system/

@@ -4,7 +4,9 @@ Drive a CRT — specifically a **Sony PVM-9045Q** — from a **headless Raspberr
 over composite (NTSC) video. The Pi continuously outputs one of three modes:
 
 - **Teletext** — a Ceefax-style page
-- **Weather** — a teletext-styled forecast (via Open-Meteo, no API key)
+- **Weather** — a **WeatherStar 4000**-style forecast (the 1990s Weather Channel
+  look), cycling Current Conditions → Extended Forecast → Almanac with a
+  scrolling ticker. Data from Open-Meteo (no API key, works worldwide).
 - **Video** — a continuous 480i playlist from a local folder
 
 A small **web app** (reachable from your phone or laptop on the same network)
@@ -39,6 +41,9 @@ crt_tv/              FastAPI service
     playlist.py      scans the media/ folder
 web/
   display/           full-screen app shown on the CRT (teletext/weather/video)
+    ws4000.css       WeatherStar 4000 styling + Star4000 @font-face
+    weather.js       WeatherStar 4000 screen cycle + ticker
+    assets/          fetched fonts + icons (git-ignored; see fetch-assets.sh)
   control/           remote control app (mode buttons + playlist)
 deploy/              Pi 4 config.txt snippet, systemd units, kiosk + installer
 media/               drop video files here (gitignored)
@@ -50,6 +55,9 @@ scripts/dev.sh       run locally with autoreload
 No Pi needed to work on the apps:
 
 ```bash
+# one-off: fetch the WeatherStar 4000 fonts + icons for the weather mode
+./web/display/assets/fetch-assets.sh
+
 ./scripts/dev.sh
 ```
 
@@ -120,6 +128,25 @@ other input has a 75Ω termination switch, leave the unused one terminated.
 
 Logs: `journalctl -u crt-tv -f` and `journalctl -u crt-tv-kiosk -f`.
 
+## Weather mode (WeatherStar 4000)
+
+The weather display is modelled on the **WeatherStar 4000+** project
+([github.com/netbymatt/ws4kp](https://github.com/netbymatt/ws4kp), MIT) — the
+Star4000 font, the blue gradient panels, the current-conditions icon set, and
+the rotating Current Conditions → Extended Forecast → Almanac cycle with a
+scrolling lower ticker. Two deliberate differences:
+
+- **Data source is Open-Meteo, not NWS.** ws4kp pulls from `api.weather.gov`,
+  which is US-only; Open-Meteo works for any `latitude`/`longitude` in
+  `config.toml`, so this runs for London (the default) or anywhere.
+- **Fonts and icons are fetched, not committed.** They're TWCClassics assets
+  (see [`web/display/assets/CREDITS.md`](web/display/assets/CREDITS.md)).
+  `deploy/install.sh` runs the fetch automatically; for local dev run
+  `web/display/assets/fetch-assets.sh` once. Without them the weather mode still
+  works, falling back to a monospace font and text labels.
+
+Not affiliated with or endorsed by The Weather Channel.
+
 ## Notes & tuning
 
 - **Overscan / safe area.** The display keeps content in a title-safe box
@@ -138,7 +165,7 @@ Logs: `journalctl -u crt-tv -f` and `journalctl -u crt-tv-kiosk -f`.
 ## Roadmap
 
 - `mpv` video backend option (hardware decode, better interlaced handling)
+- More WeatherStar 4000 screens: Hourly, Local Forecast narrative, Radar
 - Multiple teletext pages / a page-number entry on the remote
 - Optional real broadcast teletext in the VBI via `raspi-teletext`
 - Now/next clock + screensaver, brightness/scanline toggles from the remote
-```
