@@ -193,6 +193,9 @@ On boot the Pi shows **Weather** (the default mode) — it needs no input.
 **Teletext** and **Video** are opt-in: you switch to them from the dashboard
 (and Video needs clips uploaded first).
 
+- **Live output** — the top of the dashboard embeds the real display, so you see
+  exactly what the CRT is showing right now and watch it change as you switch
+  modes — no monitor required. (`/preview` is the same thing in a full PVM bezel.)
 - **Display** — pick **Teletext**, **Weather**, or **Video**; the PVM switches
   instantly. "Now showing" reflects the live state (and updates if changed from
   another browser).
