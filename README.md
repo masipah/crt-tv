@@ -84,7 +84,18 @@ cp config.example.toml config.toml
 ```
 
 Edit `config.toml` for your weather location, units, port, and media folder.
-The service runs fine with no config file (defaults to London / metric).
+For the weather location just set a **city name or US ZIP** — it's geocoded
+automatically (`location = "Austin"` or `location = "78701"`); add
+`country = "US"` to disambiguate same-named cities, or pin exact
+`latitude`/`longitude` to skip geocoding. The service runs fine with no config
+file (defaults to London / metric).
+
+To change the location on a running Pi:
+
+```bash
+nano ~/crt-tv/config.toml          # set:  location = "Austin"   (units = "imperial" for the US)
+sudo systemctl restart crt-tv      # picks up the new location
+```
 
 ## Deploy to the Raspberry Pi 4
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import re
 import time
 from typing import Any
 
@@ -18,8 +19,11 @@ import httpx
 from ..config import settings
 
 _API = "https://api.open-meteo.com/v1/forecast"
+_GEOCODE_API = "https://geocoding-api.open-meteo.com/v1/search"
+_ZIP_API = "https://api.zippopotam.us/us"
 _TTL_SECONDS = 600
 _cache: dict[str, Any] = {"ts": 0.0, "data": None}
+_resolved_location: dict[str, Any] | None = None
 
 # WMO weather code -> (label, day-icon, night-icon). Icon filenames match the
 # ws4kp current-conditions set (server/images/icons/current-conditions/).
@@ -109,6 +113,54 @@ def _moon_phase(d: datetime.date) -> str:
     return _MOON_PHASES[int(pos * 8 + 0.5) % 8]
 
 
+async def _resolve_location(client: httpx.AsyncClient) -> dict[str, Any]:
+    """Turn the configured location (city or US zip) into coordinates. Cached
+    after the first lookup. An explicit lat/lon in config skips geocoding."""
+    global _resolved_location
+    if _resolved_location is not None:
+        return _resolved_location
+
+    w = settings.weather
+    if w.latitude is not None and w.longitude is not None:
+        _resolved_location = {
+            "lat": w.latitude,
+            "lon": w.longitude,
+            "name": w.location_name or w.location,
+            "tz": w.timezone or "auto",
+        }
+        return _resolved_location
+
+    query = (w.location or "").strip()
+    if re.fullmatch(r"\d{5}", query):  # US ZIP code
+        resp = await client.get(f"{_ZIP_API}/{query}")
+        resp.raise_for_status()
+        place = resp.json()["places"][0]
+        name = w.location_name or f"{place['place name']}, {place['state abbreviation']}"
+        _resolved_location = {
+            "lat": float(place["latitude"]),
+            "lon": float(place["longitude"]),
+            "name": name,
+            "tz": w.timezone or "auto",
+        }
+    else:  # city / place name
+        resp = await client.get(_GEOCODE_API, params={"name": query, "count": 10, "format": "json"})
+        resp.raise_for_status()
+        results = resp.json().get("results") or []
+        if w.country:
+            cc = w.country.upper()
+            results = [r for r in results if r.get("country_code", "").upper() == cc] or results
+        if not results:
+            raise RuntimeError(f"could not geocode location: {query!r}")
+        g = results[0]
+        _resolved_location = {
+            "lat": g["latitude"],
+            "lon": g["longitude"],
+            "name": w.location_name or g["name"],
+            "tz": w.timezone if w.timezone and w.timezone != "auto" else g.get("timezone", "auto"),
+        }
+    return _resolved_location
+
+
 async def fetch_weather() -> dict[str, Any]:
     now = time.time()
     if _cache["data"] is not None and now - _cache["ts"] < _TTL_SECONDS:
@@ -116,20 +168,21 @@ async def fetch_weather() -> dict[str, Any]:
 
     w = settings.weather
     metric = w.units != "imperial"
-    params = {
-        "latitude": w.latitude,
-        "longitude": w.longitude,
-        "timezone": w.timezone,
-        "current": (
-            "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
-            "weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
-        ),
-        "daily": "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max",
-        "temperature_unit": "celsius" if metric else "fahrenheit",
-        "wind_speed_unit": "kmh" if metric else "mph",
-        "forecast_days": 7,
-    }
     async with httpx.AsyncClient(timeout=10) as client:
+        loc = await _resolve_location(client)
+        params = {
+            "latitude": loc["lat"],
+            "longitude": loc["lon"],
+            "timezone": loc["tz"] or "auto",
+            "current": (
+                "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
+                "weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+            ),
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max",
+            "temperature_unit": "celsius" if metric else "fahrenheit",
+            "wind_speed_unit": "kmh" if metric else "mph",
+            "forecast_days": 7,
+        }
         resp = await client.get(_API, params=params)
         resp.raise_for_status()
         raw = resp.json()
@@ -159,7 +212,7 @@ async def fetch_weather() -> dict[str, Any]:
 
     today = datetime.date.fromisoformat(times[0]) if times else datetime.date.today()
     data = {
-        "location": w.location_name,
+        "location": loc["name"],
         "units": {
             "temp": "C" if metric else "F",
             "wind": "km/h" if metric else "mph",

@@ -8,11 +8,16 @@ host = "0.0.0.0"            # 0.0.0.0 = reachable from other devices on your LAN
 port = 8000
 
 [weather]
-location_name = "London"
-latitude = 51.5074
-longitude = -0.1278
-timezone = "Europe/London"  # IANA tz, or "auto"
+# Just set a city name or a US ZIP code — it's geocoded automatically.
+location = "London"         # e.g. "Austin", "Paris", "Tokyo", or "78701"
+# country = "US"            # optional ISO code to disambiguate same-named cities
 units = "metric"            # metric (°C, km/h) | imperial (°F, mph)
+
+# Optional: pin an exact point and skip geocoding (overrides `location`):
+# latitude = 51.5074
+# longitude = -0.1278
+# location_name = "London"  # display name (defaults to the geocoded name)
+# timezone = "Europe/London"  # IANA tz, or "auto" to derive from coords
 
 [video]
 media_dir = "media"        # folder of video files, relative to repo root or absolute

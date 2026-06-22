@@ -26,11 +26,14 @@ def _filtered(cls, data: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass
 class WeatherConfig:
-    location_name: str = "London"
-    latitude: float = 51.5074
-    longitude: float = -0.1278
-    timezone: str = "Europe/London"
-    units: str = "metric"  # metric | imperial
+    location: str = "London"          # city name or US zip code (geocoded)
+    country: str = ""                 # optional ISO code to disambiguate, e.g. "US"
+    units: str = "metric"             # metric | imperial
+    # Optional explicit point — if both lat & lon are set, geocoding is skipped.
+    latitude: float | None = None
+    longitude: float | None = None
+    location_name: str = ""           # display name; defaults to the geocoded name
+    timezone: str = "auto"            # IANA tz, or "auto" to derive from coords
 
 
 @dataclass
