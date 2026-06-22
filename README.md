@@ -214,6 +214,10 @@ handled — set a DHCP reservation on your router instead.)
 
 ### Reinstall from a wiped SD card
 
+> **Not for power loss.** A power cut / unplug loses nothing and recovers on its
+> own — see [Boot & power behaviour](#boot--power-behaviour). You only need this
+> section if you've actually **reformatted/replaced the SD card**.
+
 Everything needed is in the GitHub repo, so a from-scratch rebuild is a flash and
 one command. Full procedure:
 
@@ -302,7 +306,14 @@ unused input has a 75 Ω termination switch, leave it terminated.
 
 ## Boot & power behaviour
 
-Designed to be left plugged in and to survive being switched off at the wall:
+**Pulling the plug is safe — just plug it back in.** A power cut is *not* a wipe:
+the SD card keeps your config, saved weather location, and uploaded videos, and
+on re-plug the Pi boots straight back into Weather on your last location with
+**zero intervention**. There is nothing to reinstall or re-enter after a power
+loss. (You only need [Reinstall from a wiped SD card](#reinstall-from-a-wiped-sd-card)
+if you actually reformat the card.)
+
+How that's guaranteed:
 
 - **Starts on every boot.** Both services are systemd-`enable`d, so power-on (or
   any unexpected reboot) brings the app back with zero intervention.

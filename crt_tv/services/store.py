@@ -19,7 +19,8 @@ STATE_PATH = ROOT / "data" / "state.json"
 
 def atomic_write_text(path: Path, text: str) -> None:
     """Write a file so it can't be left half-written by a power loss: write a
-    temp file in the same dir, fsync it, then atomically rename over the target."""
+    temp file in the same dir, fsync it, atomically rename over the target, then
+    fsync the directory so the rename itself is durable after a power cut."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-", suffix=path.suffix)
     try:
@@ -34,6 +35,16 @@ def atomic_write_text(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
+    # Persist the directory entry (the rename) so a power cut right after can't
+    # lose it. Not supported on every platform — best effort.
+    try:
+        dir_fd = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError:
+        pass
 
 
 def load_state() -> dict[str, Any]:
