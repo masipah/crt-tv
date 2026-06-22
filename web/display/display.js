@@ -27,6 +27,10 @@ function applyMode(state) {
     el.hidden = name !== mode;
   }
 
+  // Video plays raw — the Pi's composite output already does the 480i/CRT
+  // conversion in hardware, so no software scanline/overlay on top of it.
+  document.body.classList.toggle("mode-video", mode === "video");
+
   if (mode === "teletext") renderTeletext(sections.teletext);
   else if (mode === "weather") renderWeather(sections.weather);
   else if (mode === "video") startVideo(sections.video, state.video_index || 0);

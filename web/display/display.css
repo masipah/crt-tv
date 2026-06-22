@@ -126,11 +126,14 @@ html, body {
 /* Weather mode is styled in ws4000.css (WeatherStar 4000 look). */
 
 /* ------------------------------------------------------------------- video */
+/* Video plays untouched. The Pi's composite DAC does the 480i/CRT conversion in
+   hardware, so no software filters/scanlines on top. object-fit: contain only
+   preserves the source aspect ratio (no stretching/cropping). */
 .screen.video { background: #000; }
 #player {
   width: 100%;
   height: 100%;
-  object-fit: contain;  /* letterbox rather than crop */
+  object-fit: contain;
   background: #000;
 }
 
@@ -152,3 +155,5 @@ html, body {
   opacity: 0.5;
 }
 body.no-crt #crt-overlay { display: none; }
+/* No software overlay over video — the real CRT/composite path handles it. */
+body.mode-video #crt-overlay { display: none; }

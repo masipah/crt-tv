@@ -62,20 +62,8 @@ body {
   height: 100%;
   border: 0;
   display: block;
-  /* a touch of bloom like a real tube */
-  filter: saturate(1.15) contrast(1.05);
 }
-/* glass: vignette + curvature highlight + faint scanlines */
-.glass {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(130% 120% at 50% 50%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.45) 100%),
-    radial-gradient(60% 40% at 30% 18%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 60%),
-    repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.10) 3px);
-  border-radius: inherit;
-}
+/* No scanlines/filters — show the output as-is inside the bezel. */
 
 /* --- chin / controls --- */
 .chin {

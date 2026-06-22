@@ -423,8 +423,10 @@ drag-reorder and stored in `media/.order.json`.
 - **Overscan / safe area.** The display keeps content in a title-safe box
   (`#overscan` in `display.css`, inset ~6–7 %). If the PVM crops more or less,
   adjust those insets.
-- **CRT overlay.** A subtle scanline overlay is layered on the display; add
-  `body.no-crt` to disable it.
+- **CRT overlay.** A subtle scanline overlay is layered on the teletext/weather
+  pages; add `body.no-crt` to disable it. **Video is exempt** — it plays raw, with
+  no software scanlines/filters, since the Pi's composite output already does the
+  480i/CRT conversion in hardware. The previews mirror the output as-is too.
 - **Re-encoding video.** `ffmpeg -i in.mkv -vf scale=720:480 -c:v libx264 out.mp4`
   produces a CRT-friendly progressive file.
 - **Updating.** Re-run the one-liner (or `bash deploy/install.sh`) — it updates
