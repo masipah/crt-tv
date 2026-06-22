@@ -9,15 +9,15 @@ over composite (NTSC) video. The Pi continuously outputs one of three modes:
   scrolling ticker. Data from Open-Meteo (no API key, works worldwide).
 - **Video** — a continuous 480i playlist from a local folder
 
-A small **web app** (reachable from your phone or laptop on the same network)
-switches between modes live.
+A **web dashboard** on your local network picks what's on screen, manages the
+video library, and lets you **upload clips** straight from the browser.
 
 ```
-┌─────────────┐   POST /api/mode      ┌────────────────────────────┐
-│ Control app │ ───────────────────▶  │  FastAPI service (Pi)      │
-│ (phone/web) │ ◀───── /ws state ───  │  • state + WebSocket hub   │
-└─────────────┘                       │  • /api/weather /playlist  │
-                                      └──────────────┬─────────────┘
+┌─────────────┐  /api/mode, /api/upload  ┌────────────────────────────┐
+│  Dashboard  │ ───────────────────────▶ │  FastAPI service (Pi)      │
+│ (any LAN    │ ◀──────── /ws state ───  │  • state + WebSocket hub   │
+│  browser)   │                          │  • weather/playlist/upload │
+└─────────────┘                          └──────────────┬─────────────┘
                                                      │ /ws state
                                           ┌──────────▼───────────┐      composite
                                           │ Chromium kiosk        │  ───────────────▶  Sony
@@ -44,7 +44,7 @@ web/
     ws4000.css       WeatherStar 4000 styling + Star4000 @font-face
     weather.js       WeatherStar 4000 screen cycle + ticker
     assets/          fetched fonts + icons (git-ignored; see fetch-assets.sh)
-  control/           remote control app (mode buttons + playlist)
+  control/           control dashboard (mode picker, video library + upload)
 deploy/              Pi 4 config.txt snippet, systemd units, kiosk + installer
 media/               drop video files here (gitignored)
 scripts/dev.sh       run locally with autoreload
@@ -122,9 +122,15 @@ other input has a 75Ω termination switch, leave the unused one terminated.
 
 ## Usage
 
-- Open `http://<pi-ip>:8000/` on your phone.
-- Tap **Teletext**, **Weather**, or **Video**. The PVM switches instantly.
-- In Video, tap a playlist entry to jump to that clip; it loops continuously.
+Open the dashboard at `http://<pi-ip>:8000/` from any browser on your network.
+
+- **Display** — pick **Teletext**, **Weather**, or **Video**; the PVM switches
+  instantly. "Now showing" reflects the live state (and updates if changed from
+  another browser).
+- **Video library** — drag-and-drop or browse to **upload** clips (with a
+  progress bar); they save to the Pi's `media/` folder. Hit **Play** on any clip
+  to put it on the CRT (switches to Video mode and jumps to it); **Delete** to
+  remove it. The CRT refreshes its playlist automatically on upload/delete.
 
 Logs: `journalctl -u crt-tv -f` and `journalctl -u crt-tv-kiosk -f`.
 
@@ -161,6 +167,9 @@ Not affiliated with or endorsed by The Weather Channel.
 - **Video backend.** v1 plays video in the browser (`<video>`), keeping a single
   render surface. If Chromium decode struggles on heavy files, an `mpv`-based
   player is the natural next step (see roadmap).
+- **Uploads** are streamed to disk in chunks, so large files are fine. You can
+  also bypass the browser entirely and drop/`scp` files straight into `media/` —
+  the library picks them up. Uploads land in the configured `[video] media_dir`.
 
 ## Roadmap
 

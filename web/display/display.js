@@ -41,7 +41,13 @@ function connect() {
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === "state") applyMode(msg.state);
+      if (msg.type === "state") {
+        applyMode(msg.state);
+      } else if (msg.type === "playlist" && activeMode === "video") {
+        // library changed (upload/delete) while showing video: reload it
+        stopVideo(sections.video);
+        startVideo(sections.video, 0);
+      }
     } catch (err) {
       console.error("bad ws message", err);
     }

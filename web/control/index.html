@@ -4,33 +4,48 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0a0a0a" />
-  <title>crt-tv remote</title>
+  <title>crt-tv control</title>
   <link rel="stylesheet" href="control.css" />
 </head>
 <body>
-  <main>
+  <div class="wrap">
     <header>
-      <h1>CRT&nbsp;TV</h1>
+      <h1>CRT&nbsp;TV<span class="sub">control</span></h1>
       <span id="status" class="status off">connecting…</span>
     </header>
 
-    <section class="modes">
-      <button class="mode" data-mode="teletext">
-        <span class="ico">▦</span><span class="lbl">Teletext</span>
-      </button>
-      <button class="mode" data-mode="weather">
-        <span class="ico">☀</span><span class="lbl">Weather</span>
-      </button>
-      <button class="mode" data-mode="video">
-        <span class="ico">►</span><span class="lbl">Video</span>
-      </button>
+    <!-- what's on the CRT -->
+    <section class="card">
+      <h2>Display</h2>
+      <div class="modes">
+        <button class="mode" data-mode="teletext">
+          <span class="ico">▦</span><span class="lbl">Teletext</span>
+        </button>
+        <button class="mode" data-mode="weather">
+          <span class="ico">☀</span><span class="lbl">Weather</span>
+        </button>
+        <button class="mode" data-mode="video">
+          <span class="ico">►</span><span class="lbl">Video</span>
+        </button>
+      </div>
+      <p class="now">Now showing: <strong id="now-mode">—</strong></p>
     </section>
 
-    <section id="video-panel" class="panel" hidden>
-      <h2>Playlist</h2>
-      <ul id="playlist"></ul>
+    <!-- video library + upload -->
+    <section class="card">
+      <h2>Video library</h2>
+
+      <label id="drop" class="drop" for="file-input">
+        <input id="file-input" type="file" accept="video/*,.mkv,.webm,.mov,.m4v,.avi,.ogv" multiple hidden />
+        <span class="drop-main">Drop video files here or <u>browse</u></span>
+        <span class="drop-sub">mp4 · mkv · webm · mov · m4v · avi · ogv</span>
+      </label>
+
+      <ul id="uploads" class="uploads"></ul>
+
+      <ul id="playlist" class="playlist"></ul>
     </section>
-  </main>
+  </div>
 
   <script type="module" src="control.js"></script>
 </body>

@@ -48,11 +48,17 @@ class StateManager:
         await self.broadcast()
 
     async def broadcast(self) -> None:
-        payload = self._payload()
+        await self._send_all(self._payload())
+
+    async def notify_playlist_changed(self) -> None:
+        """Tell clients the media library changed (after upload/delete)."""
+        await self._send_all(json.dumps({"type": "playlist"}))
+
+    async def _send_all(self, text: str) -> None:
         dead: list[WebSocket] = []
         for ws in list(self._clients):
             try:
-                await ws.send_text(payload)
+                await ws.send_text(text)
             except Exception:
                 dead.append(ws)
         for ws in dead:

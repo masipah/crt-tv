@@ -7,13 +7,14 @@ always win over the "/" mount.
 from __future__ import annotations
 
 from dataclasses import asdict
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import ROOT, settings
-from .services.playlist import list_videos
+from .services.playlist import VIDEO_EXTS, list_videos
 from .services.weather import fetch_weather
 from .state import VALID_MODES, StateManager
 
@@ -62,6 +63,52 @@ async def get_weather() -> dict:
 @app.get("/api/playlist")
 async def get_playlist() -> dict:
     return {"videos": list_videos()}
+
+
+def _unique_dest(name: str) -> Path:
+    """A non-colliding path inside the media dir for sanitized `name`."""
+    dest = settings.media_path / name
+    if not dest.exists():
+        return dest
+    stem, suffix = dest.stem, dest.suffix
+    i = 1
+    while (settings.media_path / f"{stem}-{i}{suffix}").exists():
+        i += 1
+    return settings.media_path / f"{stem}-{i}{suffix}"
+
+
+@app.post("/api/upload")
+async def upload_videos(files: list[UploadFile] = File(...)) -> dict:
+    saved: list[str] = []
+    skipped: list[str] = []
+    settings.media_path.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        name = Path(f.filename or "").name  # strip any path components
+        if not name or Path(name).suffix.lower() not in VIDEO_EXTS:
+            skipped.append(f.filename or "(unnamed)")
+            continue
+        dest = _unique_dest(name)
+        with open(dest, "wb") as out:
+            while chunk := await f.read(1024 * 1024):
+                out.write(chunk)
+        saved.append(dest.name)
+    if saved:
+        await state.notify_playlist_changed()
+    return {"ok": True, "saved": saved, "skipped": skipped, "videos": list_videos()}
+
+
+@app.delete("/api/video/{filename}")
+async def delete_video(filename: str) -> dict:
+    name = Path(filename).name
+    dest = (settings.media_path / name).resolve()
+    media_root = settings.media_path.resolve()
+    if dest.parent != media_root or dest.suffix.lower() not in VIDEO_EXTS:
+        raise HTTPException(400, "invalid filename")
+    if not dest.exists():
+        raise HTTPException(404, "not found")
+    dest.unlink()
+    await state.notify_playlist_changed()
+    return {"ok": True, "videos": list_videos()}
 
 
 @app.get("/api/health")
