@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# crt-tv one-line installer.
+# crt-tv one-line installer (hosted on GitHub).
 #
-# The code is hosted on GitHub; masipah.com (Vercel) just proxies this script.
 # On a fresh Raspberry Pi OS, SSH in and run:
 #
-#   curl -sSL https://masipah.com/crt-tv/install.sh | bash
-#
-# (equivalently: curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap.sh | bash)
+#   curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap.sh | bash
 #
 # Optional environment overrides:
 #   CRT_TV_DIR      install location     (default: $HOME/crt-tv)

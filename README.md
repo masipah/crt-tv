@@ -49,7 +49,6 @@ web/
 deploy/
   bootstrap.sh       one-line installer (clones from GitHub, runs install.sh)
   install.sh         per-host setup (venv, services, assets)
-  vercel/            masipah.com rewrite that proxies /crt-tv/install.sh
   config.txt.snippet composite NTSC settings · *.service systemd units · kiosk.sh
 media/               drop video files here (gitignored)
 scripts/dev.sh       run locally with autoreload
@@ -91,24 +90,21 @@ The service runs fine with no config file (defaults to London / metric).
 
 ### One-line install
 
-The code is hosted on GitHub (`github.com/masipah/crt-tv`); masipah.com just
-proxies the installer. On a fresh Raspberry Pi OS, SSH in and run:
+The installer is hosted on GitHub. On a fresh Raspberry Pi OS, SSH in and run:
 
 ```bash
-curl -sSL https://masipah.com/crt-tv/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap.sh | bash
 ```
 
-This `git clone`s the repo to `~/crt-tv`, runs `deploy/install.sh` (Chromium + X,
-the venv, `config.toml`, the WeatherStar assets, and the `crt-tv` +
-`crt-tv-kiosk` services), and prints your dashboard URL. Re-running it updates an
-existing checkout. Static IP isn't handled here — set it on your router/network.
+This `git clone`s `github.com/masipah/crt-tv` to `~/crt-tv`, runs
+`deploy/install.sh` (Chromium + X, the venv, `config.toml`, the WeatherStar
+assets, and the `crt-tv` + `crt-tv-kiosk` services), and prints your dashboard
+URL. Re-running it updates an existing checkout. Static IP isn't handled here —
+set it on your router/network.
 
-> **Hosting.** Push this repo to `github.com/masipah/crt-tv`, then add the Vercel
-> rewrite in [`deploy/vercel/`](deploy/vercel/) to your masipah.com project so
-> `/crt-tv/install.sh` proxies to `deploy/bootstrap.sh` on GitHub raw. Nothing to
-> copy or rebuild — it always serves the latest script. Different repo owner?
-> Update `CRT_TV_REPO` in `deploy/bootstrap.sh` and the rewrite destination, or
-> pass `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`.
+> Different repo owner/name? Update `CRT_TV_REPO` in `deploy/bootstrap.sh`, or
+> pass `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`. The repo must be
+> public for the unauthenticated clone to work.
 
 ### Manual install
 
