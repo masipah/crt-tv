@@ -18,8 +18,21 @@ git reset --hard origin/main
 say "Updating Python packages"
 ./.venv/bin/pip install -q -r requirements.txt
 
-say "Refreshing weather fonts/icons"
+say "Refreshing weather assets (fonts/icons + backgrounds)"
 bash web/display/assets/fetch-assets.sh || echo "    (skipped)"
+bash web/display/assets/fetch-backgrounds.sh || echo "    (skipped)"
+
+say "Setting up ws4kp (the real WeatherStar 4000+, via Docker)"
+if bash deploy/ws4kp.sh; then
+  if grep -q '^weather_engine' config.toml 2>/dev/null; then
+    sed -i 's/^weather_engine.*/weather_engine = "ws4kp"/' config.toml
+  else
+    printf '\nweather_engine = "ws4kp"\n' >> config.toml
+  fi
+  echo "    weather_engine = ws4kp"
+else
+  echo "    (ws4kp setup failed — keeping the current weather engine)"
+fi
 
 say "Reinstalling services (in case they changed)"
 RUN_USER="${SUDO_USER:-$(id -un)}"
