@@ -26,11 +26,13 @@ and sets the weather location — all of which persist across reboots.
 
 ## Contents
 
+- [Requirements](#requirements)
 - [How it works (architecture)](#how-it-works-architecture)
 - [Repository layout](#repository-layout)
 - [Quick start (local dev, no Pi)](#quick-start-local-dev-no-pi)
 - [Deploy to the Raspberry Pi 4](#deploy-to-the-raspberry-pi-4)
   - [One-line install](#one-line-install)
+  - [Reinstall from a wiped SD card](#reinstall-from-a-wiped-sd-card)
   - [Manual install](#manual-install)
   - [Enable composite NTSC output](#enable-composite-ntsc-output)
   - [Wiring (Pi 4 → PVM-9045Q)](#wiring-pi-4--pvm-9045q-composite-bnc)
@@ -45,6 +47,32 @@ and sets the weather location — all of which persist across reboots.
 - [Credits & licensing](#credits--licensing)
 
 ---
+
+## Requirements
+
+**Hardware**
+
+- **Raspberry Pi 4 Model B** (the composite/`enable_tvout` path and the
+  `vc4-fkms-v3d` overlay are specific to it).
+- A microSD card (8 GB+), a 4-pole **3.5 mm TRRS** A/V cable, and an **RCA→BNC**
+  adapter — see [Wiring](#wiring-pi-4--pvm-9045q-composite-bnc).
+- A composite **NTSC** CRT (this project targets the **Sony PVM-9045Q**).
+
+**Software (on the Pi)** — all installed automatically by `deploy/install.sh`
+except the OS:
+
+| Component            | Version / notes                                              |
+|----------------------|--------------------------------------------------------------|
+| Raspberry Pi OS      | **Bookworm** (64-bit, **Lite** is fine — no desktop needed)   |
+| Python               | **3.11+** (ships with Bookworm)                              |
+| Python packages      | pinned in [`requirements.txt`](requirements.txt) (FastAPI, uvicorn, httpx, python-multipart) |
+| Chromium             | `chromium-browser` (kiosk display)                          |
+| X server             | `xserver-xorg` + `xinit` (runs Chromium on tty1)            |
+| Network              | internet access for weather (Open-Meteo) + the install      |
+
+**For local development (no Pi)** — see [Quick start](#quick-start-local-dev-no-pi):
+Python **3.9+** is enough (the apps are dependency-free vanilla JS, no Node build
+step). This repo is **crt-tv v0.1.0**.
 
 ## How it works (architecture)
 
@@ -183,6 +211,46 @@ handled — set a DHCP reservation on your router instead.)
 > Different repo owner/name? Set `CRT_TV_REPO`, e.g.
 > `… | CRT_TV_REPO=https://github.com/you/crt-tv.git bash`. The repo must be
 > **public** for the unauthenticated clone, or use `CRT_TV_TARBALL=<url>`.
+
+### Reinstall from a wiped SD card
+
+Everything needed is in the GitHub repo, so a from-scratch rebuild is a flash and
+one command. Full procedure:
+
+1. **Flash Raspberry Pi OS** with [Raspberry Pi Imager](https://www.raspberrypi.com/software/):
+   choose **Raspberry Pi OS (64-bit) — Lite** (Bookworm). Before writing, open the
+   **gear / Edit Settings** and set:
+   - **hostname** (e.g. `crt-tv`)
+   - **enable SSH** (password or key)
+   - **username + password** — any username works; the installer configures the
+     services for whoever runs it.
+   - **Wi-Fi + locale** if not on Ethernet.
+2. **Boot and SSH in.** Give the Pi a **DHCP reservation** on your router so its IP
+   is stable, then `ssh <user>@<pi-ip>`.
+3. **Run the installer:**
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/masipah/crt-tv/main/deploy/bootstrap.sh | bash
+   ```
+   A fresh install writes a default `config.toml`, so it already **boots into
+   Weather**.
+4. **Set your weather location** from the dashboard at `http://<pi-ip>:8000/`
+   (city or ZIP) — this is the one thing a wipe loses (see below).
+5. **Re-enable composite** (one-off): append
+   [`deploy/config.txt.snippet`](deploy/config.txt.snippet) to
+   `/boot/firmware/config.txt` and reboot. *(This disables HDMI — manage over SSH.)*
+
+**What a wipe loses** (these are local, not in git — back them up first if you
+want to skip re-entering them):
+
+| File / folder        | Holds                          | Restore                              |
+|----------------------|--------------------------------|--------------------------------------|
+| `~/crt-tv/config.toml` | port, units, `regional_cities` | re-created from defaults, or copy back |
+| `~/crt-tv/data/state.json` | UI-set weather location    | re-enter in the dashboard, or copy back |
+| `~/crt-tv/media/`    | uploaded videos                | re-upload, or copy back              |
+
+To preserve them across a wipe, before reformatting:
+`scp -r <user>@<pi-ip>:~/crt-tv/{config.toml,data,media} ./crt-tv-backup/`, then
+copy them back into `~/crt-tv/` after step 3 and `sudo systemctl restart crt-tv`.
 
 ### Manual install
 
