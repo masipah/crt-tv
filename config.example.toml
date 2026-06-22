@@ -13,6 +13,10 @@ location = "London"         # e.g. "Austin", "Paris", "Tokyo", or "78701"
 # country = "US"            # optional ISO code to disambiguate same-named cities
 units = "metric"            # metric (°C, km/h) | imperial (°F, mph)
 
+# Optional: cities for the WeatherStar "Latest Observations" and "Travel
+# Forecast" screens (city names or US ZIPs). Leave empty to hide those screens.
+# regional_cities = ["Dallas", "Houston", "San Antonio", "New Orleans"]
+
 # Optional: pin an exact point and skip geocoding (overrides `location`):
 # latitude = 51.5074
 # longitude = -0.1278

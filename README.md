@@ -8,10 +8,11 @@ keyboard, mouse, or HDMI monitor required after setup.
 The Pi continuously shows one of three **modes**:
 
 - **Weather** — a **WeatherStar 4000**-style forecast (the 1990s Weather Channel
-  look): blue gradient panels, the Star4000 font, and a rotating
-  Current Conditions → Extended Forecast → Almanac cycle with a scrolling lower
-  ticker. Data comes from Open-Meteo (no API key, works worldwide). **This is the
-  default mode shown on boot.**
+  look): blue gradient panels, the Star4000 font, and a rotating cycle of screens
+  — Current Conditions, Latest Observations, Hourly Forecast, Local Forecast,
+  Extended Forecast (two pages), Travel Forecast, and Almanac — with a scrolling
+  lower ticker. Data comes from Open-Meteo (no API key, works worldwide). **This
+  is the default mode shown on boot.**
 - **Teletext** — a Ceefax-style page with a live clock and the classic 8-colour
   teletext palette.
 - **Video** — a continuous 480i playlist from a local folder, uploaded and
@@ -307,6 +308,7 @@ There are three layers, in increasing precedence:
 | `[weather] longitude`    | _(unset)_    | See `latitude`                                                 |
 | `[weather] location_name`| `""`         | Display name override (else the geocoded name is used)        |
 | `[weather] timezone`     | `"auto"`     | IANA tz, or `"auto"` to derive from coordinates               |
+| `[weather] regional_cities`| `[]`       | Cities/ZIPs for the Latest Observations + Travel screens (empty = those screens hidden) |
 | `[video] media_dir`      | `"media"`    | Folder of video files (relative to repo root, or absolute)    |
 | `[video] shuffle`        | `false`      | Randomise play order (ignores the saved manual order)         |
 
@@ -370,9 +372,22 @@ display/dashboard auto-reconnect every 2 s if it drops.
 
 Modelled on the **WeatherStar 4000+** project
 ([github.com/netbymatt/ws4kp](https://github.com/netbymatt/ws4kp), MIT) — the
-Star4000 font, blue gradient panels, the current-conditions icon set, and the
-rotating **Current Conditions → Extended Forecast → Almanac** cycle with a
-scrolling lower ticker. Two deliberate differences from ws4kp:
+Star4000 font, blue gradient panels, the current-conditions icon set, and a
+rotating cycle of screens with a scrolling lower ticker:
+
+| Screen               | Source                          | Shown when…                     |
+|----------------------|---------------------------------|---------------------------------|
+| Current Conditions   | current obs                     | always                          |
+| Latest Observations  | `regional_cities` current obs   | `regional_cities` configured    |
+| Hourly Forecast      | next 12 hours                   | always                          |
+| Local Forecast       | daily narrative (Today/…)       | always                          |
+| Extended Forecast    | days 1–3 and 4–6 (two pages)    | always                          |
+| Travel Forecast      | `regional_cities` hi/lo         | `regional_cities` configured    |
+| Almanac              | sunrise/sunset/moon phase       | always                          |
+
+The city screens (Latest Observations, Travel Forecast) appear only if you set
+`[weather] regional_cities` in `config.toml` — they're fetched in a single
+multi-coordinate Open-Meteo request. Two deliberate differences from ws4kp:
 
 - **Data source is Open-Meteo, not NWS.** ws4kp uses `api.weather.gov`, which is
   US-only; Open-Meteo works anywhere, so this runs for any city/ZIP. US ZIPs are
@@ -435,7 +450,7 @@ drag-reorder and stored in `media/.order.json`.
 ## Roadmap
 
 - `mpv` video backend option (hardware decode, better interlaced handling)
-- More WeatherStar 4000 screens: Hourly, Local Forecast narrative, Radar
+- Animated radar screen (e.g. RainViewer tiles) — the main ws4kp screen not yet ported
 - Multiple teletext pages / a page-number entry on the dashboard
 - Optional real broadcast teletext in the VBI via `raspi-teletext`
 - A dashboard control for `default_mode` (set the boot mode without editing config)

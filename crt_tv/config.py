@@ -34,6 +34,7 @@ class WeatherConfig:
     longitude: float | None = None
     location_name: str = ""           # display name; defaults to the geocoded name
     timezone: str = "auto"            # IANA tz, or "auto" to derive from coords
+    regional_cities: list = field(default_factory=list)  # Travel/Regional screens
 
 
 @dataclass

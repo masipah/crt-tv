@@ -64,9 +64,8 @@ function screenCurrent(w) {
     </div>`;
 }
 
-function screenExtended(w) {
-  // first three forecast days, skipping today if we have enough
-  const days = (w.forecast.length > 3 ? w.forecast.slice(1, 4) : w.forecast.slice(0, 3));
+function screenExtended(w, start = 1) {
+  const days = w.forecast.slice(start, start + 3);
   const cols = days
     .map(
       (d) => `
@@ -79,6 +78,70 @@ function screenExtended(w) {
     )
     .join("");
   return `<div class="ws-ext">${cols}</div>`;
+}
+
+function screenHourly(w) {
+  const rows = w.hourly
+    .slice(0, 12)
+    .map(
+      (h) => `
+      <div class="ws-hr">
+        <span class="t">${h.time}</span>
+        ${icon(h.icon, h.label)}
+        <span class="tp">${h.temp}&deg;</span>
+        <span class="pp">${h.precip == null ? "" : h.precip + "%"}</span>
+      </div>`
+    )
+    .join("");
+  return `<div class="ws-hourly ws-box">${rows}</div>`;
+}
+
+function screenLocalForecast(w) {
+  const periods = w.local_forecast
+    .slice(0, 3)
+    .map(
+      (p) => `
+      <div class="ws-lf">
+        <div class="lf-title">${p.title}</div>
+        <div class="lf-text">${p.text}</div>
+      </div>`
+    )
+    .join("");
+  return `<div class="ws-localfc ws-box">${periods}</div>`;
+}
+
+function screenRegional(w) {
+  const u = w.units;
+  const rows = w.regional
+    .map(
+      (c) => `
+      <div class="ws-city">
+        <span class="cn">${c.name}</span>
+        ${icon(c.icon, c.label)}
+        <span class="rc">${c.label}</span>
+        <span class="tp">${c.temp}&deg;${u.temp}</span>
+      </div>`
+    )
+    .join("");
+  return `<div class="ws-cities ws-box">${rows}</div>`;
+}
+
+function screenTravel(w) {
+  const rows = w.regional
+    .map(
+      (c) => `
+      <div class="ws-city">
+        <span class="cn">${c.name}</span>
+        ${icon(c.icon, c.label)}
+        <span class="lo">${c.low == null ? "--" : c.low}</span>
+        <span class="hi">${c.high == null ? "--" : c.high}</span>
+      </div>`
+    )
+    .join("");
+  return `<div class="ws-cities ws-box">
+      <div class="ws-city ws-city-head"><span class="cn"></span><span></span><span class="lo">LO</span><span class="hi">HI</span></div>
+      ${rows}
+    </div>`;
 }
 
 function screenAlmanac(w) {
@@ -95,14 +158,29 @@ function screenAlmanac(w) {
     </div>`;
 }
 
-const SCREENS = [
-  { title: "Current<br>Conditions", build: screenCurrent },
-  { title: "Extended<br>Forecast", build: screenExtended },
-  { title: "Almanac", build: screenAlmanac },
-];
+// The cycle of screens, built from whatever data is available — the same
+// rotation a WeatherStar 4000 runs. City screens only appear if regional_cities
+// are configured.
+function buildScreens(w) {
+  const screens = [{ title: "Current<br>Conditions", build: screenCurrent }];
+  if (w.regional && w.regional.length)
+    screens.push({ title: "Latest<br>Observations", build: screenRegional });
+  if (w.hourly && w.hourly.length)
+    screens.push({ title: "Hourly<br>Forecast", build: screenHourly });
+  if (w.local_forecast && w.local_forecast.length)
+    screens.push({ title: "Local<br>Forecast", build: screenLocalForecast });
+  screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 1) });
+  if (w.forecast && w.forecast.length > 4)
+    screens.push({ title: "Extended<br>Forecast", build: (d) => screenExtended(d, 4) });
+  if (w.regional && w.regional.length)
+    screens.push({ title: "Travel<br>Forecast", build: screenTravel });
+  screens.push({ title: "Almanac", build: screenAlmanac });
+  return screens;
+}
 
 // ---- controller ----
 let data = null;
+let screens = [];
 let screenIndex = 0;
 let clockTimer = null;
 let cycleTimer = null;
@@ -114,8 +192,8 @@ let bodyEl = null;
 let ldlEl = null;
 
 function paintScreen() {
-  if (!data) return;
-  const s = SCREENS[screenIndex % SCREENS.length];
+  if (!data || !screens.length) return;
+  const s = screens[screenIndex % screens.length];
   titleEl.innerHTML = s.title;
   bodyEl.innerHTML = `<div class="ws-screen">${s.build(data)}</div>`;
 }
@@ -152,6 +230,8 @@ async function load() {
     const resp = await fetch("/api/weather");
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
+    screens = buildScreens(data);
+    if (screenIndex >= screens.length) screenIndex = 0;
     ldlEl.textContent = ticker(data);
     paintScreen();
     updateClock();

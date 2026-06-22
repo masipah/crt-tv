@@ -75,6 +75,7 @@ def effective_weather() -> dict[str, Any]:
             "longitude": None,
             "location_name": "",
             "timezone": "auto",
+            "regional_cities": list(w.regional_cities),
         }
     return {
         "location": w.location,
@@ -84,4 +85,5 @@ def effective_weather() -> dict[str, Any]:
         "longitude": w.longitude,
         "location_name": w.location_name,
         "timezone": w.timezone,
+        "regional_cities": list(w.regional_cities),
     }

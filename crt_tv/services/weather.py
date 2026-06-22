@@ -24,6 +24,7 @@ _ZIP_API = "https://api.zippopotam.us/us"
 _TTL_SECONDS = 600
 _cache: dict[str, Any] = {"ts": 0.0, "data": None}
 _resolved_location: dict[str, Any] | None = None
+_geocode_cache: dict[str, dict[str, Any]] = {}
 
 # WMO weather code -> (label, day-icon, night-icon). Icon filenames match the
 # ws4kp current-conditions set (server/images/icons/current-conditions/).
@@ -122,9 +123,41 @@ def reset_caches() -> None:
     _cache["ts"] = 0.0
 
 
+async def _geocode(client: httpx.AsyncClient, query: str, country: str = "") -> dict[str, Any]:
+    """Resolve a city name or US ZIP to {lat, lon, name, tz}. Cached per query."""
+    query = (query or "").strip()
+    key = f"{query}|{country}".lower()
+    if key in _geocode_cache:
+        return _geocode_cache[key]
+
+    if re.fullmatch(r"\d{5}", query):  # US ZIP code
+        resp = await client.get(f"{_ZIP_API}/{query}")
+        resp.raise_for_status()
+        place = resp.json()["places"][0]
+        out = {
+            "lat": float(place["latitude"]),
+            "lon": float(place["longitude"]),
+            "name": f"{place['place name']}, {place['state abbreviation']}",
+            "tz": None,
+        }
+    else:  # city / place name
+        resp = await client.get(_GEOCODE_API, params={"name": query, "count": 10, "format": "json"})
+        resp.raise_for_status()
+        results = resp.json().get("results") or []
+        if country:
+            cc = country.upper()
+            results = [r for r in results if r.get("country_code", "").upper() == cc] or results
+        if not results:
+            raise RuntimeError(f"could not geocode location: {query!r}")
+        g = results[0]
+        out = {"lat": g["latitude"], "lon": g["longitude"], "name": g["name"], "tz": g.get("timezone")}
+
+    _geocode_cache[key] = out
+    return out
+
+
 async def _resolve_location(client: httpx.AsyncClient, ew: dict[str, Any]) -> dict[str, Any]:
-    """Turn the effective location (city or US zip) into coordinates. Cached
-    after the first lookup. An explicit lat/lon skips geocoding."""
+    """Coordinates for the primary location. Cached; explicit lat/lon skips geocoding."""
     global _resolved_location
     if _resolved_location is not None:
         return _resolved_location
@@ -138,36 +171,113 @@ async def _resolve_location(client: httpx.AsyncClient, ew: dict[str, Any]) -> di
         }
         return _resolved_location
 
-    query = (ew["location"] or "").strip()
-    if re.fullmatch(r"\d{5}", query):  # US ZIP code
-        resp = await client.get(f"{_ZIP_API}/{query}")
-        resp.raise_for_status()
-        place = resp.json()["places"][0]
-        name = ew["location_name"] or f"{place['place name']}, {place['state abbreviation']}"
-        _resolved_location = {
-            "lat": float(place["latitude"]),
-            "lon": float(place["longitude"]),
-            "name": name,
-            "tz": ew["timezone"] or "auto",
-        }
-    else:  # city / place name
-        resp = await client.get(_GEOCODE_API, params={"name": query, "count": 10, "format": "json"})
-        resp.raise_for_status()
-        results = resp.json().get("results") or []
-        if ew["country"]:
-            cc = ew["country"].upper()
-            results = [r for r in results if r.get("country_code", "").upper() == cc] or results
-        if not results:
-            raise RuntimeError(f"could not geocode location: {query!r}")
-        g = results[0]
-        tz = ew["timezone"]
-        _resolved_location = {
-            "lat": g["latitude"],
-            "lon": g["longitude"],
-            "name": ew["location_name"] or g["name"],
-            "tz": tz if tz and tz != "auto" else g.get("timezone", "auto"),
-        }
+    g = await _geocode(client, ew["location"], ew["country"])
+    tz = ew["timezone"]
+    _resolved_location = {
+        "lat": g["lat"],
+        "lon": g["lon"],
+        "name": ew["location_name"] or g["name"],
+        "tz": tz if tz and tz != "auto" else (g["tz"] or "auto"),
+    }
     return _resolved_location
+
+
+def _build_hourly(raw: dict[str, Any], now_iso: str, count: int = 12) -> list[dict[str, Any]]:
+    """Next `count` hours from the hourly block, starting at the current hour."""
+    h = raw.get("hourly", {})
+    times = h.get("time", [])
+    temps = h.get("temperature_2m", [])
+    codes = h.get("weather_code", [])
+    precs = h.get("precipitation_probability", [])
+    days = h.get("is_day", [])
+    try:
+        now_hour = datetime.datetime.fromisoformat(now_iso).replace(minute=0, second=0, microsecond=0)
+    except Exception:
+        now_hour = datetime.datetime.now().replace(minute=0, second=0, microsecond=0)
+
+    out = []
+    for i, t in enumerate(times):
+        try:
+            dt = datetime.datetime.fromisoformat(t)
+        except Exception:
+            continue
+        if dt < now_hour:
+            continue
+        is_day = bool(days[i]) if i < len(days) else (6 <= dt.hour < 20)
+        label, glyph = _describe(codes[i], is_day)
+        hour12 = dt.hour % 12 or 12
+        out.append({
+            "time": f"{hour12}{'AM' if dt.hour < 12 else 'PM'}",
+            "temp": round(temps[i]),
+            "icon": glyph,
+            "label": label,
+            "precip": precs[i] if i < len(precs) else None,
+        })
+        if len(out) >= count:
+            break
+    return out
+
+
+def _local_forecast(forecast: list[dict[str, Any]], u: str) -> list[dict[str, Any]]:
+    """Ceefax/WeatherStar-style narrative periods from the daily forecast."""
+    periods = []
+    for i, d in enumerate(forecast[:5]):
+        title = "TODAY" if i == 0 else d["day"].upper()
+        text = f"{d['label'].upper()}. HIGH {d['high']}{u}, LOW {d['low']}{u}."
+        if d.get("precip"):
+            text += f" PRECIP {d['precip']}%."
+        periods.append({"title": title, "text": text})
+    return periods
+
+
+async def _fetch_regional(client: httpx.AsyncClient, cities: list[str], metric: bool) -> list[dict[str, Any]]:
+    """Current conditions + today's hi/lo for a list of cities, in one multi-
+    coordinate Open-Meteo call. Used by the Regional and Travel screens."""
+    coords, names = [], []
+    for city in cities[:8]:
+        try:
+            g = await _geocode(client, city)
+            coords.append((g["lat"], g["lon"]))
+            names.append(g["name"].upper())
+        except Exception:
+            continue
+    if not coords:
+        return []
+
+    params = {
+        "latitude": ",".join(str(la) for la, _ in coords),
+        "longitude": ",".join(str(lo) for _, lo in coords),
+        "current": "temperature_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m",
+        "daily": "temperature_2m_max,temperature_2m_min,weather_code",
+        "timezone": "auto",
+        "temperature_unit": "celsius" if metric else "fahrenheit",
+        "wind_speed_unit": "kmh" if metric else "mph",
+        "forecast_days": 1,
+    }
+    resp = await client.get(_API, params=params)
+    resp.raise_for_status()
+    payload = resp.json()
+    items = payload if isinstance(payload, list) else [payload]
+
+    out = []
+    for name, item in zip(names, items):
+        cur = item.get("current", {})
+        daily = item.get("daily", {})
+        is_day = bool(cur.get("is_day", 1))
+        label, glyph = _describe(cur.get("weather_code", -1), is_day)
+        hi = (daily.get("temperature_2m_max") or [None])[0]
+        lo = (daily.get("temperature_2m_min") or [None])[0]
+        out.append({
+            "name": name,
+            "temp": round(cur.get("temperature_2m", 0)),
+            "label": label,
+            "icon": glyph,
+            "high": round(hi) if hi is not None else None,
+            "low": round(lo) if lo is not None else None,
+            "wind_dir": _compass(cur.get("wind_direction_10m", 0)),
+            "wind_speed": round(cur.get("wind_speed_10m", 0)),
+        })
+    return out
 
 
 async def fetch_weather() -> dict[str, Any]:
@@ -188,6 +298,7 @@ async def fetch_weather() -> dict[str, Any]:
                 "weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
             ),
             "daily": "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max",
+            "hourly": "temperature_2m,weather_code,precipitation_probability,is_day",
             "temperature_unit": "celsius" if metric else "fahrenheit",
             "wind_speed_unit": "kmh" if metric else "mph",
             "forecast_days": 7,
@@ -195,6 +306,13 @@ async def fetch_weather() -> dict[str, Any]:
         resp = await client.get(_API, params=params)
         resp.raise_for_status()
         raw = resp.json()
+
+        regional = []
+        if ew.get("regional_cities"):
+            try:
+                regional = await _fetch_regional(client, ew["regional_cities"], metric)
+            except Exception:
+                regional = []
 
     cur = raw.get("current", {})
     is_day = bool(cur.get("is_day", 1))
@@ -241,6 +359,9 @@ async def fetch_weather() -> dict[str, Any]:
             "is_day": is_day,
         },
         "forecast": forecast,
+        "hourly": _build_hourly(raw, cur.get("time", "")),
+        "local_forecast": _local_forecast(forecast, "C" if metric else "F"),
+        "regional": regional,
         "almanac": {
             "sunrise": _fmt_time(daily.get("sunrise", [""])[0]),
             "sunset": _fmt_time(daily.get("sunset", [""])[0]),
