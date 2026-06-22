@@ -6,6 +6,8 @@
 // clock and a scrolling "lower display line" ticker. Icons fall back to text if
 // the ws4kp asset set hasn't been fetched into assets/.
 
+import { startRadar, stopRadar } from "./radar.js";
+
 const ICON_BASE = "assets/icons/current-conditions/";
 const CYCLE_MS = 12000;
 
@@ -177,7 +179,11 @@ function screenAlmanac(w) {
 
 // The cycle of screens, built from the data plus the user's enabled-screen
 // selection (from /api/weather/options). City screens also need regional_cities.
-const ALL_KEYS = ["current", "regional", "hourly", "hourly_graph", "local", "extended", "travel", "almanac"];
+const ALL_KEYS = ["current", "regional", "hourly", "hourly_graph", "local", "extended", "travel", "almanac", "radar"];
+
+function screenRadar() {
+  return `<div class="ws-radar"></div>`;
+}
 
 function buildScreens(w, opts) {
   const on = new Set((opts && opts.enabled_keys) || ALL_KEYS);
@@ -199,6 +205,8 @@ function buildScreens(w, opts) {
   if (on.has("travel") && w.regional && w.regional.length)
     s.push({ title: "Travel<br>Forecast", bg: "BackGround6.png", zone: "bg6", build: screenTravel });
   if (on.has("almanac")) s.push({ title: "Almanac", bg: "BackGround1.png", zone: "bg1", build: screenAlmanac });
+  if (on.has("radar"))
+    s.push({ key: "radar", title: "Local<br>Radar", bg: "BackGround6.png", zone: "bg6", build: screenRadar });
   if (!s.length) s.push({ title: "Current<br>Conditions", bg: "BackGround1.png", zone: "bg1", build: screenCurrent });
   return s;
 }
@@ -210,6 +218,7 @@ let screenIndex = 0;
 let cycleMs = 12000;
 let currentOpts = null;
 let paused = false;
+let radarActive = false;
 
 const THEME_FILTER = {
   classic: "none",
@@ -230,6 +239,7 @@ let fitHandler = null;
 
 function paintScreen() {
   if (!data || !screens.length) return;
+  if (radarActive) { stopRadar(); radarActive = false; }
   const idx = ((screenIndex % screens.length) + screens.length) % screens.length;
   const s = screens[idx];
   titleEl.innerHTML = s.title;
@@ -237,6 +247,11 @@ function paintScreen() {
   stageEl.style.filter = THEME_FILTER[(currentOpts && currentOpts.theme) || "classic"] || "none";
   contentEl.className = `ws-content ${s.zone}`;
   contentEl.innerHTML = s.build(data);
+  if (s.key === "radar") {
+    const h = data.headend || {};
+    startRadar(contentEl.querySelector(".ws-radar"), h.latitude, h.longitude);
+    radarActive = true;
+  }
 }
 
 function restartCycle() {
@@ -345,5 +360,6 @@ export function stopWeather() {
   for (const t of [clockTimer, cycleTimer, refreshTimer]) if (t) clearInterval(t);
   if (retryTimer) clearTimeout(retryTimer);
   if (fitHandler) window.removeEventListener("resize", fitHandler);
+  if (radarActive) { stopRadar(); radarActive = false; }
   clockTimer = cycleTimer = refreshTimer = retryTimer = fitHandler = null;
 }

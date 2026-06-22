@@ -87,7 +87,7 @@ WEATHER_SCREENS = [
     ("extended", "Extended Forecast", True),
     ("almanac", "Almanac", True),
     ("spc", "SPC Outlook", False),
-    ("radar", "Local Radar", False),
+    ("radar", "Local Radar", True),
 ]
 _IMPLEMENTED = [k for k, _, impl in WEATHER_SCREENS if impl]
 

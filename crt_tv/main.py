@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from .config import ROOT, settings
 from .services.playlist import VIDEO_EXTS, list_videos, set_order
+from .services.radar import fetch_radar
 from .services.store import (
     SPEEDS,
     THEMES,
@@ -180,6 +181,14 @@ async def get_music() -> dict:
             if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
                 tracks.append(f"/display/assets/audio/{p.name}")
     return {"enabled": True, "volume": opts["music_volume"], "tracks": tracks}
+
+
+@app.get("/api/radar")
+async def get_radar() -> dict:
+    try:
+        return await fetch_radar()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"radar fetch failed: {exc}") from exc
 
 
 @app.get("/api/playlist")

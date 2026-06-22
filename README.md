@@ -342,6 +342,7 @@ installer: `CRT_TV_DIR`, `CRT_TV_REPO`, `CRT_TV_REF`, `CRT_TV_TARBALL`.
 | `POST /api/weather/options` | `{ screens?, speed?, theme?, ticker?, ticker_text?, music?, music_volume? }` | Persist displays + speed + theme + ticker + music (live) |
 | `POST /api/weather/control` | `{ action }` | Control bar: `prev`/`next`/`pause`/`play`/`refresh` (transient) |
 | `GET /api/music`            | —                                 | `{ enabled, volume, tracks: [url] }`            |
+| `GET /api/radar`            | —                                 | RainViewer frame list (proxied, cached 5 min)   |
 | `GET /api/playlist`         | —                                 | `{ videos: [ { name, file, url } ] }`           |
 | `POST /api/playlist/order`  | `{ "order": ["b.mp4","a.mp4"] }`  | Persist a new order                             |
 | `POST /api/upload`          | `multipart/form-data` `files`     | Save videos (non-video rejected)                |
@@ -366,13 +367,15 @@ MIT). The rotation:
 | Extended Forecast   | days 1–3 and 4–6 (two pages)  | always                       |
 | Travel Forecast     | `regional_cities` hi/lo       | `regional_cities` configured |
 | Almanac             | sunrise/sunset/moon           | always                       |
+| Local Radar         | RainViewer + Leaflet base map | always (needs internet)      |
 
 The **dashboard is styled after the ws4kp control page** — black background, the
-Star4000 font, a "Selected displays" checklist (the full WeatherStar 4000 list;
-displays crt-tv doesn't render — Hazards, Regional Forecast, SPC Outlook, Local
-Radar — appear greyed/disabled, as ws4kp greys no-data displays), a "Settings"
-section (location, units, cycle **speed**, music + volume), and a "Headend
-Information" block (location, coordinates, data source, version). Toggles persist
+Star4000 font, a control bar (prev/next/play-pause/refresh/mute/fullscreen that
+drives the live display), a "Selected displays" checklist (the full WeatherStar
+4000 list; displays crt-tv doesn't render — Hazards, Regional Forecast, SPC
+Outlook — appear greyed/disabled, as ws4kp greys no-data displays), a "Settings"
+section (location, units, cycle **speed**, **themes**, music + volume), a
+"Scroll Options" section (ticker content), and a "Headend Information" block. Toggles persist
 in `data/state.json` and apply to the CRT live via `GET`/`POST
 /api/weather/options`. City screens additionally need `[weather] regional_cities`.
 
@@ -416,7 +419,6 @@ sudo systemctl disable --now crt-tv-kiosk   # silence the kiosk before the CRT i
 ## Roadmap
 
 - `mpv` video backend option (hardware decode, better interlaced handling)
-- Animated radar screen (e.g. RainViewer tiles)
 - Multiple teletext pages / page-number entry on the dashboard
 - A dashboard control for `default_mode` and `regional_cities`
 
@@ -427,7 +429,9 @@ sudo systemctl disable --now crt-tv-kiosk   # silence the kiosk before the CRT i
 - **Star4000 fonts & weather icons** — TWCClassics (icons by Charles Abel, Nick
   Smith, Malek Masoud); fetched at install, not redistributed here.
 - **Weather data** — [Open-Meteo](https://open-meteo.com); **US ZIP geocoding** —
-  [Zippopotam.us](https://www.zippopotam.us).
+  [Zippopotam.us](https://www.zippopotam.us); **radar** —
+  [RainViewer](https://www.rainviewer.com) over a [Leaflet](https://leafletjs.com)
+  + [CARTO](https://carto.com) base map.
 
 A non-commercial hobby build, not affiliated with The Weather Channel, Sony, or
 the Raspberry Pi Foundation.
