@@ -12,6 +12,7 @@ sudo apt-get install -y \
   python3 python3-venv python3-pip \
   chromium-browser \
   xserver-xorg xinit x11-xserver-utils \
+  unclutter \
   pulseaudio \
   curl
 # pulseaudio gives Chromium an audio sink for the weather-channel music; with

@@ -15,6 +15,9 @@ done
 xset -dpms || true
 xset s off || true
 xset s noblank || true
+if command -v unclutter >/dev/null 2>&1; then
+  unclutter -idle 0 -root &
+fi
 
 # Pick whichever chromium binary exists on this image.
 CHROMIUM="$(command -v chromium-browser || command -v chromium)"
