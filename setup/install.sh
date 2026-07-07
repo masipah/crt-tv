@@ -130,6 +130,8 @@ EOF
 systemctl daemon-reload
 install -d /etc/pipewire/pipewire.conf.d
 install -m 644 "$REPO_DIR/setup/pipewire-airplay.conf" /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
+install -d /etc/wireplumber/wireplumber.conf.d
+install -m 644 "$REPO_DIR/setup/wireplumber-crt-tv.conf" /etc/wireplumber/wireplumber.conf.d/50-crt-tv.conf
 # crt's user manager (which hosts pipewire) must run from boot, sessions or not
 loginctl enable-linger crt 2>/dev/null || true
 crt_uid=$(id -u crt)
