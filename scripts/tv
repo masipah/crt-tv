@@ -28,6 +28,7 @@ usage: tv <command>
   autostart          (run at boot) show the weather, muted
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
+  airplay            toggle audio output: AirPlay speakers <-> TV jack
   shuffle            toggle shuffled playback (videos only)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
@@ -64,11 +65,55 @@ mpv_get() {
     sed -nE 's/.*"data":(true|false|[0-9][0-9.]*).*/\1/p' | head -n1; } || true
 }
 
-# One hardware mute for the whole TV: the weather music (chromium) and the
-# videos (mpv) come out of the same jack, so mute at the ALSA mixer.
+# PipeWire control as the crt user (whose session owns the audio graph)
+wp() {
+  local uid
+  uid=$(id -u crt 2>/dev/null) || return 1
+  sudo -u crt XDG_RUNTIME_DIR="/run/user/$uid" wpctl "$@" 2>/dev/null
+}
+
+# Sink ids from wpctl status; inspect each to find the right backend
+wp_sink_ids() {
+  wp status | awk '/Sinks:/ { f = 1; next } /(Sources|Filters|Streams):/ { f = 0 } f' |
+    sed -nE 's/^[^0-9]*([0-9]+)\..*/\1/p'
+}
+
+wp_find_sink() { # <pattern matched against wpctl inspect output>
+  local id
+  for id in $(wp_sink_ids); do
+    if wp inspect "$id" | grep -qi "$1"; then
+      echo "$id"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# One mute for the whole TV: whatever the default sink is (jack or AirPlay)
+# via PipeWire, plus the hardware mixer as belt-and-braces/fallback.
 mixer() {
-  amixer -q sset Headphone "$@" 2>/dev/null ||
-    amixer -q sset PCM "$@" 2>/dev/null || true
+  case $1 in
+    toggle)
+      if wp get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED; then
+        mixer unmute
+      elif wp get-volume @DEFAULT_AUDIO_SINK@ >/dev/null; then
+        mixer mute
+      else
+        amixer -q sset Headphone toggle 2>/dev/null ||
+          amixer -q sset PCM toggle 2>/dev/null || true
+      fi
+      ;;
+    mute)
+      wp set-mute @DEFAULT_AUDIO_SINK@ 1 || true
+      amixer -q sset Headphone mute 2>/dev/null ||
+        amixer -q sset PCM mute 2>/dev/null || true
+      ;;
+    unmute)
+      wp set-mute @DEFAULT_AUDIO_SINK@ 0 || true
+      amixer -q sset Headphone unmute 2>/dev/null ||
+        amixer -q sset PCM unmute 2>/dev/null || true
+      ;;
+  esac
 }
 
 # A pending weather break must not outlive a manual mode change
@@ -219,6 +264,26 @@ case $cmd in
     as_root
     mixer toggle
     ;;
+  airplay)
+    as_root
+    # Toggle the default output between the AirPlay receiver and the jack.
+    # PipeWire moves running streams over live — no restart needed.
+    if wp inspect @DEFAULT_AUDIO_SINK@ | grep -qi raop; then
+      id=$(wp_find_sink 'api\.alsa') || {
+        echo "tv: no jack sink found" >&2
+        exit 1
+      }
+      wp set-default "$id"
+      echo "audio: TV jack"
+    else
+      id=$(wp_find_sink 'raop') || {
+        echo "tv: no AirPlay device found — is it on and on this network?" >&2
+        exit 1
+      }
+      wp set-default "$id"
+      echo "audio: AirPlay"
+    fi
+    ;;
   shuffle)
     as_root
     # A mode, not a one-shot: the flag survives channel switches and new
@@ -290,6 +355,8 @@ case $cmd in
     echo
     echo "== audio =="
     amixer sget Headphone 2>/dev/null || amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
+    echo "-- pipewire sinks (* = default):"
+    wp status 2>/dev/null | awk '/Sinks:/ { f = 1 } /(Sources|Filters):/ { f = 0 } f' || echo "(pipewire not running)"
     echo
     echo "== boot config =="
     grep -E 'vc4|tvout|sdtv' /boot/firmware/config.txt 2>/dev/null || true

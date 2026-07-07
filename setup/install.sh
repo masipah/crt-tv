@@ -104,6 +104,18 @@ amixer -q sset Headphone 100% unmute 2>/dev/null \
   || amixer -q sset PCM 100% unmute 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
+echo "==> Audio routing (PipeWire + AirPlay out)"
+# PipeWire carries chromium (via its pulse interface) and mpv; the RAOP
+# module turns AirPlay receivers on the LAN into ordinary output sinks.
+apt-get install -y pipewire pipewire-pulse wireplumber dbus-user-session avahi-daemon
+install -d /etc/pipewire/pipewire.conf.d
+install -m 644 "$REPO_DIR/setup/pipewire-airplay.conf" /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
+# crt's user manager (which hosts pipewire) must run from boot, sessions or not
+loginctl enable-linger crt 2>/dev/null || true
+crt_uid=$(id -u crt)
+sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
+  systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
+
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
 if [[ ! -f /etc/crt-tv/crt-tv.env ]]; then
