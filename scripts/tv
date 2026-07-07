@@ -21,7 +21,9 @@ usage() {
 usage: tv <command>
 
   weather            show the WeatherStar 4000+
-  play <path>...     play video file(s)/folder(s) with mpv (loops forever)
+  play <path>...     play videos (a single library file continues through the
+                     whole library from there; lists/folders play as given)
+  break [secs]       cut to the weather, then back to the video (default 120s)
   pause              toggle pause
   mute               toggle mute
   shuffle            shuffle the playlist order
@@ -47,12 +49,33 @@ mpv_cmd() {
   }
 }
 
+mpv_get() {
+  { printf '{"command":["get_property","%s"]}\n' "$1" |
+    socat - "UNIX-CONNECT:$MPV_SOCK" 2>/dev/null |
+    sed -n 's/.*"data":\([0-9][0-9.]*\).*/\1/p' | head -n1; } || true
+}
+
+# A pending weather break must not outlive a manual mode change
+cancel_break() {
+  systemctl stop crt-weatherbreak.timer 2>/dev/null || true
+  systemctl stop crt-weatherbreak.service 2>/dev/null || true
+  rm -f "$RUN_DIR/resume"
+}
+
+find_media() { # <dir> — all playable files, sorted
+  find "$(realpath "$1")" -type f \( \
+    -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o \
+    -iname '*.mov' -o -iname '*.m4v' -o -iname '*.mpg' -o \
+    -iname '*.mpeg' -o -iname '*.ts' -o -iname '*.webm' \) | sort
+}
+
 cmd=${1:-status}
 [[ $# -gt 0 ]] && shift
 
 case $cmd in
   weather | 4000)
     as_root
+    cancel_break
     # Keep the configured URL (e.g. a permalink with baked-in location) when
     # it already points at ws4kp; only fall back to the bare default otherwise.
     url=$(env_get KIOSK_URL)
@@ -73,11 +96,7 @@ case $cmd in
         p=$MEDIA_DIR/$p
       fi
       if [[ -d $p ]]; then
-        find "$(realpath "$p")" -type f \( \
-          -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o \
-          -iname '*.mov' -o -iname '*.m4v' -o -iname '*.mpg' -o \
-          -iname '*.mpeg' -o -iname '*.ts' -o -iname '*.webm' \) |
-          sort >>"$tmp"
+        find_media "$p" >>"$tmp"
       elif [[ -f $p ]]; then
         realpath "$p" >>"$tmp"
       else
@@ -91,8 +110,48 @@ case $cmd in
       rm -f "$tmp"
       exit 1
     fi
+    # A single library file plays like a channel: continue through the whole
+    # library from that point (a multi-path list — e.g. the web queue — plays
+    # exactly as given).
+    if [[ $# -eq 1 && $(wc -l <"$tmp") -eq 1 ]]; then
+      only=$(<"$tmp")
+      lib_root=$(realpath "$MEDIA_DIR" 2>/dev/null || true)
+      if [[ -n $lib_root && $only == "$lib_root"/* ]]; then
+        find_media "$lib_root" | awk -v start="$only" '
+          { a[NR] = $0; if ($0 == start) s = NR }
+          END {
+            if (!s) s = 1
+            for (i = s; i <= NR; i++) print a[i]
+            for (i = 1; i < s; i++) print a[i]
+          }' >"$tmp"
+      fi
+    fi
+    cancel_break
     install -m 644 "$tmp" "$PLAYLIST"
     rm -f "$tmp"
+    systemctl restart crt-player.service
+    ;;
+  break | weatherbreak)
+    as_root
+    secs=${1:-120}
+    if ! systemctl -q is-active crt-player.service; then
+      echo "tv: no video playing — switching to weather instead" >&2
+      exec "$0" weather
+    fi
+    cancel_break
+    pos=$(mpv_get playlist-pos)
+    time_pos=$(mpv_get time-pos)
+    printf '%s %s\n' "${pos:-0}" "${time_pos:-0}" >"$RUN_DIR/resume"
+    systemctl restart weather-kiosk.service
+    systemd-run --quiet --collect --unit=crt-weatherbreak \
+      --on-active="${secs}s" --timer-property=AccuracySec=1s \
+      /usr/local/bin/tv resume
+    echo "weather for ${secs}s, then back to the video"
+    ;;
+  resume)
+    as_root
+    # Fired by the crt-weatherbreak timer; play-media-x.sh consumes the
+    # resume file and picks up where the video left off
     systemctl restart crt-player.service
     ;;
   pause)
@@ -117,6 +176,7 @@ case $cmd in
     ;;
   stop)
     as_root
+    cancel_break
     systemctl stop crt-player.service weather-kiosk.service
     ;;
   status)
