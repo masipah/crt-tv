@@ -103,33 +103,34 @@ normalize_outputs() {
       wp set-volume "$id" 1.0 || true
     fi
   done
-  amixer -q sset Headphone 100% 2>/dev/null ||
-    amixer -q sset PCM 100% 2>/dev/null || true
+  # hardware stage pinned at 100%, addressed by card — pipewire-alsa
+  # redirects the default ALSA control, so plain amixer misses the chip
+  amixer -q -c Headphones sset PCM 100% unmute 2>/dev/null ||
+    amixer -q sset Headphone 100% unmute 2>/dev/null ||
+    amixer -q sset PCM 100% unmute 2>/dev/null || true
 }
 
-# One mute for the whole TV: whatever the default sink is (jack or AirPlay)
-# via PipeWire, plus the hardware mixer as belt-and-braces/fallback.
+# One mute for the whole TV, applied to EVERY output at once — a muted TV
+# stays silent no matter which output becomes default later, and unmuting
+# brings back whichever is active. State is read from the default sink.
+# (No amixer here: pipewire-alsa redirects the default ALSA control, so
+# hardware-level mutes stopped being reliable — PipeWire owns the graph.)
 mixer() {
+  local id state
   case $1 in
     toggle)
       if wp get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED; then
         mixer unmute
-      elif wp get-volume @DEFAULT_AUDIO_SINK@ >/dev/null; then
-        mixer mute
       else
-        amixer -q sset Headphone toggle 2>/dev/null ||
-          amixer -q sset PCM toggle 2>/dev/null || true
+        mixer mute
       fi
       ;;
-    mute)
-      wp set-mute @DEFAULT_AUDIO_SINK@ 1 || true
-      amixer -q sset Headphone mute 2>/dev/null ||
-        amixer -q sset PCM mute 2>/dev/null || true
-      ;;
-    unmute)
-      wp set-mute @DEFAULT_AUDIO_SINK@ 0 || true
-      amixer -q sset Headphone unmute 2>/dev/null ||
-        amixer -q sset PCM unmute 2>/dev/null || true
+    mute | unmute)
+      state=1
+      [[ $1 == unmute ]] && state=0
+      for id in $(wp_sink_ids); do
+        wp set-mute "$id" "$state" || true
+      done
       ;;
   esac
 }
@@ -273,13 +274,10 @@ case $cmd in
     # weather on its own; start silent with every output normalized to
     # 100% so unmuting sounds the same on the jack and on AirPlay. Take
     # control from the web remote (unmute, play videos) when wanted.
-    mixer mute
-    normalize_outputs
-    # Audio always boots on the TV jack: AirPlay receivers need discovery
-    # and a handshake and may not even be powered — never leave the TV
-    # waiting on one. Setting it explicitly also stops wireplumber from
-    # restoring a remembered AirPlay default when the device reappears.
-    # (Retry briefly — PipeWire may still be coming up this early in boot.)
+    # Order matters: pin the default to the TV jack FIRST (retrying while
+    # PipeWire comes up), then mute — muting before the pin can land on a
+    # remembered AirPlay default and leave the jack live. The jack pin also
+    # stops wireplumber restoring an AirPlay default when it reappears.
     for _ in 1 2 3 4 5; do
       if id=$(wp_find_sink 'api\.alsa'); then
         wp set-default "$id" || true
@@ -287,6 +285,8 @@ case $cmd in
       fi
       sleep 3
     done
+    mixer mute
+    normalize_outputs
     ;;
   normalize)
     as_root
@@ -411,7 +411,8 @@ case $cmd in
     done
     echo
     echo "== audio =="
-    amixer sget Headphone 2>/dev/null || amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
+    amixer -c Headphones sget PCM 2>/dev/null || amixer sget Headphone 2>/dev/null ||
+      amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
     echo "-- pipewire sinks (* = default):"
     wp status 2>/dev/null | awk '/Sinks:/ { f = 1 } /(Sources|Filters):/ { f = 0 } f' || echo "(pipewire not running)"
     echo "-- pipewire streams (who is actually in the graph):"
