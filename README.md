@@ -162,10 +162,13 @@ come out at the same level, dynamics untouched. Fresh uploads play at unity
 until their analysis finishes (seconds per file).
 
 Notes: the receiver must be powered on and on the same network (discovery
-is via mDNS/avahi). AirPlay buffers about two seconds; players compensate
-using the reported latency, so video lip-sync lands close but the first
-seconds after a switch can drift while it settles. The toggle falls back
-with a clear error if no receiver is found.
+is via mDNS/avahi). AirPlay buffers about two seconds — the RAOP latency is
+pinned (`raop.latency.ms`) and the player shifts video by the same amount
+(`AIRPLAY_LATENCY_MS` in `crt-tv.env`), so lip-sync holds while casting;
+expect a few silent seconds right after selecting a device while the
+session handshakes. RAOP streams never suspend (idle-resume silently fails
+on many receivers). Tweak both latency values together if your receiver
+needs it.
 
 ## Power-loss safety
 
