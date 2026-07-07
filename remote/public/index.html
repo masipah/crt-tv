@@ -76,10 +76,11 @@
     <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Previous</button>
     <button id="btn-pause" onclick="post('/api/tv/pause')">&#9199; Pause</button>
     <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
-    <button id="btn-mute" onclick="post('/api/tv/mute')">&#128263; Mute</button>
+    <button id="btn-mute" onclick="post('/api/tv/mute')"
+            title="Mutes the whole TV — weather music and videos">&#128263; Mute</button>
     <button id="btn-shuffle" onclick="post('/api/tv/shuffle')">&#128256; Shuffle</button>
     <button id="btn-break" onclick="post('/api/tv/autobreak')"
-            title="2 minutes of weather after every 5th video">&#9925; Weather every 5</button>
+            title="2 minutes of weather after every 4th video">&#9925; Weather every 4</button>
   </div>
 
   <h2>Video library</h2>
@@ -152,10 +153,10 @@
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('on', st.mode === 'weather');
     $('btn-off').classList.toggle('on', st.mode === 'off');
-    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-mute', 'btn-shuffle']) {
+    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle']) {
       $(b).disabled = st.mode !== 'video';
     }
-    $('btn-mute').classList.toggle('on', !!st.playing?.muted);
+    $('btn-mute').classList.toggle('on', !!st.muted);
     $('btn-break').classList.toggle('on', !!st.autoBreak);
     const p = st.playing;
     if (p) {

@@ -1,6 +1,6 @@
 -- Auto weather break for crt-player's mpv.
 -- While /run/crt-tv/autobreak exists (toggled by `tv autobreak`), cut to the
--- weather after every N videos (N is the file's content, normally 5).
+-- weather after every N videos (N is the file's content, normally 4).
 -- `tv break` saves the resume point and schedules the return; the player
 -- restart resets our counter, which is exactly right — the next break comes
 -- N videos after the resume.
@@ -17,7 +17,7 @@ local function autobreak_every()
 	if n and n > 0 then
 		return n
 	end
-	return 5
+	return 4
 end
 
 mp.register_event("file-loaded", function()
