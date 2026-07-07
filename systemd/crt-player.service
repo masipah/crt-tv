@@ -18,3 +18,5 @@ StandardError=journal
 ExecStart=/usr/local/lib/crt-tv/play-media.sh
 Restart=no
 TimeoutStopSec=10
+# xinit exits 1 and mpv exits 4 when we stop them — not failures
+SuccessExitStatus=1 4

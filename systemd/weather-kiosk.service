@@ -23,6 +23,8 @@ ExecStart=/usr/local/lib/crt-tv/kiosk.sh
 Restart=always
 RestartSec=3
 TimeoutStopSec=10
+# xinit exits 1 when we stop the kiosk — not a failure
+SuccessExitStatus=1
 
 [Install]
 WantedBy=multi-user.target

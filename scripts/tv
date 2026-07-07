@@ -157,6 +157,9 @@ case $cmd in
     node --version 2>/dev/null || echo "node: missing"
     command -v chromium chromium-browser cage mpv 2>/dev/null || true
     echo
+    echo "== mpv log =="
+    tail -n 60 /run/crt-tv/mpv.log 2>/dev/null || echo "(no mpv log this boot)"
+    echo
     echo "== recent logs =="
     for u in ws4kp weather-kiosk crt-player crt-remote; do
       # extra lines for the player: mpv's vo errors scroll past quickly
