@@ -115,7 +115,8 @@ install -m 755 "$REPO_DIR/scripts/kiosk.sh" /usr/local/lib/crt-tv/kiosk.sh
 install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
-install -m 644 "$REPO_DIR/scripts/weather-break.lua" /usr/local/lib/crt-tv/weather-break.lua
+install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
+rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
 install -d /usr/local/lib/crt-tv/kiosk-ext
 install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
@@ -138,7 +139,13 @@ systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
 
-install -d -m 775 -o crt -g crt /srv/media
+install -d -m 775 -o crt -g crt /srv/media /srv/media/videos /srv/media/commercials
+# Migrate a pre-bucket layout: loose videos at the top level belong to the
+# videos bucket now
+find /srv/media -maxdepth 1 -type f \( \
+  -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o -iname '*.mov' -o \
+  -iname '*.m4v' -o -iname '*.mpg' -o -iname '*.mpeg' -o -iname '*.ts' -o \
+  -iname '*.webm' \) -exec mv -n {} /srv/media/videos/ \;
 
 echo "==> Configuring composite video output (480i NTSC)"
 "$REPO_DIR/setup/enable-composite.sh"

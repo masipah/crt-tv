@@ -67,9 +67,8 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 
 ```text
 tv weather          # WeatherStar 4000+
-tv play <path>...   # play videos (loops forever)
+tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
-tv autobreak        # toggle: 2 min of weather after every 4 videos
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
 tv shuffle          # shuffle the playlist order
@@ -79,19 +78,18 @@ tv status           # what's running
 tv reboot           # reboot the Pi (also a button on the web remote)
 ```
 
-Playing a single library file works like a TV channel: the rest of the
-library follows in order and wraps around, forever. Playing a folder or a
-multi-file list (like the web remote's queue) plays exactly that list. A
-weather break saves the video position (and mute state) and resumes when the
-break ends; switching modes manually cancels any pending break.
+The media library is two buckets: **videos** (the channel — plays top to
+bottom in your saved order and loops) and **commercials** (after every 4th
+video, one plays at random, picked fresh each time by the player itself).
+Playing a single bucket video continues through the bucket from that point;
+a multi-file list (the web remote's queue) plays exactly as given — the
+commercial rotation applies either way. `tv break` still cuts to the weather
+manually and resumes the video where it left off.
 
-**On boot** the TV runs itself, headless and silent: the whole TV starts
-muted (weather music included), showing 2 minutes of the WeatherStar, then
-the video library with the every-4-videos weather rotation already enabled.
-Any manual action (channel buttons, play, stop) takes over from the rotation;
-one press of Mute brings the sound back everywhere. Mute is a hardware-mixer
-toggle, so it applies to the weather channel and the player alike without
-touching the ws4kp music setting.
+**On boot** the TV shows the WeatherStar, muted — and stays there. Take
+control from the web remote: unmute (one hardware-mixer toggle covers the
+weather music and the videos alike) and hit Play videos when you want the
+channel rolling.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
@@ -100,18 +98,16 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 ### Web remote
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
-remote control: switch channels, manage the video library (`MEDIA_DIR`) —
-create folders, move videos into them, reorder everything with ↑↓, upload
-straight from your phone or laptop, delete — plus pause/skip/mute/shuffle
-what's playing and toggle "Weather every 4" (2 minutes of WeatherStar after
-every 4th video). It's the same `tv` command underneath, so the CLI and the
-web UI never disagree.
+remote control: switch channels, upload into either bucket (videos or
+commercials) straight from your phone or laptop, reorder the channel with
+↑↓, move files between buckets, delete, pause/skip/mute/shuffle what's
+playing, and reboot the Pi. It's the same `tv` command underneath, so the
+CLI and the web UI never disagree.
 
-**The library order is the broadcast schedule**: it persists (hidden
-`.order.json`/`.playorder.m3u` files in `MEDIA_DIR`) and is exactly what the
-TV plays through automatically — continuous play, the boot rotation, all of
-it. The play queue, by contrast, is a one-off list for live mixing and
-vanishes when replaced.
+**The videos bucket order is the broadcast schedule**: it persists (hidden
+`.order.json`/`.playorder.m3u` files in `MEDIA_DIR`) and is exactly what
+plays when you hit Play videos. The play queue, by contrast, is a one-off
+list for live mixing and vanishes when replaced.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
