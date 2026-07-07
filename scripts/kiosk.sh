@@ -7,6 +7,12 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
+# ws4kp/ws3kp kiosk mode: no location bar, no toolbar, display scaled to fill
+# the screen (no scrollbars). Appended unless the URL already sets it.
+if [[ $URL != *kiosk=* ]]; then
+  [[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
+fi
+
 BROWSER=$(command -v chromium || command -v chromium-browser) || {
   echo "kiosk: chromium not installed" >&2
   exit 1
