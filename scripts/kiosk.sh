@@ -11,7 +11,12 @@ BROWSER=$(command -v chromium || command -v chromium-browser) || {
 }
 
 # Chromium renders a permanent error page if the server isn't up yet.
+tries=0
 until curl -fsS --max-time 2 -o /dev/null "$URL"; do
+  if ((tries % 15 == 0)); then
+    echo "kiosk: waiting for $URL — check the ws4kp/ws3kp service if this repeats"
+  fi
+  tries=$((tries + 1))
   sleep 2
 done
 
