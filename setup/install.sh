@@ -41,14 +41,17 @@ fi
 usermod -aG video,render,input,audio,tty crt
 
 echo "==> Installing WeatherStar servers to /opt"
+# Everything as the crt user: git refuses to touch crt-owned repos as root
+# ("dubious ownership"), and the service runs as crt anyway.
 for app in ws4kp ws3kp; do
   if [[ -d /opt/$app/.git ]]; then
-    git -C "/opt/$app" pull --ff-only
+    chown -R crt:crt "/opt/$app"
+    sudo -u crt git -C "/opt/$app" pull --ff-only
   else
-    git clone "https://github.com/netbymatt/$app" "/opt/$app"
+    install -d -o crt -g crt "/opt/$app"
+    sudo -u crt git clone "https://github.com/netbymatt/$app" "/opt/$app"
   fi
-  (cd "/opt/$app" && npm install --no-audit --no-fund)
-  chown -R crt:crt "/opt/$app"
+  (cd "/opt/$app" && sudo -u crt npm install --no-audit --no-fund)
 done
 
 echo "==> Installing config, scripts, and systemd units"

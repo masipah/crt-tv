@@ -8,8 +8,13 @@ KIOSK_ENV=$RUN_DIR/kiosk.env
 MPV_SOCK=$RUN_DIR/mpv.sock
 ENV_FILE=/etc/crt-tv/crt-tv.env
 
-# shellcheck disable=SC1090
-[[ -f $ENV_FILE ]] && source "$ENV_FILE"
+# Don't source the env file — values like permalink KIOSK_URLs contain '&'
+# and other shell metacharacters. Pull out single keys instead.
+env_get() {
+  { [[ -f $ENV_FILE ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -n1 | tr -d '"'; } || true
+}
+MEDIA_DIR=$(env_get MEDIA_DIR)
+MEDIA_DIR=${MEDIA_DIR:-/srv/media}
 
 usage() {
   cat <<'EOF'
@@ -47,12 +52,18 @@ cmd=${1:-status}
 case $cmd in
   weather | 4000)
     as_root
-    printf 'KIOSK_URL=http://127.0.0.1:8080/\n' >"$KIOSK_ENV"
+    # Keep the configured URL (e.g. a permalink with baked-in location) when
+    # it already points at ws4kp; only fall back to the bare default otherwise.
+    url=$(env_get KIOSK_URL)
+    [[ $url == *:8080* ]] || url=http://127.0.0.1:8080/
+    printf 'KIOSK_URL=%s\n' "$url" >"$KIOSK_ENV"
     systemctl restart weather-kiosk.service
     ;;
   retro | 3000)
     as_root
-    printf 'KIOSK_URL=http://127.0.0.1:8083/\n' >"$KIOSK_ENV"
+    url=$(env_get KIOSK_URL)
+    [[ $url == *:8083* ]] || url=http://127.0.0.1:8083/
+    printf 'KIOSK_URL=%s\n' "$url" >"$KIOSK_ENV"
     systemctl restart weather-kiosk.service
     ;;
   play)
