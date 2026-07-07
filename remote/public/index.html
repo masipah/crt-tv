@@ -47,6 +47,7 @@
   li.folder .name { font-weight: 600; }
   .name { flex: 1; overflow-wrap: anywhere; }
   li button { padding: 5px 12px; flex: none; }
+  button.danger { color: #b91c1c; border-color: #dfa8a8; }
   #upload-status { font-size: 0.9rem; color: #555; margin-top: 8px; }
   #upload-bar { width: 100%; margin-top: 6px; display: none; }
   .hint { font-size: 0.85rem; color: #777; }
@@ -74,6 +75,8 @@
     <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Previous</button>
     <button id="btn-pause" onclick="post('/api/tv/pause')">&#9199; Pause</button>
     <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
+    <button id="btn-mute" onclick="post('/api/tv/mute')">&#128263; Mute</button>
+    <button id="btn-shuffle" onclick="post('/api/tv/shuffle')">&#128256; Shuffle</button>
   </div>
 
   <h2>Video library</h2>
@@ -81,6 +84,13 @@
   <p id="media-empty" class="hint" hidden>
     No videos yet — upload some below, or copy files to <code id="media-dir"></code> on the Pi.
   </p>
+
+  <h2 id="queue-h" hidden>Play queue</h2>
+  <ul id="queue-list"></ul>
+  <div class="row" id="queue-actions" hidden>
+    <button onclick="playQueue()">&#9654; Play queue</button>
+    <button onclick="clearQueue()">Clear queue</button>
+  </div>
 
   <h2>Upload</h2>
   <input type="file" id="file-input" multiple
@@ -139,9 +149,10 @@
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('on', st.mode === 'weather');
     $('btn-off').classList.toggle('on', st.mode === 'off');
-    for (const b of ['btn-prev', 'btn-pause', 'btn-next']) {
+    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-mute', 'btn-shuffle']) {
       $(b).disabled = st.mode !== 'video';
     }
+    $('btn-mute').classList.toggle('on', !!st.playing?.muted);
     const p = st.playing;
     if (p) {
       const pos = p.playlistCount > 1 ? ` (${p.playlistPos} of ${p.playlistCount})` : '';
@@ -171,12 +182,79 @@
       const depth = f.path.split('/').length - 1;
       name.style.paddingLeft = (depth * 16) + 'px';
       name.textContent = f.path.split('/').pop() + (f.dir ? '/' : '');
-      const btn = document.createElement('button');
-      btn.textContent = f.dir ? 'Play all' : 'Play';
-      btn.onclick = () => play(f.path);
-      li.append(name, btn);
+      li.append(
+        name,
+        btn('Queue', () => addToQueue(f.path)),
+        btn(f.dir ? 'Play all' : 'Play', () => play(f.path)),
+      );
+      if (!f.dir) li.append(btn('✕', () => del(f.path), 'danger'));
       list.append(li);
     }
+  }
+
+  function btn(label, fn, cls) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.onclick = fn;
+    if (cls) b.className = cls;
+    return b;
+  }
+
+  async function del(path) {
+    if (!confirm(`Delete "${path}" from the Pi? This can't be undone.`)) return;
+    err('');
+    try {
+      const res = await fetch('/api/media?path=' + encodeURIComponent(path), { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    } catch (e) {
+      err(e.message);
+    }
+    queue = queue.filter((q) => q !== path);
+    renderQueue();
+    loadMedia();
+  }
+
+  let queue = [];
+
+  function renderQueue() {
+    const has = queue.length > 0;
+    $('queue-h').hidden = !has;
+    $('queue-actions').hidden = !has;
+    const list = $('queue-list');
+    list.innerHTML = '';
+    queue.forEach((path, i) => {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = `${i + 1}. ${path}`;
+      const up = btn('↑', () => moveInQueue(i, -1));
+      const down = btn('↓', () => moveInQueue(i, 1));
+      if (i === 0) up.disabled = true;
+      if (i === queue.length - 1) down.disabled = true;
+      li.append(name, up, down, btn('✕', () => { queue.splice(i, 1); renderQueue(); }, 'danger'));
+      list.append(li);
+    });
+  }
+
+  function moveInQueue(i, delta) {
+    const [item] = queue.splice(i, 1);
+    queue.splice(i + delta, 0, item);
+    renderQueue();
+  }
+
+  function addToQueue(path) {
+    queue.push(path);
+    renderQueue();
+  }
+
+  function clearQueue() {
+    queue = [];
+    renderQueue();
+  }
+
+  function playQueue() {
+    post('/api/play', { paths: queue });
   }
 
   function uploadOne(file, label) {

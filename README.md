@@ -69,6 +69,8 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 tv weather          # WeatherStar 4000+
 tv play <path>...   # play file(s) or a folder with mpv, loops forever
 tv pause            # toggle pause
+tv mute             # toggle mute
+tv shuffle          # shuffle the playlist order
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
 tv status           # what's running
@@ -81,10 +83,11 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 ### Web remote
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
-remote control: switch channels, browse and play the video library
-(`MEDIA_DIR`), upload videos straight from your phone or laptop, pause/skip,
-and see what's on. It's the same `tv` command underneath, so the CLI and the
-web UI never disagree.
+remote control: switch channels, browse/play/delete the video library
+(`MEDIA_DIR`), build a play queue in whatever order you like, upload videos
+straight from your phone or laptop, and pause/skip/mute/shuffle what's
+playing. It's the same `tv` command underneath, so the CLI and the web UI
+never disagree.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
