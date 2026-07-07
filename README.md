@@ -25,7 +25,15 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
 
 1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. Enable SSH
    and set up Wi-Fi/user in the Imager settings.
-2. SSH in, then:
+2. SSH in and run the installer (no GitHub account needed — it clones itself
+   to `/opt/crt-tv`):
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/masipah/crt-tv/main/setup/install.sh | sudo bash
+   sudo reboot
+   ```
+
+   Or the manual way:
 
    ```sh
    sudo apt update && sudo apt install -y git
