@@ -5,7 +5,8 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { promises as fs } from 'node:fs';
+import { createWriteStream, promises as fs } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.CRT_REMOTE_PORT ?? 8090);
@@ -130,6 +131,44 @@ async function listMedia() {
   return out;
 }
 
+// Never clobber an existing file: name.ext, name-1.ext, name-2.ext, ...
+async function uniqueMediaPath(name) {
+  const ext = path.extname(name);
+  const base = name.slice(0, name.length - ext.length);
+  let candidate = name;
+  for (let i = 1; ; i += 1) {
+    try {
+      await fs.access(path.join(MEDIA_DIR, candidate));
+      candidate = `${base}-${i}${ext}`;
+    } catch {
+      return path.join(MEDIA_DIR, candidate);
+    }
+  }
+}
+
+// Raw-body upload (PUT with ?name=): streamed to a hidden .part file first so
+// in-flight uploads never show up in the library, renamed into place when done.
+async function handleUpload(req, res, url) {
+  const name = path.basename(url.searchParams.get('name') ?? '').trim();
+  const ext = path.extname(name).toLowerCase();
+  if (!name || !VIDEO_EXT.has(ext)) {
+    return sendJson(res, 400, {
+      error: `need a video filename (${[...VIDEO_EXT].join(' ')})`,
+    });
+  }
+  await fs.mkdir(MEDIA_DIR, { recursive: true });
+  const dest = await uniqueMediaPath(name);
+  const tmp = path.join(MEDIA_DIR, `.upload-${process.pid}-${Date.now()}.part`);
+  try {
+    await pipeline(req, createWriteStream(tmp, { flags: 'wx' }));
+    await fs.rename(tmp, dest);
+  } catch (err) {
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
+  sendJson(res, 200, { ok: true, name: path.basename(dest) });
+}
+
 // The web UI only plays what lives under MEDIA_DIR (the CLI has no such limit).
 function resolveMedia(rel) {
   const abs = path.resolve(MEDIA_DIR, rel);
@@ -157,7 +196,8 @@ function sendJson(res, code, data) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  const url = new URL(req.url, 'http://localhost');
+  const { pathname } = url;
   try {
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       const html = await fs.readFile(path.join(PUBLIC_DIR, 'index.html'));
@@ -172,6 +212,8 @@ const server = http.createServer(async (req, res) => {
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
       await tv(cmd);
       sendJson(res, 200, { ok: true });
+    } else if (req.method === 'PUT' && pathname === '/api/upload') {
+      await handleUpload(req, res, url);
     } else if (req.method === 'POST' && pathname === '/api/play') {
       const { paths } = JSON.parse(await readBody(req) || '{}');
       if (!Array.isArray(paths) || paths.length === 0) {
@@ -186,6 +228,10 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 500, { error: err.message });
   }
 });
+
+// Node kills requests after 5 minutes by default — far too short for
+// multi-GB video uploads over Wi-Fi.
+server.requestTimeout = 0;
 
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);

@@ -79,8 +79,9 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, browse and play the video library
-(`MEDIA_DIR`), pause/skip, and see what's on. It's the same `tv` command
-underneath, so the CLI and the web UI never disagree.
+(`MEDIA_DIR`), upload videos straight from your phone or laptop, pause/skip,
+and see what's on. It's the same `tv` command underneath, so the CLI and the
+web UI never disagree.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
