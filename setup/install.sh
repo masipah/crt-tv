@@ -89,6 +89,7 @@ install -d /usr/local/lib/crt-tv
 install -m 755 "$REPO_DIR/scripts/kiosk.sh" /usr/local/lib/crt-tv/kiosk.sh
 install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
+install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
