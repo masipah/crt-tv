@@ -65,8 +65,8 @@ if [[ -f /etc/systemd/system/ws3kp.service || -d /opt/ws3kp ]]; then
 fi
 
 echo "==> Enabling analog audio out (TRRS jack)"
-amixer -q sset Headphone 90% unmute 2>/dev/null \
-  || amixer -q sset PCM 90% unmute 2>/dev/null || true
+amixer -q sset Headphone 100% unmute 2>/dev/null \
+  || amixer -q sset PCM 100% unmute 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
 echo "==> Installing config, scripts, and systemd units"
