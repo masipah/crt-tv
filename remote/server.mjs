@@ -644,6 +644,24 @@ const server = http.createServer(async (req, res) => {
 // multi-GB video uploads over Wi-Fi.
 server.requestTimeout = 0;
 
+// Keep mpv's lip-sync shift glued to where audio actually goes: outputs can
+// change without our endpoints being involved (wireplumber falls back to the
+// jack when an AirPlay device drops), which would leave a stale 2s shift.
+let lastAppliedAirplay = null;
+setInterval(async () => {
+  try {
+    if (!(await isActive('crt-player.service'))) {
+      lastAppliedAirplay = null;
+      return;
+    }
+    const ap = await isAirplay();
+    if (ap !== lastAppliedAirplay) {
+      const ok = await setMpvAudioDelay(ap ? -(AIRPLAY_LATENCY_MS / 1000) : 0);
+      if (ok) lastAppliedAirplay = ap;
+    }
+  } catch { /* next tick */ }
+}, 3000);
+
 // Sweep upload temp files orphaned by a crash or power cut
 fs.readdir(MEDIA_DIR)
   .then((names) => Promise.all(names
