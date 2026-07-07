@@ -71,6 +71,31 @@ if [[ -f /etc/systemd/system/ws3kp.service || -d /opt/ws3kp ]]; then
   rm -rf /opt/ws3kp
 fi
 
+echo "==> Hardening for hard power-off"
+# This appliance gets unplugged, not shut down. ext4's journal plus the
+# fsck.repair=yes already on the kernel command line survive that fine —
+# as long as the SD card isn't mid-write. So: minimize steady-state writes.
+
+# Logs to RAM — the journal is the biggest constant writer on an idle kiosk.
+# Logs reset each boot; tv doctor only reads the current boot anyway.
+install -d /etc/systemd/journald.conf.d
+cat >/etc/systemd/journald.conf.d/crt-tv.conf <<'EOF'
+[Journal]
+Storage=volatile
+RuntimeMaxUse=32M
+EOF
+systemctl restart systemd-journald
+
+# No swapfile: swap writes at unpredictable times, and the weather/video
+# workload fits easily in the Pi 4's RAM
+systemctl disable --now dphys-swapfile.service 2>/dev/null || true
+swapoff -a 2>/dev/null || true
+rm -f /var/swap
+
+# Unattended apt runs write heavily at random times; updates happen through
+# install.sh re-runs instead
+systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
 echo "==> Enabling analog audio out (TRRS jack)"
 amixer -q sset Headphone 100% unmute 2>/dev/null \
   || amixer -q sset PCM 100% unmute 2>/dev/null || true

@@ -109,6 +109,29 @@ remote/     web remote (zero-dependency Node server + single-page UI on :8090)
 docs/       hardware wiring, composite video deep-dive & troubleshooting
 ```
 
+## Power-loss safety
+
+This is an appliance: it gets unplugged, not shut down, and the install is
+built around that. ext4's journal plus RPi OS's `fsck.repair=yes` handle the
+crash itself; the installer minimizes what's ever being written to the SD
+card so there's (almost) nothing to corrupt:
+
+- logs live in RAM (`journald Storage=volatile`) — they reset each boot
+- no swapfile, no unattended-apt background writers
+- Chromium's caches live in tmpfs; only its small settings profile touches disk
+- runtime state (playlists, resume points, mpv log/socket) is already in `/run`
+- uploads stream to a hidden temp file, are fsynced, then atomically renamed —
+  a power cut mid-upload leaves no broken video, and orphaned temp files are
+  swept at startup
+
+Steady-state (weather or video showing), pulling the plug is a non-event. The
+only vulnerable moments are while an upload is in flight (that upload is lost,
+nothing else) and during `install.sh`/`apt` runs — don't unplug mid-update.
+
+For maximum paranoia there's `raspi-config` → Performance → Overlay FS, which
+makes the whole root filesystem read-only — but that freezes uploads and
+config changes until you turn it off, so it's not enabled by default.
+
 ## Docs
 
 - [docs/hardware.md](docs/hardware.md) — TRRS pinout, PVM hookup, wrong-cable symptoms

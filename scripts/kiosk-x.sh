@@ -11,6 +11,12 @@ xset s off -dpms || true
 # Chromium ignores --lang and reads the locale from the environment.
 export LANGUAGE=en_US:en LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
+# Caches (GPU shaders, HTTP) live in tmpfs: Chromium otherwise writes to the
+# SD card continuously, which is what corrupts cards on hard power-off. The
+# profile itself (ws4kp settings) stays on disk — it barely changes.
+export XDG_CACHE_HOME=/run/crt-tv/cache
+mkdir -p "$XDG_CACHE_HOME"
+
 # The kiosk-ext content script hides ws4kp until its kiosk layout is applied,
 # killing the startup flash of the un-scaled page; default-background-color
 # kills Chromium's own white flash. DisableLoadExtensionCommandLineSwitch must
@@ -19,6 +25,9 @@ export LANGUAGE=en_US:en LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 exec "$BROWSER" \
   --kiosk "$URL" \
   --window-position=0,0 \
+  --disk-cache-dir=/run/crt-tv/cache/chromium \
+  --disk-cache-size=67108864 \
+  --media-cache-size=16777216 \
   --default-background-color=000000 \
   --load-extension=/usr/local/lib/crt-tv/kiosk-ext \
   --disable-features=DisableLoadExtensionCommandLineSwitch \
