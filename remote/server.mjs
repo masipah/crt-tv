@@ -75,21 +75,36 @@ const wpExec = (args) => new Promise((resolve) => {
   execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
 });
 
+// The TV's mute intent of record — created by tv mute (and boot), removed
+// by unmute. While it exists the loop below re-mutes every few seconds, so
+// nothing can un-mute the TV behind the user's back.
+const MUTED_FLAG = '/run/crt-tv/muted';
+
+const hwMixer = (arg) => new Promise((resolve) => {
+  execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
+    if (!e1) return resolve();
+    execFile('amixer', ['-q', 'sset', 'Headphone', arg], (e2) => {
+      if (!e2) return resolve();
+      execFile('amixer', ['-q', 'sset', 'PCM', arg], () => resolve());
+    });
+  });
+});
+
+async function muteAll() {
+  for (const o of await audioOutputs()) {
+    await wpExec(['set-mute', String(o.id), '1']);
+  }
+  await hwMixer('mute');
+}
+
 // Unmute every output, PipeWire and hardware layers alike — used when the
 // user explicitly picks an output (choosing a speaker = wanting to hear it)
 async function unmuteAll() {
+  await fs.rm(MUTED_FLAG, { force: true }).catch(() => {});
   for (const o of await audioOutputs()) {
     await wpExec(['set-mute', String(o.id), '0']);
   }
-  await new Promise((resolve) => {
-    execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', 'unmute'], (e1) => {
-      if (!e1) return resolve();
-      execFile('amixer', ['-q', 'sset', 'Headphone', 'unmute'], (e2) => {
-        if (!e2) return resolve();
-        execFile('amixer', ['-q', 'sset', 'PCM', 'unmute'], () => resolve());
-      });
-    });
-  });
+  await hwMixer('unmute');
 }
 
 // AirPlay buffers ~2s; shift mpv's video by the same amount for lip-sync
@@ -197,7 +212,8 @@ async function status() {
     units: { ws4kp, kiosk, player },
     mode,
     playing,
-    muted: audio.muted,
+    muted: audio.muted
+      || await fs.access(MUTED_FLAG).then(() => true, () => false),
     volume: audio.volume,
     airplay,
     shuffled,
@@ -650,6 +666,11 @@ server.requestTimeout = 0;
 let lastAppliedAirplay = null;
 setInterval(async () => {
   try {
+    // enforce the mute intent regardless of mode — wireplumber's route
+    // activations un-mute devices at unpredictable moments
+    if (await fs.access(MUTED_FLAG).then(() => true, () => false)) {
+      await muteAll();
+    }
     if (!(await isActive('crt-player.service'))) {
       lastAppliedAirplay = null;
       return;
