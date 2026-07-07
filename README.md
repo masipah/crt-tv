@@ -72,6 +72,7 @@ tv break [secs]     # cut to the weather now, then back to the video (default 2 
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
 tv airplay          # toggle audio output: AirPlay speakers <-> TV jack
+tv volume [0-100]   # show or set the volume of the active output
 tv shuffle          # toggle shuffled playback — videos only (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
@@ -138,8 +139,9 @@ AirPlay speakers instead of the PVM: PipeWire's RAOP module discovers
 AirPlay receivers on the LAN (an EverSolo, HomePod, AirPort amp, …) and the
 **AirPlay chip in the web remote** opens a picker listing every receiver by
 name plus the TV jack — tap one and the audio moves there live, no restart;
-Mute covers whichever output is active. (`tv airplay` on the CLI toggles
-between the jack and the first receiver found.)
+the Mute chip and the volume slider both follow whichever output is active.
+(`tv airplay` on the CLI toggles between the jack and the first receiver
+found.)
 
 Notes: the receiver must be powered on and on the same network (discovery
 is via mDNS/avahi). AirPlay buffers about two seconds; players compensate
