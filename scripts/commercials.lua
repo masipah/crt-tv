@@ -19,6 +19,16 @@ local function is_commercial(p)
 	return p ~= nil and p:sub(1, #COMMERCIALS + 1) == COMMERCIALS .. "/"
 end
 
+-- `tv commercials` toggles this flag; while it exists, no commercials play
+local function commercials_off()
+	local f = io.open("/run/crt-tv/no-commercials", "r")
+	if f then
+		f:close()
+		return true
+	end
+	return false
+end
+
 local function pick_commercial()
 	local files = utils.readdir(COMMERCIALS, "files")
 	if not files then
@@ -42,12 +52,14 @@ local count = 0
 mp.register_event("file-loaded", function()
 	-- prune played commercials so --loop-playlist never replays them; keep
 	-- only the one currently playing and a pending one right after us
-	-- (covers the wrap-around case where a commercial sits at the end)
+	-- (covers the wrap-around case where a commercial sits at the end).
+	-- When commercials are switched off, pending ones go too.
+	local off = commercials_off()
 	local pos = mp.get_property_number("playlist-pos", -1)
 	local pl = mp.get_property_native("playlist") or {}
 	for i = #pl, 1, -1 do
 		local idx = i - 1
-		if is_commercial(pl[i].filename) and idx ~= pos and idx ~= pos + 1 then
+		if is_commercial(pl[i].filename) and idx ~= pos and (idx ~= pos + 1 or off) then
 			mp.commandv("playlist-remove", tostring(idx))
 		end
 	end
@@ -56,7 +68,7 @@ mp.register_event("file-loaded", function()
 		return -- commercials don't advance the video count
 	end
 	count = count + 1
-	if count % EVERY == 0 then
+	if count % EVERY == 0 and not off then
 		local c = pick_commercial()
 		if c then
 			mp.commandv("loadfile", c, "insert-next")

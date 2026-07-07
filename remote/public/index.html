@@ -90,7 +90,10 @@
     <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
     <button id="btn-mute" onclick="post('/api/tv/mute')"
             title="Mutes the whole TV — weather music and videos">&#128263; Mute</button>
-    <button id="btn-shuffle" onclick="post('/api/tv/shuffle')">&#128256; Shuffle</button>
+    <button id="btn-shuffle" onclick="post('/api/tv/shuffle')"
+            title="Shuffles the videos only — commercials keep their own rotation">&#128256; Shuffle</button>
+    <button id="btn-nocomm" onclick="post('/api/tv/commercials')"
+            title="While lit, no commercials play">&#128683; No commercials</button>
   </div>
 
   <h2>Videos — the channel</h2>
@@ -103,8 +106,8 @@
   <p id="videos-empty" class="hint" hidden>No videos yet — upload some below.</p>
 
   <h2>Commercials</h2>
-  <p class="hint">One plays at random after every 4th video. No commercials,
-    no interruptions.</p>
+  <p class="hint">One plays at random after every 4th video — unless the
+    "No commercials" button is lit.</p>
   <ul id="commercials-list"></ul>
   <p id="commercials-empty" class="hint" hidden>No commercials yet — upload some below.</p>
 
@@ -184,11 +187,12 @@
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('on', st.mode === 'weather');
     $('btn-off').classList.toggle('on', st.mode === 'off');
-    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle']) {
+    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle', 'btn-nocomm']) {
       $(b).disabled = st.mode !== 'video';
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
     $('btn-shuffle').classList.toggle('on', !!st.shuffled);
+    $('btn-nocomm').classList.toggle('on', !!st.noCommercials);
     const p = st.playing;
     if (p) {
       const pos = p.playlistCount > 1 ? ` (${p.playlistPos} of ${p.playlistCount})` : '';
