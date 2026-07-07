@@ -16,7 +16,10 @@ const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'publ
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
-const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'weatherbreak', 'autobreak']);
+const TV_COMMANDS = new Set([
+  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle',
+  'weatherbreak', 'autobreak', 'reboot',
+]);
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
