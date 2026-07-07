@@ -21,7 +21,7 @@ fi
 # Starting while the output is already AirPlay: shift video to match the
 # RAOP buffer for lip-sync (see AIRPLAY_LATENCY_MS in crt-tv.env)
 if wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -qi raop; then
-  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${AIRPLAY_LATENCY_MS:-2000} / 1000 }")
+  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${AIRPLAY_LATENCY_MS:-0} / 1000 }")
   RESUME_ARGS+=("--audio-delay=-$ap_sec")
 fi
 
