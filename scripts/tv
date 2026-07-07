@@ -127,10 +127,20 @@ mixer() {
       ;;
     mute | unmute)
       state=1
-      [[ $1 == unmute ]] && state=0
+      amixer_arg=mute
+      if [[ $1 == unmute ]]; then
+        state=0
+        amixer_arg=unmute
+      fi
       for id in $(wp_sink_ids); do
         wp set-mute "$id" "$state" || true
       done
+      # hardware layer too (card-addressed — pipewire-alsa hides the chip
+      # from the default control): wireplumber re-applies unmuted route
+      # defaults when a route activates, but it can't touch a hardware mute
+      amixer -q -c Headphones sset PCM "$amixer_arg" 2>/dev/null ||
+        amixer -q sset Headphone "$amixer_arg" 2>/dev/null ||
+        amixer -q sset PCM "$amixer_arg" 2>/dev/null || true
       ;;
   esac
 }
@@ -287,11 +297,16 @@ case $cmd in
     done
     mixer mute
     normalize_outputs
-    # second sweep: sinks that appeared late (or any async restore that
-    # slipped through) get muted and leveled too
-    sleep 8
-    mixer mute
-    normalize_outputs
+    # keep sweeping for a minute: AirPlay sinks appear late (mDNS), and
+    # wireplumber re-applies unmuted route defaults when the jack's route
+    # activates with the first stream (~20s in, when the weather music
+    # starts) — the hardware mute holds the speaker regardless, and these
+    # sweeps keep the PipeWire layer consistent with it
+    for _ in $(seq 1 12); do
+      sleep 5
+      mixer mute
+      normalize_outputs
+    done
     ;;
   normalize)
     as_root
@@ -347,12 +362,14 @@ case $cmd in
       }
       # engage AirPlay gently: amplified speakers start at 10%; re-assert
       # after activation because wireplumber restores its remembered
-      # device volume and can race the first set
+      # device volume and can race the first set. Choosing a speaker
+      # means wanting to hear it — unmute.
       wp set-volume "$id" 0.10 || true
       wp set-default "$id"
       mpv_try "set audio-delay -$ap_sec"
       sleep 1
       wp set-volume "$id" 0.10 || true
+      mixer unmute
       echo "audio: AirPlay (volume starts at 10%)"
     fi
     ;;
