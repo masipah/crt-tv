@@ -1,15 +1,32 @@
 #!/usr/bin/env bash
-# crt-tv installer — run once on the Pi with sudo, from the repo checkout:
+# crt-tv installer — run once on the Pi with sudo. Either from a checkout:
 #   sudo setup/install.sh
+# or straight from GitHub (clones itself to /opt/crt-tv):
+#   curl -fsSL https://raw.githubusercontent.com/masipah/crt-tv/main/setup/install.sh | sudo bash
 # Idempotent: safe to re-run after a git pull to pick up changes.
 set -euo pipefail
+
+CRT_TV_REPO=https://github.com/masipah/crt-tv
 
 if [[ $EUID -ne 0 ]]; then
   echo "install.sh: run with sudo" >&2
   exit 1
 fi
 
-REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
+REPO_DIR=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || echo /nonexistent)
+
+# Piped from curl (or run outside a checkout): fetch the repo and re-exec
+if [[ ! -f $REPO_DIR/systemd/ws4kp.service ]]; then
+  echo "==> Not running from a checkout — cloning to /opt/crt-tv"
+  apt-get update
+  apt-get install -y git
+  if [[ -d /opt/crt-tv/.git ]]; then
+    git -C /opt/crt-tv pull --ff-only
+  else
+    git clone "$CRT_TV_REPO" /opt/crt-tv
+  fi
+  exec /opt/crt-tv/setup/install.sh
+fi
 
 echo "==> Installing packages"
 apt-get update
