@@ -1,0 +1,12 @@
+[Unit]
+Description=CRT-TV ASCII boot splash
+DefaultDependencies=no
+After=local-fs.target
+Before=getty.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/crt-tv/splash.sh
+
+[Install]
+WantedBy=sysinit.target
