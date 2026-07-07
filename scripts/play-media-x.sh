@@ -18,8 +18,11 @@ fi
 # --shuffle here, so the first entry is always what the user picked and
 # weather-break resumes line up with the file.
 
+# --volume=100: mpv's own softvol stays out of the way — the sink volume
+# (remote slider / tv volume) is the one volume control
 exec mpv \
   --fs \
+  --volume=100 \
   --log-file=/run/crt-tv/mpv.log \
   --input-ipc-server=/run/crt-tv/mpv.sock \
   --script=/usr/local/lib/crt-tv/commercials.lua \
