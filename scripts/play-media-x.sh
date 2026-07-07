@@ -14,6 +14,10 @@ if [[ -f /run/crt-tv/resume ]]; then
   if [[ -n ${pos:-} ]]; then RESUME_ARGS+=("--playlist-start=$pos"); fi
   if [[ -n ${start:-} ]]; then RESUME_ARGS+=("--start=$start"); fi
 fi
+# Shuffle mode (toggled by tv shuffle) carries into every new playback
+if [[ -f /run/crt-tv/shuffle ]]; then
+  RESUME_ARGS+=("--shuffle")
+fi
 
 exec mpv \
   --fs \

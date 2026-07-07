@@ -28,7 +28,7 @@ usage: tv <command>
   autostart          (run at boot) show the weather, muted
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
-  shuffle            shuffle the playlist order
+  shuffle            toggle shuffled playback
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
   status             show what's running
@@ -50,6 +50,11 @@ mpv_cmd() {
     echo "tv: player not running (start one with: tv play <path>)" >&2
     exit 1
   }
+}
+
+# Fire-and-forget mpv command: fine if the player isn't running
+mpv_try() {
+  printf '%s\n' "$1" | socat - "UNIX-CONNECT:$MPV_SOCK" >/dev/null 2>&1 || true
 }
 
 mpv_get() {
@@ -200,7 +205,17 @@ case $cmd in
     ;;
   shuffle)
     as_root
-    mpv_cmd 'playlist-shuffle'
+    # A mode, not a one-shot: the flag survives channel switches and new
+    # plays (play-media-x.sh adds --shuffle) until toggled off or reboot
+    if [[ -f $RUN_DIR/shuffle ]]; then
+      rm -f "$RUN_DIR/shuffle"
+      mpv_try 'playlist-unshuffle'
+      echo "shuffle: OFF"
+    else
+      : >"$RUN_DIR/shuffle"
+      mpv_try 'playlist-shuffle'
+      echo "shuffle: ON"
+    fi
     ;;
   next)
     as_root
