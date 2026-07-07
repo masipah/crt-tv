@@ -100,7 +100,10 @@ rm -f /var/swap
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
 
 echo "==> Enabling analog audio out (TRRS jack)"
-amixer -q sset Headphone 100% unmute 2>/dev/null \
+# Address the card directly: once pipewire-alsa is installed, the default
+# ALSA control no longer points at the hardware
+amixer -q -c Headphones sset PCM 100% unmute 2>/dev/null \
+  || amixer -q sset Headphone 100% unmute 2>/dev/null \
   || amixer -q sset PCM 100% unmute 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
