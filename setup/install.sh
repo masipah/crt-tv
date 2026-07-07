@@ -116,6 +116,7 @@ install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/weather-break.lua" /usr/local/lib/crt-tv/weather-break.lua
+install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
 install -d /usr/local/lib/crt-tv/kiosk-ext
 install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
