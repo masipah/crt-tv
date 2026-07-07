@@ -104,10 +104,12 @@ normalize_outputs() {
     fi
   done
   # hardware stage pinned at 100%, addressed by card — pipewire-alsa
-  # redirects the default ALSA control, so plain amixer misses the chip
-  amixer -q -c Headphones sset PCM 100% unmute 2>/dev/null ||
-    amixer -q sset Headphone 100% unmute 2>/dev/null ||
-    amixer -q sset PCM 100% unmute 2>/dev/null || true
+  # redirects the default ALSA control, so plain amixer misses the chip.
+  # VOLUME ONLY — no unmute here; that word once snuck in and had every
+  # boot sweep un-muting the speaker right after mixer mute set it.
+  amixer -q -c Headphones sset PCM 100% 2>/dev/null ||
+    amixer -q sset Headphone 100% 2>/dev/null ||
+    amixer -q sset PCM 100% 2>/dev/null || true
 }
 
 # One mute for the whole TV, applied to EVERY output at once — a muted TV
@@ -295,17 +297,16 @@ case $cmd in
       fi
       sleep 3
     done
-    mixer mute
-    normalize_outputs
     # keep sweeping for a minute: AirPlay sinks appear late (mDNS), and
     # wireplumber re-applies unmuted route defaults when the jack's route
     # activates with the first stream (~20s in, when the weather music
-    # starts) — the hardware mute holds the speaker regardless, and these
-    # sweeps keep the PipeWire layer consistent with it
+    # starts). Mute always goes LAST so nothing in the sweep can undo it.
+    normalize_outputs
+    mixer mute
     for _ in $(seq 1 12); do
       sleep 5
-      mixer mute
       normalize_outputs
+      mixer mute
     done
     # boot messages keep accumulating on the hidden console after the
     # kiosk's own clear; wipe the VT buffer once everything has settled so
@@ -424,7 +425,7 @@ case $cmd in
   doctor)
     as_root
     echo "== units =="
-    for u in ws4kp weather-kiosk crt-player crt-remote; do
+    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash; do
       printf '%-15s active=%-10s enabled=%s\n' "$u" \
         "$(systemctl is-active "$u.service" 2>/dev/null || true)" \
         "$(systemctl is-enabled "$u.service" 2>/dev/null || true)"
@@ -470,7 +471,7 @@ case $cmd in
     tail -n 60 /run/crt-tv/mpv.log 2>/dev/null || echo "(no mpv log this boot)"
     echo
     echo "== recent logs =="
-    for u in ws4kp weather-kiosk crt-player crt-remote; do
+    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart; do
       # extra lines for the player: mpv's vo errors scroll past quickly
       n=15
       [[ $u == crt-player ]] && n=50
