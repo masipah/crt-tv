@@ -263,6 +263,27 @@ function sendJson(res, code, data) {
   res.end(JSON.stringify(data));
 }
 
+// Static assets for the web-app shell (manifest, icons)
+const STATIC_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json',
+  '.svg': 'image/svg+xml',
+};
+
+async function serveStatic(res, pathname) {
+  const rel = path.normalize(pathname).replace(/^[/\\.]+/, '');
+  const file = path.join(PUBLIC_DIR, rel);
+  const type = STATIC_TYPES[path.extname(file).toLowerCase()];
+  if (!type || !file.startsWith(PUBLIC_DIR + path.sep)) {
+    return sendJson(res, 404, { error: 'not found' });
+  }
+  const data = await fs.readFile(file).catch(() => null);
+  if (!data) return sendJson(res, 404, { error: 'not found' });
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'max-age=3600' });
+  res.end(data);
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
@@ -353,6 +374,8 @@ const server = http.createServer(async (req, res) => {
       }
       await tv('play', ...paths.map(resolveMedia));
       sendJson(res, 200, { ok: true });
+    } else if (req.method === 'GET' && !pathname.startsWith('/api/')) {
+      await serveStatic(res, pathname);
     } else {
       sendJson(res, 404, { error: 'not found' });
     }
