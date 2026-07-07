@@ -76,6 +76,7 @@ tv shuffle          # shuffle the playlist order
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
 tv status           # what's running
+tv reboot           # reboot the Pi (also a button on the web remote)
 ```
 
 Playing a single library file works like a TV channel: the rest of the

@@ -33,6 +33,7 @@ usage: tv <command>
   stop               blank the screen (stop player and kiosk)
   status             show what's running
   doctor             one-shot diagnostic dump (paste this when asking for help)
+  reboot             reboot the Pi
 EOF
 }
 
@@ -278,6 +279,10 @@ case $cmd in
       echo "--- $u"
       journalctl -u "$u.service" -b --no-pager -n "$n" 2>/dev/null || true
     done
+    ;;
+  reboot)
+    as_root
+    systemctl reboot
     ;;
   help | -h | --help)
     usage
