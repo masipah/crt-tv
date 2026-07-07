@@ -14,10 +14,9 @@ if [[ -f /run/crt-tv/resume ]]; then
   if [[ -n ${pos:-} ]]; then RESUME_ARGS+=("--playlist-start=$pos"); fi
   if [[ -n ${start:-} ]]; then RESUME_ARGS+=("--start=$start"); fi
 fi
-# Shuffle mode (toggled by tv shuffle) carries into every new playback
-if [[ -f /run/crt-tv/shuffle ]]; then
-  RESUME_ARGS+=("--shuffle")
-fi
+# Note: shuffle mode is baked into the playlist file by `tv play` — no
+# --shuffle here, so the first entry is always what the user picked and
+# weather-break resumes line up with the file.
 
 exec mpv \
   --fs \

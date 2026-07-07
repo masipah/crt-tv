@@ -145,10 +145,12 @@ case $cmd in
     # A single bucket video plays like a channel: continue through the whole
     # videos bucket from that point (a multi-path list — e.g. the web queue —
     # plays exactly as given).
+    selected=0
     if [[ $# -eq 1 && $(wc -l <"$tmp") -eq 1 ]]; then
       only=$(<"$tmp")
       lib_root=$(realpath "$MEDIA_DIR/videos" 2>/dev/null || true)
       if [[ -n $lib_root && $only == "$lib_root"/* ]]; then
+        selected=1
         find_media "$lib_root" | awk -v start="$only" '
           { a[NR] = $0; if ($0 == start) s = NR }
           END {
@@ -156,6 +158,19 @@ case $cmd in
             for (i = s; i <= NR; i++) print a[i]
             for (i = 1; i < s; i++) print a[i]
           }' >"$tmp"
+      fi
+    fi
+    # Shuffle mode is baked into the playlist here — never via mpv's
+    # --shuffle, which would scramble away the video the user just picked.
+    # A picked video stays first; whole-bucket plays shuffle fully;
+    # explicit lists (the queue) are literal and stay untouched.
+    if [[ -f $RUN_DIR/shuffle ]]; then
+      if [[ $selected -eq 1 ]]; then
+        { head -n 1 "$tmp"; tail -n +2 "$tmp" | shuf; } >"$tmp.s"
+        mv "$tmp.s" "$tmp"
+      elif [[ $# -eq 1 && -d ${1:-/nonexistent} ]]; then
+        shuf "$tmp" >"$tmp.s"
+        mv "$tmp.s" "$tmp"
       fi
     fi
     cancel_break
