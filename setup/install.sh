@@ -107,7 +107,11 @@ alsactl store 2>/dev/null || true
 echo "==> Audio routing (PipeWire + AirPlay out)"
 # PipeWire carries chromium (via its pulse interface) and mpv; the RAOP
 # module turns AirPlay receivers on the LAN into ordinary output sinks.
-apt-get install -y pipewire pipewire-pulse wireplumber dbus-user-session avahi-daemon
+# pipewire-alsa matters: chromium falls back to raw ALSA when the pulse
+# socket isn't ready at launch, and raw ALSA bypasses the graph entirely —
+# with it installed, even that fallback routes through PipeWire (and thus
+# follows the AirPlay/jack output selection).
+apt-get install -y pipewire pipewire-pulse pipewire-alsa wireplumber dbus-user-session avahi-daemon
 install -d /etc/pipewire/pipewire.conf.d
 install -m 644 "$REPO_DIR/setup/pipewire-airplay.conf" /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
 # crt's user manager (which hosts pipewire) must run from boot, sessions or not

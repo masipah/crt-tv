@@ -25,6 +25,15 @@ if [[ ${KIOSK_MUSIC:-on} != off ]]; then
   URL="$URL&mediaPlaying=true&mediaVolume=1"
 fi
 
+# Wait briefly for the audio graph so Chromium binds to PipeWire instead of
+# falling back to raw ALSA (which AirPlay routing can't touch). Non-fatal —
+# worst case the weather comes up with jack-only audio.
+tries=0
+while [[ ! -S ${XDG_RUNTIME_DIR:-/nonexistent}/pulse/native ]] && ((tries < 20)); do
+  tries=$((tries + 1))
+  sleep 0.5
+done
+
 echo "kiosk: launching $URL"
 
 BROWSER=$(command -v chromium || command -v chromium-browser) || {
