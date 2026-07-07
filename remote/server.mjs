@@ -40,13 +40,27 @@ const isActive = (unit) => new Promise((resolve) => {
 // the ALSA mixer as fallback for setups without PipeWire (see `tv mute`)
 const WP_ENV = { ...process.env, XDG_RUNTIME_DIR: `/run/user/${process.getuid()}` };
 
-const isMuted = () => new Promise((resolve) => {
+const audioState = () => new Promise((resolve) => {
   execFile('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV }, (err, stdout) => {
-    if (!err && /Volume:/.test(stdout)) return resolve(stdout.includes('[MUTED]'));
+    const m = !err && stdout.match(/Volume:\s*([0-9.]+)/);
+    if (m) {
+      return resolve({
+        muted: stdout.includes('[MUTED]'),
+        volume: Math.round(parseFloat(m[1]) * 100),
+      });
+    }
     execFile('amixer', ['sget', 'Headphone'], (e2, out2) => {
-      if (!e2 && /\[(on|off)\]/.test(out2)) return resolve(out2.includes('[off]'));
-      execFile('amixer', ['sget', 'PCM'],
-        (e3, out3) => resolve(String(out3 || '').includes('[off]')));
+      const p2 = !e2 && String(out2).match(/\[(\d+)%\]/);
+      if (p2 && /\[(on|off)\]/.test(out2)) {
+        return resolve({ muted: out2.includes('[off]'), volume: Number(p2[1]) });
+      }
+      execFile('amixer', ['sget', 'PCM'], (e3, out3) => {
+        const p3 = String(out3 || '').match(/\[(\d+)%\]/);
+        resolve({
+          muted: String(out3 || '').includes('[off]'),
+          volume: p3 ? Number(p3[1]) : null,
+        });
+      });
     });
   });
 });
@@ -119,11 +133,11 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, muted, airplay, shuffled, noCommercials] = await Promise.all([
+  const [ws4kp, kiosk, player, audio, airplay, shuffled, noCommercials] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
-    isMuted(),
+    audioState(),
     isAirplay(),
     fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
     fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
@@ -148,7 +162,16 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, muted, airplay, shuffled, noCommercials };
+  return {
+    units: { ws4kp, kiosk, player },
+    mode,
+    playing,
+    muted: audio.muted,
+    volume: audio.volume,
+    airplay,
+    shuffled,
+    noCommercials,
+  };
 }
 
 // ---- persistent library order ------------------------------------------
@@ -347,6 +370,25 @@ const server = http.createServer(async (req, res) => {
         execFile('wpctl', ['set-default', String(id)], { env: WP_ENV }, (err) => resolve(!err));
       });
       if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
+      sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
+      const { volume } = JSON.parse(await readBody(req) || '{}');
+      if (typeof volume !== 'number' || volume < 0 || volume > 100) {
+        return sendJson(res, 400, { error: 'volume: number 0-100 required' });
+      }
+      const wpOk = await new Promise((resolve) => {
+        execFile('wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', (volume / 100).toFixed(2)],
+          { env: WP_ENV }, (err) => resolve(!err));
+      });
+      if (!wpOk) {
+        // no PipeWire — set the hardware mixer instead
+        await new Promise((resolve) => {
+          execFile('amixer', ['-q', 'sset', 'Headphone', `${volume}%`], (err) => {
+            if (!err) return resolve();
+            execFile('amixer', ['-q', 'sset', 'PCM', `${volume}%`], () => resolve());
+          });
+        });
+      }
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
