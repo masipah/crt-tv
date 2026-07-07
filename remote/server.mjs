@@ -353,6 +353,39 @@ const server = http.createServer(async (req, res) => {
       await appendToDirOrder(to, path.basename(dest));
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
+    } else if (req.method === 'POST' && pathname === '/api/rename') {
+      const { from, name } = JSON.parse(await readBody(req) || '{}');
+      if (!from || typeof from !== 'string') {
+        return sendJson(res, 400, { error: 'from: file path required' });
+      }
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return sendJson(res, 400, { error: 'name: new filename required' });
+      }
+      const fromAbs = resolveMedia(from);
+      const st = await fs.stat(fromAbs).catch(() => null);
+      if (!st?.isFile()) return sendJson(res, 400, { error: 'only files can be renamed' });
+      let newName = path.basename(name.trim());
+      if (newName.startsWith('.')) {
+        return sendJson(res, 400, { error: 'hidden names not allowed' });
+      }
+      // keep the original extension unless the new name brings a valid one
+      if (!VIDEO_EXT.has(path.extname(newName).toLowerCase())) {
+        newName += path.extname(fromAbs);
+      }
+      const oldName = path.basename(fromAbs);
+      if (newName === oldName) return sendJson(res, 200, { ok: true, name: oldName });
+      const dirAbs = path.dirname(fromAbs);
+      const dirRel = parentOf(from);
+      // materialize the current order BEFORE renaming so the file keeps
+      // its exact slot in the schedule under its new name
+      const order = await loadOrder();
+      const { names } = await orderedChildNames(order, dirAbs, dirRel);
+      const dest = await uniqueMediaPath(dirAbs, newName);
+      await fs.rename(fromAbs, dest);
+      order[dirRel] = names.map((n) => (n === oldName ? path.basename(dest) : n));
+      await saveOrder(order);
+      await regeneratePlaylist();
+      sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/order') {
       const { dir, names } = JSON.parse(await readBody(req) || '{}');
       if (!BUCKETS.includes(dir)) {

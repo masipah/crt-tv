@@ -62,6 +62,11 @@
   select { font: inherit; padding: 8px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
   li.folder .name { font-weight: 600; }
   .name { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
+  #videos-list .name, #commercials-list .name {
+    cursor: pointer;
+    text-decoration: underline dotted #ccc;
+    text-underline-offset: 3px;
+  }
   li button { padding: 5px 12px; flex: none; }
   button.danger { color: #b91c1c; border-color: #dfa8a8; }
   [hidden] { display: none !important; }
@@ -119,7 +124,8 @@
 
   <h2>Videos — the channel</h2>
   <p class="hint">Plays top to bottom and loops, with one random commercial
-    after every 4th video. This order persists — drag &#8801; to rearrange.</p>
+    after every 4th video. This order persists — drag &#8801; to rearrange,
+    tap a name to rename.</p>
   <div class="row" style="margin-bottom: 8px">
     <button onclick="post('/api/play', { paths: ['videos'] })">&#9654; Play videos</button>
   </div>
@@ -329,6 +335,8 @@
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = n;
+      name.title = 'Tap to rename';
+      name.onclick = () => renameFile(rel, n);
       if (bucket === 'videos') {
         li.append(dragHandle(li, () => {
           const order = [...list.children].map((el) => el.dataset.name);
@@ -375,6 +383,12 @@
     b.onclick = fn;
     if (cls) b.className = cls;
     return b;
+  }
+
+  function renameFile(rel, current) {
+    const name = prompt('Rename to:', current);
+    if (name === null || !name.trim() || name.trim() === current) return;
+    libAction('/api/rename', { from: rel, name: name.trim() });
   }
 
   async function del(path) {
