@@ -65,11 +65,51 @@ const audioState = () => new Promise((resolve) => {
   });
 });
 
-// Is the default output an AirPlay (RAOP) sink?
-const isAirplay = () => new Promise((resolve) => {
-  execFile('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV },
-    (err, stdout) => resolve(!err && /raop/i.test(stdout)));
+// Where is audio going? 'raop' = direct PipeWire AirPlay, 'owntone' = the
+// metadata bridge (default sink is crt-bridge), 'none' = the jack.
+const castMode = () => new Promise((resolve) => {
+  execFile('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV }, (err, stdout) => {
+    if (err) return resolve('none');
+    if (/crt-bridge/.test(stdout)) return resolve('owntone');
+    if (/raop/i.test(stdout)) return resolve('raop');
+    resolve('none');
+  });
 });
+
+const isAirplay = async () => (await castMode()) !== 'none';
+
+// ---- OwnTone (AirPlay with metadata) ------------------------------------
+const OWNTONE_URL = 'http://127.0.0.1:3689';
+const OWNTONE_LATENCY_MS = Number(process.env.OWNTONE_LATENCY_MS ?? 2000);
+
+async function otFetch(pathname, options) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 3000);
+  try {
+    const res = await fetch(`${OWNTONE_URL}${pathname}`, { ...options, signal: ctl.signal });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// AirPlay receivers as OwnTone sees them (empty when OwnTone isn't installed)
+async function owntoneOutputs() {
+  const data = await otFetch('/api/outputs');
+  return (data?.outputs ?? []).filter((o) => /airplay/i.test(o.type ?? ''));
+}
+
+async function findBridgeSinkId() {
+  for (const o of await audioOutputs()) {
+    const inspect = await wpExec(['inspect', String(o.id)]) ?? '';
+    if (/crt-bridge/.test(inspect)) return o.id;
+  }
+  return null;
+}
 
 const wpExec = (args) => new Promise((resolve) => {
   execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
@@ -495,10 +535,52 @@ const server = http.createServer(async (req, res) => {
         commercials: await listBucket('commercials'),
       });
     } else if (req.method === 'GET' && pathname === '/api/audio/outputs') {
-      sendJson(res, 200, { outputs: await audioOutputs() });
+      // PipeWire sinks (jack + direct AirPlay), minus the internal bridge
+      // sink, plus OwnTone's receivers as "(with titles)" variants
+      const mode = await castMode();
+      const outs = [];
+      for (const o of await audioOutputs()) {
+        const inspect = await wpExec(['inspect', String(o.id)]) ?? '';
+        if (/crt-bridge/.test(inspect)) continue; // internal, not user-facing
+        outs.push(o);
+      }
+      for (const o of await owntoneOutputs()) {
+        outs.push({
+          id: `ot:${o.id}`,
+          name: `${o.name} (with titles)`,
+          airplay: true,
+          default: mode === 'owntone' && !!o.selected,
+        });
+      }
+      sendJson(res, 200, { outputs: outs });
     } else if (req.method === 'POST' && pathname === '/api/audio/output') {
       const { id } = JSON.parse(await readBody(req) || '{}');
-      if (!Number.isInteger(id)) return sendJson(res, 400, { error: 'id: sink id required' });
+      const isOwntone = typeof id === 'string' && id.startsWith('ot:');
+      if (!isOwntone && !Number.isInteger(id)) {
+        return sendJson(res, 400, { error: 'id: sink id required' });
+      }
+      if (isOwntone) {
+        // metadata bridge: route audio into the bridge sink, point OwnTone
+        // at the chosen receiver, and let pipe autostart do the rest
+        const bridgeId = await findBridgeSinkId();
+        if (bridgeId == null) return sendJson(res, 400, { error: 'bridge sink missing — is the Pi updated?' });
+        const sel = await otFetch('/api/outputs/set', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outputs: [id.slice(3)] }),
+        });
+        if (sel === null) return sendJson(res, 400, { error: 'OwnTone not reachable — is it installed?' });
+        await otFetch('/api/player/volume?volume=100', { method: 'PUT' });
+        await wpExec(['set-volume', String(bridgeId), '0.10']); // engage gently
+        await wpExec(['set-default', String(bridgeId)]);
+        await tv('bridge', 'start').catch(() => {});
+        await setMpvAudioDelay(-(OWNTONE_LATENCY_MS / 1000));
+        await unmuteAll();
+        return sendJson(res, 200, { ok: true });
+      }
+      // leaving the bridge (if it was active) — stop the feeder so OwnTone
+      // releases the receiver
+      tv('bridge', 'stop').catch(() => {});
       // AirPlay sinks engage at 10% — they usually drive amplified speakers
       const inspect = await wpExec(['inspect', String(id)]) ?? '';
       const toAirplay = /raop/i.test(inspect);
@@ -678,7 +760,7 @@ server.requestTimeout = 0;
 // Keep mpv's lip-sync shift glued to where audio actually goes: outputs can
 // change without our endpoints being involved (wireplumber falls back to the
 // jack when an AirPlay device drops), which would leave a stale 2s shift.
-let lastAppliedAirplay = null;
+let lastAppliedMode = null;
 setInterval(async () => {
   try {
     // enforce the mute intent regardless of mode — wireplumber's route
@@ -687,13 +769,16 @@ setInterval(async () => {
       await muteAll();
     }
     if (!(await isActive('crt-player.service'))) {
-      lastAppliedAirplay = null;
+      lastAppliedMode = null;
       return;
     }
-    const ap = await isAirplay();
-    if (ap !== lastAppliedAirplay) {
-      const ok = await setMpvAudioDelay(ap ? -(airplayLatencyMs / 1000) : 0);
-      if (ok) lastAppliedAirplay = ap;
+    const mode = await castMode();
+    if (mode !== lastAppliedMode) {
+      const delay = mode === 'owntone' ? -(OWNTONE_LATENCY_MS / 1000)
+        : mode === 'raop' ? -(airplayLatencyMs / 1000)
+          : 0;
+      const ok = await setMpvAudioDelay(delay);
+      if (ok) lastAppliedMode = mode;
     }
   } catch { /* next tick */ }
 }, 3000);

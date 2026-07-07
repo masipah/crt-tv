@@ -141,6 +141,35 @@ sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
 sleep 2
 /usr/local/bin/tv normalize 2>/dev/null || true
 
+echo "==> OwnTone (AirPlay with track titles)"
+# OwnTone isn't in Debian; the project runs an apt repo with a trixie dist.
+# Everything degrades gracefully if this fails — the direct AirPlay path
+# doesn't depend on it.
+if [[ ! -f /usr/share/keyrings/owntone-archive-keyring.gpg ]]; then
+  wget -q -O - http://www.gyfgafguf.dk/raspbian/owntone.gpg |
+    gpg --dearmor --output /usr/share/keyrings/owntone-archive-keyring.gpg || true
+fi
+if [[ ! -f /etc/apt/sources.list.d/owntone.list ]]; then
+  wget -q -O /etc/apt/sources.list.d/owntone.list \
+    "https://raw.githubusercontent.com/owntone/owntone-apt/refs/heads/master/repo/rpi/owntone-trixie.list" || true
+  apt-get update || true
+fi
+if apt-get install -y owntone; then
+  install -m 644 "$REPO_DIR/setup/owntone.conf" /etc/owntone.conf
+  # the audio pipe + its metadata companion, writable by crt, readable by owntone
+  install -d -m 755 /srv/owntone-pipe
+  [[ -p /srv/owntone-pipe/CRT-TV ]] || mkfifo -m 666 /srv/owntone-pipe/CRT-TV
+  [[ -p /srv/owntone-pipe/CRT-TV.metadata ]] || mkfifo -m 666 /srv/owntone-pipe/CRT-TV.metadata
+  install -m 644 "$REPO_DIR/setup/pipewire-bridge.conf" /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
+  install -m 755 "$REPO_DIR/scripts/bridge-feed.sh" /usr/local/lib/crt-tv/bridge-feed.sh
+  systemctl enable owntone.service 2>/dev/null || true
+  systemctl restart owntone.service || true
+  sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
+    systemctl --user restart pipewire wireplumber 2>/dev/null || true
+else
+  echo "!! OwnTone install failed — '(with titles)' outputs won't appear; direct AirPlay still works"
+fi
+
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
 if [[ ! -f /etc/crt-tv/crt-tv.env ]]; then
@@ -157,6 +186,7 @@ install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-medi
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
+install -m 644 "$REPO_DIR/scripts/metadata.lua" /usr/local/lib/crt-tv/metadata.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
 install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh

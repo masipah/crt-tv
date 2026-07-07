@@ -19,8 +19,13 @@ fi
 # weather-break resumes line up with the file.
 
 # Starting while the output is already AirPlay: shift video to match the
-# RAOP buffer for lip-sync (see AIRPLAY_LATENCY_MS in crt-tv.env)
-if wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -qi raop; then
+# buffering for lip-sync (AIRPLAY_LATENCY_MS / OWNTONE_LATENCY_MS in
+# crt-tv.env; the OwnTone bridge buffers ~2s and can't report it)
+sink_info=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null || true)
+if grep -q 'crt-bridge' <<<"$sink_info"; then
+  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${OWNTONE_LATENCY_MS:-2000} / 1000 }")
+  RESUME_ARGS+=("--audio-delay=-$ap_sec")
+elif grep -qi 'raop' <<<"$sink_info"; then
   ap_sec=$(awk "BEGIN { printf \"%.3f\", ${AIRPLAY_LATENCY_MS:-0} / 1000 }")
   RESUME_ARGS+=("--audio-delay=-$ap_sec")
 fi
@@ -41,6 +46,7 @@ exec mpv \
   --input-ipc-server=/run/crt-tv/mpv.sock \
   --script=/usr/local/lib/crt-tv/commercials.lua \
   --script=/usr/local/lib/crt-tv/loudness.lua \
+  --script=/usr/local/lib/crt-tv/metadata.lua \
   --loop-playlist=inf \
   --playlist=/run/crt-tv/playlist.m3u \
   "${RESUME_ARGS[@]}"
