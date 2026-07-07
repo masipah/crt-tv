@@ -17,7 +17,7 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'reboot',
+  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'commercials', 'reboot',
 ]);
 // Fixed upload buckets: the ordered channel and the random interstitials
 const BUCKETS = ['videos', 'commercials'];
@@ -82,12 +82,13 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, muted, shuffled] = await Promise.all([
+  const [ws4kp, kiosk, player, muted, shuffled, noCommercials] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     isMuted(),
     fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
+    fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
@@ -109,7 +110,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, muted, shuffled };
+  return { units: { ws4kp, kiosk, player }, mode, playing, muted, shuffled, noCommercials };
 }
 
 // ---- persistent library order ------------------------------------------
