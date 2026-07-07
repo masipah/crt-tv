@@ -1,0 +1,10 @@
+[Unit]
+Description=CRT-TV audio bridge to OwnTone (AirPlay with metadata)
+After=owntone.service
+
+[Service]
+User=crt
+ExecStart=/usr/local/lib/crt-tv/bridge-feed.sh
+Restart=always
+RestartSec=2
+TimeoutStopSec=5
