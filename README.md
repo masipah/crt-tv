@@ -67,7 +67,8 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 
 ```text
 tv weather          # WeatherStar 4000+
-tv play <path>...   # play file(s) or a folder with mpv, loops forever
+tv play <path>...   # play videos (loops forever)
+tv break [secs]     # cut to the weather, then back to the video (default 2 min)
 tv pause            # toggle pause
 tv mute             # toggle mute
 tv shuffle          # shuffle the playlist order
@@ -75,6 +76,12 @@ tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
 tv status           # what's running
 ```
+
+Playing a single library file works like a TV channel: the rest of the
+library follows in order and wraps around, forever. Playing a folder or a
+multi-file list (like the web remote's queue) plays exactly that list. A
+weather break saves the video position and resumes it when the break ends;
+switching modes manually cancels any pending break.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
@@ -85,9 +92,10 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, browse/play/delete the video library
 (`MEDIA_DIR`), build a play queue in whatever order you like, upload videos
-straight from your phone or laptop, and pause/skip/mute/shuffle what's
-playing. It's the same `tv` command underneath, so the CLI and the web UI
-never disagree.
+straight from your phone or laptop, pause/skip/mute/shuffle what's playing,
+and cut in a 2-minute weather break that returns to the video afterwards.
+It's the same `tv` command underneath, so the CLI and the web UI never
+disagree.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
