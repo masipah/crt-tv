@@ -81,8 +81,13 @@ tv status           # what's running
 Playing a single library file works like a TV channel: the rest of the
 library follows in order and wraps around, forever. Playing a folder or a
 multi-file list (like the web remote's queue) plays exactly that list. A
-weather break saves the video position and resumes it when the break ends;
-switching modes manually cancels any pending break.
+weather break saves the video position (and mute state) and resumes when the
+break ends; switching modes manually cancels any pending break.
+
+**On boot** the TV runs itself, headless: 2 minutes of the WeatherStar, then
+the video library — muted — with the every-5-videos weather rotation already
+enabled. Any manual action (channel buttons, play, stop) takes over from the
+rotation; unmute from the Player row when you want sound.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is

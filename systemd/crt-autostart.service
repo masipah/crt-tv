@@ -1,0 +1,10 @@
+[Unit]
+Description=crt-tv boot rotation (weather 2 min, then videos, alternating)
+After=weather-kiosk.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tv autostart
+
+[Install]
+WantedBy=multi-user.target
