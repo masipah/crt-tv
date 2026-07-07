@@ -38,8 +38,7 @@
   html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: system-ui, -apple-system, sans-serif;
-    margin: 0 auto;
-    max-width: 560px;
+    margin: 0;
     padding: calc(10px + env(safe-area-inset-top))
       calc(16px + env(safe-area-inset-right))
       calc(28px + env(safe-area-inset-bottom))
@@ -47,6 +46,7 @@
     color: var(--text);
     background: var(--bg);
   }
+  .layout { max-width: 560px; margin: 0 auto; }
   h1 { font-size: 1.7rem; margin: 10px 2px 14px; letter-spacing: -0.02em; }
   button, input, select { font: inherit; touch-action: manipulation; }
   button { border: 0; background: none; color: inherit; padding: 0; cursor: pointer; }
@@ -218,6 +218,74 @@
   }
   footer button { color: var(--danger); font-size: 0.85rem; font-weight: 500; margin-top: 10px; }
 
+  /* inline row actions — desktop only, revealed on hover */
+  .acts { display: none; }
+
+  /* ---- desktop: sidebar dashboard, not a stretched phone ---- */
+  @media (min-width: 880px) {
+    :root { --hover: rgba(0, 0, 0, 0.035); }
+    body { padding: 28px 32px; }
+    .layout {
+      max-width: 1160px;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .side { position: sticky; top: 24px; }
+    h1 { font-size: 1.4rem; margin: 0 2px 14px; }
+    .main {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 0 24px;
+      align-content: start;
+    }
+    #queue-sec { grid-column: 1 / -1; }
+    footer { text-align: left; margin-top: 18px; }
+
+    ul.list li { padding: 10px 8px 10px 16px; cursor: default; }
+    ul.list li:active { background: none; }
+    ul.list li:hover { background: var(--hover); }
+    /* floating toolbar over the row on hover — takes no layout width, so
+       names keep the full row */
+    .acts {
+      display: flex;
+      gap: 2px;
+      position: absolute;
+      right: 44px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 2px;
+      background: var(--card);
+      border: 0.5px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease;
+    }
+    #commercials-list .acts { right: 10px; }
+    ul.list li:hover .acts, ul.list li:focus-within .acts {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .acts button {
+      padding: 5px 9px;
+      border-radius: 8px;
+      color: var(--accent);
+      font-size: 0.88rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .acts button:hover { background: var(--tint); }
+    .acts button.danger { color: var(--danger); }
+    .transport button:hover, .chip:not(.on):hover { filter: brightness(0.94); }
+  }
+  @media (min-width: 880px) and (prefers-color-scheme: dark) {
+    :root { --hover: rgba(255, 255, 255, 0.05); }
+    .transport button:hover, .chip:not(.on):hover { filter: brightness(1.25); }
+  }
+
   /* bottom action sheet */
   #sheet-root .backdrop {
     position: fixed;
@@ -272,77 +340,89 @@
 </style>
 </head>
 <body>
-  <h1>CRT-TV</h1>
+  <div class="layout">
+    <aside class="side">
+      <h1>CRT-TV</h1>
 
-  <div class="card">
-    <div id="mode">…</div>
-    <div id="now-title"></div>
-    <progress id="pos" max="100" value="0"></progress>
+      <div class="card">
+        <div id="mode">…</div>
+        <div id="now-title"></div>
+        <progress id="pos" max="100" value="0"></progress>
+      </div>
+      <p id="error"></p>
+
+      <div class="seg" id="channels">
+        <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
+        <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
+        <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
+      </div>
+
+      <div class="card">
+        <div class="transport">
+          <button id="btn-prev" onclick="post('/api/tv/prev')" aria-label="Previous">&#9198;</button>
+          <button id="btn-pause" onclick="post('/api/tv/pause')" aria-label="Play/Pause">&#9199;</button>
+          <button id="btn-next" onclick="post('/api/tv/next')" aria-label="Next">&#9197;</button>
+        </div>
+        <div class="chips">
+          <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
+          <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
+          <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
+        </div>
+      </div>
+
+      <div class="sec-head"><h2>Upload</h2></div>
+      <div class="card">
+        <div class="seg" id="upload-seg" style="margin-bottom: 12px">
+          <button class="active" data-bucket="videos">Videos</button>
+          <button data-bucket="commercials">Commercials</button>
+        </div>
+        <label class="btn-primary">
+          Choose videos…
+          <input type="file" id="file-input" hidden multiple
+                 accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
+        </label>
+        <div id="upload-status" class="hint"></div>
+        <progress id="upload-bar" max="100" value="0" hidden></progress>
+      </div>
+
+      <footer>
+        ws4kp :8080 · also on the Pi as the <code>tv</code> command<br>
+        <button onclick="if (confirm('Reboot the Pi? The TV goes dark for about a minute.')) post('/api/tv/reboot')">Reboot Pi</button>
+      </footer>
+    </aside>
+
+    <main class="main">
+      <section>
+        <div class="sec-head">
+          <h2>Channel</h2>
+        </div>
+        <p class="hint" id="channel-hint">Loops in this order, one random
+          commercial after every 4th video. Drag &#8801; to reorder, tap a
+          row for actions.</p>
+        <ul class="list" id="videos-list"></ul>
+        <p id="videos-empty" class="hint" hidden>No videos yet — upload some to get the channel rolling.</p>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>Commercials</h2>
+        </div>
+        <p class="hint">One plays at random after every 4th video.</p>
+        <ul class="list" id="commercials-list"></ul>
+        <p id="commercials-empty" class="hint" hidden>No commercials yet — the channel plays uninterrupted.</p>
+      </section>
+
+      <section id="queue-sec" hidden>
+        <div class="sec-head">
+          <h2>Queue</h2>
+          <button class="link" onclick="playQueue()">Play</button>
+          <button class="link" onclick="clearQueue()">Clear</button>
+        </div>
+        <p class="hint">One-off list for live mixing — doesn't touch the channel order.</p>
+        <ul class="list" id="queue-list"></ul>
+      </section>
+    </main>
   </div>
-  <p id="error"></p>
-
-  <div class="seg" id="channels">
-    <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
-    <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
-    <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
-  </div>
-
-  <div class="card">
-    <div class="transport">
-      <button id="btn-prev" onclick="post('/api/tv/prev')" aria-label="Previous">&#9198;</button>
-      <button id="btn-pause" onclick="post('/api/tv/pause')" aria-label="Play/Pause">&#9199;</button>
-      <button id="btn-next" onclick="post('/api/tv/next')" aria-label="Next">&#9197;</button>
-    </div>
-    <div class="chips">
-      <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
-      <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
-      <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
-    </div>
-  </div>
-
-  <div class="sec-head">
-    <h2>Channel</h2>
-  </div>
-  <p class="hint">Loops in this order, one random commercial after every 4th
-    video. Drag &#8801; to reorder, tap a row for actions.</p>
-  <ul class="list" id="videos-list"></ul>
-  <p id="videos-empty" class="hint" hidden>No videos yet — upload some below.</p>
-
-  <div class="sec-head">
-    <h2>Commercials</h2>
-  </div>
-  <ul class="list" id="commercials-list"></ul>
-  <p id="commercials-empty" class="hint" hidden>No commercials yet — the channel plays uninterrupted.</p>
-
-  <div id="queue-sec" hidden>
-    <div class="sec-head">
-      <h2>Queue</h2>
-      <button class="link" onclick="playQueue()">Play</button>
-      <button class="link" onclick="clearQueue()">Clear</button>
-    </div>
-    <p class="hint">One-off list for live mixing — doesn't touch the channel order.</p>
-    <ul class="list" id="queue-list"></ul>
-  </div>
-
-  <div class="sec-head"><h2>Upload</h2></div>
-  <div class="card">
-    <div class="seg" id="upload-seg" style="margin-bottom: 12px">
-      <button class="active" data-bucket="videos">Videos</button>
-      <button data-bucket="commercials">Commercials</button>
-    </div>
-    <label class="btn-primary">
-      Choose videos…
-      <input type="file" id="file-input" hidden multiple
-             accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
-    </label>
-    <div id="upload-status" class="hint"></div>
-    <progress id="upload-bar" max="100" value="0" hidden></progress>
-  </div>
-
-  <footer>
-    ws4kp :8080 · also on the Pi as the <code>tv</code> command<br>
-    <button onclick="if (confirm('Reboot the Pi? The TV goes dark for about a minute.')) post('/api/tv/reboot')">Reboot Pi</button>
-  </footer>
 
   <div id="sheet-root" hidden></div>
 
@@ -472,6 +552,42 @@
     ]);
   }
 
+  // Desktop (wide) shows inline hover actions on rows; mobile taps a row
+  // to open the action sheet instead.
+  const desktopMQ = matchMedia('(min-width: 880px)');
+  desktopMQ.addEventListener('change', () => {
+    renderBucket('videos');
+    renderBucket('commercials');
+    renderQueue();
+    $('channel-hint').textContent = hintText();
+  });
+
+  const hintText = () => 'Loops in this order, one random commercial after '
+    + 'every 4th video. Drag ≡ to reorder, '
+    + (desktopMQ.matches ? 'hover a row for actions.' : 'tap a row for actions.');
+
+  function inlineActions(bucket, rel, n) {
+    const other = bucket === 'videos' ? 'commercials' : 'videos';
+    const acts = document.createElement('span');
+    acts.className = 'acts';
+    const mk = (label, fn, cls) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (cls) b.className = cls;
+      b.onclick = (e) => { e.stopPropagation(); fn(); };
+      return b;
+    };
+    acts.append(
+      mk('Play', () => play(rel)),
+      mk('Queue', () => addToQueue(rel)),
+      mk('Rename', () => renameFile(rel, n)),
+      mk(bucket === 'videos' ? '→ Comm' : '→ Videos',
+        () => libAction('/api/move', { from: rel, to: other })),
+      mk('✕', () => del(rel), 'danger'),
+    );
+    return acts;
+  }
+
   function renderBucket(bucket) {
     const names = lib[bucket] ?? [];
     $(bucket + '-empty').hidden = names.length > 0;
@@ -484,7 +600,7 @@
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = n;
-      li.append(name);
+      li.append(name, inlineActions(bucket, rel, n));
       if (bucket === 'videos') {
         li.append(dragHandle(li, () => {
           const order = [...list.children].map((el) => el.dataset.name);
@@ -493,7 +609,7 @@
           }
         }));
       }
-      li.onclick = () => rowActions(bucket, rel, n);
+      li.onclick = desktopMQ.matches ? null : () => rowActions(bucket, rel, n);
       list.append(li);
     }
   }
@@ -714,6 +830,7 @@
     e.target.value = '';
   });
 
+  $('channel-hint').textContent = hintText();
   refresh();
   loadMedia();
   setInterval(refresh, 3000);
