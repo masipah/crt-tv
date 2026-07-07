@@ -17,7 +17,8 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'commercials', 'reboot',
+  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'airplay',
+  'shuffle', 'commercials', 'reboot',
 ]);
 // Fixed upload buckets: the ordered channel and the random interstitials
 const BUCKETS = ['videos', 'commercials'];
@@ -35,13 +36,25 @@ const isActive = (unit) => new Promise((resolve) => {
     (err, stdout) => resolve(stdout.trim() === 'active'));
 });
 
-// Whole-TV mute lives in the ALSA mixer (see `tv mute`)
+// Whole-TV mute follows the default PipeWire sink (jack or AirPlay), with
+// the ALSA mixer as fallback for setups without PipeWire (see `tv mute`)
+const WP_ENV = { ...process.env, XDG_RUNTIME_DIR: `/run/user/${process.getuid()}` };
+
 const isMuted = () => new Promise((resolve) => {
-  execFile('amixer', ['sget', 'Headphone'], (err, stdout) => {
-    if (!err && /\[(on|off)\]/.test(stdout)) return resolve(stdout.includes('[off]'));
-    execFile('amixer', ['sget', 'PCM'],
-      (err2, stdout2) => resolve(String(stdout2 || '').includes('[off]')));
+  execFile('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV }, (err, stdout) => {
+    if (!err && /Volume:/.test(stdout)) return resolve(stdout.includes('[MUTED]'));
+    execFile('amixer', ['sget', 'Headphone'], (e2, out2) => {
+      if (!e2 && /\[(on|off)\]/.test(out2)) return resolve(out2.includes('[off]'));
+      execFile('amixer', ['sget', 'PCM'],
+        (e3, out3) => resolve(String(out3 || '').includes('[off]')));
+    });
   });
+});
+
+// Is the default output an AirPlay (RAOP) sink?
+const isAirplay = () => new Promise((resolve) => {
+  execFile('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV },
+    (err, stdout) => resolve(!err && /raop/i.test(stdout)));
 });
 
 // Ask mpv for properties over its IPC socket; null if the player isn't up.
@@ -82,11 +95,12 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, muted, shuffled, noCommercials] = await Promise.all([
+  const [ws4kp, kiosk, player, muted, airplay, shuffled, noCommercials] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     isMuted(),
+    isAirplay(),
     fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
     fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
   ]);
@@ -110,7 +124,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, muted, shuffled, noCommercials };
+  return { units: { ws4kp, kiosk, player }, mode, playing, muted, airplay, shuffled, noCommercials };
 }
 
 // ---- persistent library order ------------------------------------------

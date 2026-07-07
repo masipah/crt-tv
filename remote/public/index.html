@@ -365,6 +365,8 @@
         </div>
         <div class="chips">
           <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
+          <button class="chip" id="btn-airplay" onclick="post('/api/tv/airplay')"
+                  title="Send the TV's audio to AirPlay speakers">AirPlay</button>
           <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
           <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
         </div>
@@ -479,6 +481,7 @@
       $(b).disabled = st.mode !== 'video';
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
+    $('btn-airplay').classList.toggle('on', !!st.airplay);
     $('btn-shuffle').classList.toggle('on', !!st.shuffled);
     $('btn-nocomm').classList.toggle('on', !!st.noCommercials);
     const p = st.playing;
