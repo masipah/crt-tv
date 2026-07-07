@@ -75,6 +75,20 @@ const wpExec = (args) => new Promise((resolve) => {
   execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
 });
 
+// AirPlay buffers ~2s; shift mpv's video by the same amount for lip-sync
+const AIRPLAY_LATENCY_MS = Number(process.env.AIRPLAY_LATENCY_MS ?? 2000);
+
+const setMpvAudioDelay = (seconds) => new Promise((resolve) => {
+  const sock = net.createConnection(MPV_SOCK);
+  sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
+  sock.on('error', () => resolve(false)); // player not running — fine
+  sock.on('connect', () => {
+    sock.write(`${JSON.stringify({ command: ['set_property', 'audio-delay', seconds] })}\n`);
+    sock.end();
+    resolve(true);
+  });
+});
+
 // Every selectable output: the jack plus each discovered AirPlay receiver
 async function audioOutputs() {
   const status = await wpExec(['status']);
@@ -450,13 +464,16 @@ const server = http.createServer(async (req, res) => {
       if (!Number.isInteger(id)) return sendJson(res, 400, { error: 'id: sink id required' });
       // AirPlay sinks engage at 10% — they usually drive amplified speakers
       const inspect = await wpExec(['inspect', String(id)]) ?? '';
-      if (/raop/i.test(inspect)) {
+      const toAirplay = /raop/i.test(inspect);
+      if (toAirplay) {
         await wpExec(['set-volume', String(id), '0.10']);
       }
       const ok = await new Promise((resolve) => {
         execFile('wpctl', ['set-default', String(id)], { env: WP_ENV }, (err) => resolve(!err));
       });
       if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
+      // keep a running video in lip-sync with the new output's buffering
+      await setMpvAudioDelay(toAirplay ? -(AIRPLAY_LATENCY_MS / 1000) : 0);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');

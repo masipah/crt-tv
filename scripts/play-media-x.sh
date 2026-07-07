@@ -5,8 +5,8 @@ set -euo pipefail
 xset s off -dpms || true
 
 # After a weather break, `tv break` leaves a resume point (playlist index +
-# seconds) so the video picks up where it left off. Mute is hardware-level
-# (ALSA, see `tv mute`) and needs nothing here.
+# seconds) so the video picks up where it left off. Mute lives in PipeWire
+# (see `tv mute`) and needs nothing here.
 RESUME_ARGS=()
 if [[ -f /run/crt-tv/resume ]]; then
   read -r pos start _ </run/crt-tv/resume || true
@@ -17,6 +17,13 @@ fi
 # Note: shuffle mode is baked into the playlist file by `tv play` — no
 # --shuffle here, so the first entry is always what the user picked and
 # weather-break resumes line up with the file.
+
+# Starting while the output is already AirPlay: shift video to match the
+# RAOP buffer for lip-sync (see AIRPLAY_LATENCY_MS in crt-tv.env)
+if wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -qi raop; then
+  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${AIRPLAY_LATENCY_MS:-2000} / 1000 }")
+  RESUME_ARGS+=("--audio-delay=-$ap_sec")
+fi
 
 # --volume=100: mpv's own softvol stays out of the way — the sink volume
 # (remote slider / tv volume) is the one volume control

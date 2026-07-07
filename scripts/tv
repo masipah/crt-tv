@@ -322,13 +322,18 @@ case $cmd in
   airplay)
     as_root
     # Toggle the default output between the AirPlay receiver and the jack.
-    # PipeWire moves running streams over live — no restart needed.
+    # PipeWire moves running streams over live — no restart needed. A
+    # running video gets its audio-delay adjusted to match the AirPlay
+    # buffer so lip-sync holds (see AIRPLAY_LATENCY_MS in crt-tv.env).
+    ap_ms=$(env_get AIRPLAY_LATENCY_MS)
+    ap_sec=$(awk "BEGIN { printf \"%.3f\", ${ap_ms:-2000} / 1000 }")
     if wp inspect @DEFAULT_AUDIO_SINK@ | grep -qi raop; then
       id=$(wp_find_sink 'api\.alsa') || {
         echo "tv: no jack sink found" >&2
         exit 1
       }
       wp set-default "$id"
+      mpv_try 'set audio-delay 0'
       echo "audio: TV jack"
     else
       id=$(wp_find_sink 'raop') || {
@@ -338,6 +343,7 @@ case $cmd in
       # engage AirPlay gently: amplified speakers start at 10%
       wp set-volume "$id" 0.10 || true
       wp set-default "$id"
+      mpv_try "set audio-delay -$ap_sec"
       echo "audio: AirPlay (volume starts at 10%)"
     fi
     ;;
