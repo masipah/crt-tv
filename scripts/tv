@@ -414,6 +414,8 @@ case $cmd in
     amixer sget Headphone 2>/dev/null || amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
     echo "-- pipewire sinks (* = default):"
     wp status 2>/dev/null | awk '/Sinks:/ { f = 1 } /(Sources|Filters):/ { f = 0 } f' || echo "(pipewire not running)"
+    echo "-- pipewire streams (who is actually in the graph):"
+    wp status 2>/dev/null | sed -n '/Streams:/,/^$/p' || true
     echo
     echo "== boot config =="
     grep -E 'vc4|tvout|sdtv' /boot/firmware/config.txt 2>/dev/null || true
