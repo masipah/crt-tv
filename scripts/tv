@@ -437,6 +437,7 @@ case $cmd in
     echo
     echo "== versions =="
     node --version 2>/dev/null || echo "node: missing"
+    pipewire --version 2>/dev/null | tail -1 || true
     command -v chromium chromium-browser cage mpv 2>/dev/null || true
     echo
     echo "== mpv log =="
