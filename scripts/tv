@@ -22,6 +22,7 @@ usage: tv <command>
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
   status             show what's running
+  doctor             one-shot diagnostic dump (paste this when asking for help)
 EOF
 }
 
@@ -108,6 +109,45 @@ case $cmd in
   status)
     for u in ws4kp ws3kp weather-kiosk crt-player; do
       printf '%-15s %s\n' "$u" "$(systemctl is-active "$u.service" 2>/dev/null || true)"
+    done
+    ;;
+  doctor)
+    as_root
+    echo "== units =="
+    for u in ws4kp ws3kp weather-kiosk crt-player crt-remote; do
+      printf '%-15s active=%-10s enabled=%s\n' "$u" \
+        "$(systemctl is-active "$u.service" 2>/dev/null || true)" \
+        "$(systemctl is-enabled "$u.service" 2>/dev/null || true)"
+    done
+    echo
+    echo "== web servers =="
+    for p in 8080 8083 8090; do
+      printf ':%-5s http %s\n' "$p" \
+        "$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$p/" 2>/dev/null || echo unreachable)"
+    done
+    echo
+    echo "== sessions =="
+    loginctl list-sessions --no-legend 2>/dev/null || true
+    echo
+    echo "== display =="
+    ls /sys/class/drm/ 2>/dev/null || true
+    for c in /sys/class/drm/card*-Composite-1; do
+      [[ -e $c ]] || continue
+      echo "$c: status=$(cat "$c/status" 2>/dev/null) modes: $(tr '\n' ' ' <"$c/modes" 2>/dev/null)"
+    done
+    echo
+    echo "== boot config =="
+    grep -E 'vc4|tvout|sdtv' /boot/firmware/config.txt 2>/dev/null || true
+    cat /boot/firmware/cmdline.txt 2>/dev/null || true
+    echo
+    echo "== versions =="
+    node --version 2>/dev/null || echo "node: missing"
+    command -v chromium chromium-browser cage mpv 2>/dev/null || true
+    echo
+    echo "== recent logs =="
+    for u in ws4kp ws3kp weather-kiosk crt-remote; do
+      echo "--- $u"
+      journalctl -u "$u.service" -b --no-pager -n 15 2>/dev/null || true
     done
     ;;
   help | -h | --help)
