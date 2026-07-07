@@ -40,7 +40,8 @@ fi
 # loglevel/cursor args keep boot text off the CRT — an appliance shouldn't
 # scroll kernel logs on screen (SSH and journalctl still have everything).
 for arg in 'vc4.tv_norm=NTSC' 'video=Composite-1:720x480@60i' \
-  'quiet' 'loglevel=3' 'vt.global_cursor_default=0' 'logo.nologo'; do
+  'quiet' 'loglevel=3' 'vt.global_cursor_default=0' 'logo.nologo' \
+  'systemd.show_status=false'; do
   if ! grep -q "$arg" "$CMD"; then
     sed -i "1s|\$| $arg|" "$CMD"
   fi

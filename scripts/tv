@@ -307,6 +307,10 @@ case $cmd in
       mixer mute
       normalize_outputs
     done
+    # boot messages keep accumulating on the hidden console after the
+    # kiosk's own clear; wipe the VT buffer once everything has settled so
+    # the first weather->video switch reveals black, not a flash of text
+    /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
     ;;
   normalize)
     as_root
