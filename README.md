@@ -68,7 +68,8 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 ```text
 tv weather          # WeatherStar 4000+
 tv play <path>...   # play videos (loops forever)
-tv break [secs]     # cut to the weather, then back to the video (default 2 min)
+tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
+tv autobreak        # toggle: 2 min of weather after every 5 videos
 tv pause            # toggle pause
 tv mute             # toggle mute
 tv shuffle          # shuffle the playlist order
@@ -93,9 +94,9 @@ Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, browse/play/delete the video library
 (`MEDIA_DIR`), build a play queue in whatever order you like, upload videos
 straight from your phone or laptop, pause/skip/mute/shuffle what's playing,
-and cut in a 2-minute weather break that returns to the video afterwards.
-It's the same `tv` command underneath, so the CLI and the web UI never
-disagree.
+and toggle "Weather every 5" — 2 minutes of WeatherStar after every 5th
+video, then back to the videos where they left off. It's the same `tv`
+command underneath, so the CLI and the web UI never disagree.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
