@@ -368,7 +368,7 @@
         <div class="chips">
           <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
           <button class="chip" id="btn-airplay" onclick="audioSheet()"
-                  title="Choose where the TV's audio plays — lit when routed away from the TV">Audio out</button>
+                  title="Send the TV's audio to AirPlay speakers — lit while casting">AirPlay</button>
           <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
           <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
         </div>
@@ -572,21 +572,30 @@
     sendVolume();
   });
 
-  // ---- audio output picker --------------------------------------------
+  // ---- AirPlay picker ---------------------------------------------------
+  // Lists AirPlay receivers only — the TV's own speaker is the home state,
+  // returned to via "Stop AirPlay", not a peer in the device list.
   async function audioSheet() {
     err('');
     let outs = [];
     try {
       outs = (await (await fetch('/api/audio/outputs')).json()).outputs ?? [];
     } catch {}
-    if (!outs.length) {
-      err('No audio outputs found — is the Pi updated and PipeWire running?');
+    const devices = outs.filter((o) => o.airplay);
+    const jack = outs.find((o) => !o.airplay);
+    const casting = outs.find((o) => o.default)?.airplay;
+    if (!devices.length) {
+      err('No AirPlay speakers found — is the device on and on this network?');
       return;
     }
-    openSheet('Audio output', outs.map((o) => ({
-      label: (o.default ? '✓  ' : '') + (o.airplay ? o.name : 'TV speaker (jack)'),
+    const actions = devices.map((o) => ({
+      label: (o.default ? '✓  ' : '') + o.name,
       fn: () => setOutput(o.id),
-    })));
+    }));
+    if (casting && jack) {
+      actions.push({ label: 'Stop AirPlay — back to TV speaker', fn: () => setOutput(jack.id) });
+    }
+    openSheet('AirPlay', actions);
   }
 
   async function setOutput(id) {
