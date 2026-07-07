@@ -5,129 +5,92 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CRT-TV Remote</title>
 <style>
-  :root {
-    --navy: #000033;
-    --navy-2: #1a1a5e;
-    --cyan: #00eaff;
-    --amber: #ff9a00;
-    --white: #f0f0f0;
-    --dim: #8888bb;
-  }
-  * { box-sizing: border-box; }
   body {
-    margin: 0;
-    min-height: 100vh;
-    background: linear-gradient(180deg, var(--navy-2), var(--navy) 40%);
-    color: var(--white);
-    font-family: "Courier New", ui-monospace, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-family: system-ui, sans-serif;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+    color: #222;
+    background: #fff;
   }
-  /* scanlines */
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-      0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px,
-      transparent 1px, transparent 3px);
-  }
-  main { max-width: 640px; margin: 0 auto; padding: 16px; }
-  h1 {
-    margin: 8px 0 4px;
-    font-size: 1.6rem;
-    color: var(--amber);
-    text-shadow: 2px 2px 0 #000;
-    text-align: center;
-  }
+  h1 { font-size: 1.3rem; margin: 8px 0 16px; }
   h2 {
-    font-size: 0.9rem;
-    color: var(--cyan);
-    border-bottom: 2px solid var(--cyan);
+    font-size: 1rem;
+    margin: 28px 0 10px;
     padding-bottom: 4px;
-    margin: 24px 0 10px;
+    border-bottom: 1px solid #ddd;
   }
-  #now {
-    background: rgba(0,0,0,0.35);
-    border: 2px solid var(--cyan);
-    padding: 12px;
-    text-align: center;
-  }
-  #mode { font-size: 1.2rem; color: var(--amber); }
-  #now-title {
-    color: var(--white);
-    font-size: 0.85rem;
-    margin-top: 6px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #bar-wrap { display: none; margin-top: 8px; background: #000; height: 10px; border: 1px solid var(--dim); }
-  #bar { height: 100%; width: 0; background: var(--amber); }
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #now { margin: 0; padding: 12px; background: #f3f4f6; border-radius: 6px; }
+  #now-title { font-size: 0.9rem; color: #555; margin-top: 4px; overflow-wrap: anywhere; }
+  #pos { width: 100%; margin-top: 8px; display: none; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row button { flex: 1; min-width: 110px; }
   button {
     font: inherit;
-    text-transform: inherit;
-    letter-spacing: inherit;
+    padding: 10px 12px;
     cursor: pointer;
-    padding: 14px 8px;
-    color: var(--white);
-    background: var(--navy-2);
-    border: 2px solid var(--cyan);
-    box-shadow: 3px 3px 0 #000;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 6px;
   }
-  button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
-  button:disabled { opacity: 0.35; cursor: default; }
-  button.on { background: var(--amber); border-color: var(--amber); color: #000; }
-  #media-list { list-style: none; margin: 0; padding: 0; }
-  #media-list li {
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.on { background: #2563eb; border-color: #2563eb; color: #fff; }
+  #error { color: #b91c1c; min-height: 1.2em; margin: 10px 0 0; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 4px;
-    border-bottom: 1px solid rgba(136,136,187,0.3);
-    text-transform: none;
+    padding: 7px 2px;
+    border-bottom: 1px solid #eee;
   }
-  #media-list li.folder { color: var(--cyan); }
-  #media-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #media-list button { padding: 6px 12px; box-shadow: none; }
-  #media-empty, #error { color: var(--dim); text-transform: none; }
-  #error { color: #ff5555; min-height: 1.2em; margin-top: 12px; text-align: center; }
-  footer { color: var(--dim); font-size: 0.7rem; text-align: center; margin: 24px 0; }
+  li.folder .name { font-weight: 600; }
+  .name { flex: 1; overflow-wrap: anywhere; }
+  li button { padding: 5px 12px; flex: none; }
+  #upload-status { font-size: 0.9rem; color: #555; margin-top: 8px; }
+  #upload-bar { width: 100%; margin-top: 6px; display: none; }
+  .hint { font-size: 0.85rem; color: #777; }
+  footer { margin: 32px 0 8px; font-size: 0.8rem; color: #999; }
 </style>
 </head>
 <body>
-<main>
-  <h1>&#9643; CRT-TV Remote</h1>
+  <h1>CRT-TV Remote</h1>
 
-  <div id="now">
-    <div id="mode">…</div>
-    <div id="now-title"></div>
-    <div id="bar-wrap"><div id="bar"></div></div>
-  </div>
-  <div id="error"></div>
+  <p id="now">
+    <span id="mode">…</span>
+    <span id="now-title"></span>
+    <progress id="pos" max="100" value="0"></progress>
+  </p>
+  <p id="error"></p>
 
   <h2>Channels</h2>
-  <div class="grid">
+  <div class="row">
     <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
     <button id="btn-retro" onclick="post('/api/tv/retro')">Retro 3000+</button>
-    <button id="btn-off" onclick="post('/api/tv/stop')">Blank</button>
+    <button id="btn-off" onclick="post('/api/tv/stop')">Blank screen</button>
   </div>
 
   <h2>Player</h2>
-  <div class="grid">
-    <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Prev</button>
+  <div class="row">
+    <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Previous</button>
     <button id="btn-pause" onclick="post('/api/tv/pause')">&#9199; Pause</button>
     <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
   </div>
 
-  <h2>Video Library</h2>
+  <h2>Video library</h2>
   <ul id="media-list"></ul>
-  <p id="media-empty" hidden>Nothing here yet — drop files into <code id="media-dir"></code> on the Pi.</p>
+  <p id="media-empty" class="hint" hidden>
+    No videos yet — upload some below, or copy files to <code id="media-dir"></code> on the Pi.
+  </p>
 
-  <footer>ws4kp :8080 &middot; ws3kp :8083 &middot; remote :8090 &middot; also try the `tv` command</footer>
-</main>
+  <h2>Upload</h2>
+  <input type="file" id="file-input" multiple
+         accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
+  <p class="hint">Files land in the video library. Big files take a while over Wi-Fi — keep this page open.</p>
+  <div id="upload-status"></div>
+  <progress id="upload-bar" max="100" value="0"></progress>
+
+  <footer>ws4kp :8080 · ws3kp :8083 · also available via the <code>tv</code> command on the Pi</footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -152,9 +115,9 @@
   const play = (path) => post('/api/play', { paths: [path] });
 
   const MODE_LABEL = {
-    weather: 'WeatherStar 4000+',
-    retro: 'WeatherStar 3000+',
-    video: 'Video',
+    weather: 'Now showing: WeatherStar 4000+',
+    retro: 'Now showing: WeatherStar 3000+',
+    video: 'Now showing: video',
     off: 'Screen blank',
   };
 
@@ -175,7 +138,7 @@
       err('Remote unreachable — is the Pi up?');
       return;
     }
-    $('mode').textContent = '▶ ' + MODE_LABEL[st.mode];
+    $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('on', st.mode === 'weather');
     $('btn-retro').classList.toggle('on', st.mode === 'retro');
     $('btn-off').classList.toggle('on', st.mode === 'off');
@@ -184,15 +147,15 @@
     }
     const p = st.playing;
     if (p) {
-      const pos = p.playlistCount > 1 ? ` [${p.playlistPos}/${p.playlistCount}]` : '';
-      const time = p.duration ? ` ${fmt(p.timePos)} / ${fmt(p.duration)}` : '';
+      const pos = p.playlistCount > 1 ? ` (${p.playlistPos} of ${p.playlistCount})` : '';
+      const time = p.duration ? ` — ${fmt(p.timePos)} / ${fmt(p.duration)}` : '';
       $('now-title').textContent = (p.paused ? '⏸ ' : '') + p.title + pos + time;
-      $('bar-wrap').style.display = p.duration ? 'block' : 'none';
-      if (p.duration) $('bar').style.width = (100 * p.timePos / p.duration) + '%';
+      $('pos').style.display = p.duration ? 'block' : 'none';
+      if (p.duration) $('pos').value = 100 * p.timePos / p.duration;
       $('btn-pause').classList.toggle('on', p.paused);
     } else {
       $('now-title').textContent = '';
-      $('bar-wrap').style.display = 'none';
+      $('pos').style.display = 'none';
       $('btn-pause').classList.remove('on');
     }
   }
@@ -209,14 +172,58 @@
       const name = document.createElement('span');
       name.className = 'name';
       const depth = f.path.split('/').length - 1;
-      name.textContent = ' '.repeat(depth * 2) + (f.dir ? '◆ ' : '') + f.path.split('/').pop();
+      name.style.paddingLeft = (depth * 16) + 'px';
+      name.textContent = f.path.split('/').pop() + (f.dir ? '/' : '');
       const btn = document.createElement('button');
-      btn.textContent = f.dir ? '▶ All' : '▶';
+      btn.textContent = f.dir ? 'Play all' : 'Play';
       btn.onclick = () => play(f.path);
       li.append(name, btn);
       list.append(li);
     }
   }
+
+  function uploadOne(file, label) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name));
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          const pct = Math.round(100 * ev.loaded / ev.total);
+          $('upload-status').textContent = `Uploading ${label}: ${file.name} — ${pct}%`;
+          $('upload-bar').value = pct;
+        }
+      };
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status === 200) {
+          $('upload-status').textContent = `Uploaded ${data.name}`;
+        } else {
+          $('upload-status').textContent = `Upload failed: ${data.error || xhr.statusText}`;
+        }
+        resolve();
+      };
+      xhr.onerror = () => {
+        $('upload-status').textContent = `Upload failed: connection lost during ${file.name}`;
+        resolve();
+      };
+      xhr.send(file);
+    });
+  }
+
+  $('file-input').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    $('file-input').disabled = true;
+    $('upload-bar').style.display = 'block';
+    for (let i = 0; i < files.length; i += 1) {
+      await uploadOne(files[i], `${i + 1} of ${files.length}`);
+      await loadMedia();
+    }
+    $('upload-bar').style.display = 'none';
+    $('file-input').disabled = false;
+    e.target.value = '';
+  });
 
   refresh();
   loadMedia();
