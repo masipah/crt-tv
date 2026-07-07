@@ -148,6 +148,12 @@ Volume is normalized: every stage in the chain (mpv, the weather music,
 each output device) is pinned to 100% at boot, so switching outputs never
 jumps loudness and the slider is the one volume control that matters.
 
+Files are loudness-normalized too: each upload gets a one-time EBU R128
+analysis (ffmpeg, in the background) and the player applies a per-file gain
+toward −16 LUFS with true-peak headroom — so quiet rips and loud commercials
+come out at the same level, dynamics untouched. Fresh uploads play at unity
+until their analysis finishes (seconds per file).
+
 Notes: the receiver must be powered on and on the same network (discovery
 is via mDNS/avahi). AirPlay buffers about two seconds; players compensate
 using the reported latency, so video lip-sync lands close but the first

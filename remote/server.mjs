@@ -227,6 +227,87 @@ async function regeneratePlaylist() {
   await fs.rename(tmp, PLAYORDER_FILE);
 }
 
+// ---- loudness normalization ----------------------------------------------
+// Each file is analyzed once (EBU R128 via ffmpeg) and the result stored in
+// .loudness.json; the mpv loudness.lua script applies a per-file gain so
+// every video and commercial plays at the same perceived level.
+const LOUDNESS_FILE = path.join(MEDIA_DIR, '.loudness.json');
+
+async function loadLoudness() {
+  try { return JSON.parse(await fs.readFile(LOUDNESS_FILE, 'utf8')); } catch { return {}; }
+}
+
+async function saveLoudness(map) {
+  const tmp = `${LOUDNESS_FILE}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(map, null, 1));
+  await fs.rename(tmp, LOUDNESS_FILE);
+}
+
+// integrated loudness (LUFS) + true peak (dBTP) from ffmpeg's ebur128
+const analyzeFile = (abs) => new Promise((resolve) => {
+  execFile('ffmpeg', [
+    '-hide_banner', '-nostats', '-i', abs, '-map', '0:a:0',
+    '-af', 'ebur128=peak=true:framelog=quiet', '-f', 'null', '-',
+  ], { timeout: 300_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    const text = String(stderr || '');
+    const i = text.match(/I:\s*(-?[0-9.]+)\s*LUFS/);
+    const tp = text.match(/Peak:\s*(-?[0-9.]+)\s*dBFS/);
+    if (!i) return resolve(null); // no audio track / unreadable — skip
+    resolve({ i: parseFloat(i[1]), tp: tp ? parseFloat(tp[1]) : null });
+  });
+});
+
+// analyses run one at a time so a batch never swamps the Pi
+let analysisChain = Promise.resolve();
+function queueAnalysis(rel) {
+  analysisChain = analysisChain.then(async () => {
+    if ((await loadLoudness())[rel]) return;
+    const r = await analyzeFile(path.join(MEDIA_DIR, rel));
+    if (r) {
+      const map = await loadLoudness();
+      map[rel] = r;
+      await saveLoudness(map);
+    }
+  }).catch(() => {});
+}
+
+async function rekeyLoudness(fromRel, toRel) {
+  const map = await loadLoudness();
+  if (map[fromRel]) {
+    map[toRel] = map[fromRel];
+    delete map[fromRel];
+    await saveLoudness(map);
+  }
+}
+
+async function dropLoudness(rel) {
+  const map = await loadLoudness();
+  if (map[rel]) {
+    delete map[rel];
+    await saveLoudness(map);
+  }
+}
+
+// prune entries for gone files; queue analysis for anything new
+async function syncLoudness() {
+  const rels = [
+    ...(await listBucket('videos')).map((n) => `videos/${n}`),
+    ...(await listBucket('commercials')).map((n) => `commercials/${n}`),
+  ];
+  const map = await loadLoudness();
+  let dirty = false;
+  for (const k of Object.keys(map)) {
+    if (!rels.includes(k)) {
+      delete map[k];
+      dirty = true;
+    }
+  }
+  if (dirty) await saveLoudness(map);
+  for (const rel of rels) {
+    if (!map[rel]) queueAnalysis(rel);
+  }
+}
+
 // New/moved entries go to the end of their directory's explicit order
 async function appendToDirOrder(dirRel, name) {
   const order = await loadOrder();
@@ -291,6 +372,7 @@ async function handleUpload(req, res, url) {
   }
   await appendToDirOrder(dirRel, path.basename(dest));
   await regeneratePlaylist();
+  queueAnalysis(`${dirRel}/${path.basename(dest)}`);
   sendJson(res, 200, { ok: true, name: path.basename(dest) });
 }
 
@@ -421,6 +503,7 @@ const server = http.createServer(async (req, res) => {
         await fs.rm(abs);
       }
       await removeFromOrder(parentOf(rel), path.basename(rel));
+      await dropLoudness(rel);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/move') {
@@ -441,6 +524,7 @@ const server = http.createServer(async (req, res) => {
       await fs.rename(fromAbs, dest);
       await removeFromOrder(parentOf(from), path.basename(from));
       await appendToDirOrder(to, path.basename(dest));
+      await rekeyLoudness(from, `${to}/${path.basename(dest)}`);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/rename') {
@@ -474,6 +558,7 @@ const server = http.createServer(async (req, res) => {
       await fs.rename(fromAbs, dest);
       order[dirRel] = names.map((n) => (n === oldName ? path.basename(dest) : n));
       await saveOrder(order);
+      await rekeyLoudness(from, `${dirRel}/${path.basename(dest)}`);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/order') {
@@ -522,6 +607,7 @@ fs.readdir(MEDIA_DIR)
 // reality (files added/removed over ssh, etc.)
 Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: true })))
   .then(() => regeneratePlaylist())
+  .then(() => syncLoudness())
   .catch(() => {});
 
 server.listen(PORT, () => {
