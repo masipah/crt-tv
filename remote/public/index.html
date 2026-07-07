@@ -39,11 +39,13 @@
   ul { list-style: none; margin: 0; padding: 0; }
   li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 7px 2px;
     border-bottom: 1px solid #eee;
   }
+  select { font: inherit; padding: 8px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
   li.folder .name { font-weight: 600; }
   .name { flex: 1; overflow-wrap: anywhere; }
   li button { padding: 5px 12px; flex: none; }
@@ -84,12 +86,17 @@
   </div>
 
   <h2>Video library</h2>
+  <p class="hint">This order is permanent — it's what the TV plays through
+    automatically, including after a reboot. Use ↑↓ to rearrange.</p>
+  <div class="row" style="margin-bottom: 8px">
+    <button onclick="newFolder()">+ New folder</button>
+  </div>
   <ul id="media-list"></ul>
   <p id="media-empty" class="hint" hidden>
     No videos yet — upload some below, or copy files to <code id="media-dir"></code> on the Pi.
   </p>
 
-  <h2 id="queue-h" hidden>Play queue</h2>
+  <h2 id="queue-h" hidden>Play queue (one-off — for live mixing)</h2>
   <ul id="queue-list"></ul>
   <div class="row" id="queue-actions" hidden>
     <button onclick="playQueue()">&#9654; Play queue</button>
@@ -97,6 +104,10 @@
   </div>
 
   <h2>Upload</h2>
+  <div class="row" style="margin-bottom: 8px">
+    <label for="upload-dir" class="hint" style="align-self: center">Into:</label>
+    <select id="upload-dir"><option value="">Library root</option></select>
+  </div>
   <input type="file" id="file-input" multiple
          accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
   <p class="hint">Files land in the video library. Big files take a while over Wi-Fi — keep this page open.</p>
@@ -178,10 +189,28 @@
     }
   }
 
+  let lastFiles = [];
+  const parentOf = (p) => p.split('/').slice(0, -1).join('/');
+  const baseOf = (p) => p.split('/').pop();
+
   async function loadMedia() {
     const { mediaDir, files } = await (await fetch('/api/media')).json();
+    lastFiles = files;
     $('media-dir').textContent = mediaDir;
     $('media-empty').hidden = files.length > 0;
+
+    // Upload destination choices follow the folder list
+    const sel = $('upload-dir');
+    const kept = sel.value;
+    sel.innerHTML = '<option value="">Library root</option>';
+    for (const f of files.filter((x) => x.dir)) {
+      const opt = document.createElement('option');
+      opt.value = f.path;
+      opt.textContent = f.path + '/';
+      sel.append(opt);
+    }
+    sel.value = [...sel.options].some((o) => o.value === kept) ? kept : '';
+
     const list = $('media-list');
     list.innerHTML = '';
     for (const f of files) {
@@ -191,15 +220,62 @@
       name.className = 'name';
       const depth = f.path.split('/').length - 1;
       name.style.paddingLeft = (depth * 16) + 'px';
-      name.textContent = f.path.split('/').pop() + (f.dir ? '/' : '');
+      name.textContent = baseOf(f.path) + (f.dir ? '/' : '');
       li.append(
         name,
+        btn('↑', () => reorder(f.path, -1)),
+        btn('↓', () => reorder(f.path, 1)),
         btn('Queue', () => addToQueue(f.path)),
         btn(f.dir ? 'Play all' : 'Play', () => play(f.path)),
       );
-      if (!f.dir) li.append(btn('✕', () => del(f.path), 'danger'));
+      if (!f.dir) li.append(btn('Move', () => moveFile(f.path)));
+      li.append(btn('✕', () => del(f.path), 'danger'));
       list.append(li);
     }
+  }
+
+  // POST a library mutation, surface errors, refresh the listing
+  async function libAction(url, body) {
+    err('');
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    } catch (e) {
+      err(e.message);
+    }
+    loadMedia();
+  }
+
+  // Swap with the neighbor among siblings (same folder) and persist
+  function reorder(pathRel, delta) {
+    const parent = parentOf(pathRel);
+    const names = lastFiles
+      .filter((f) => parentOf(f.path) === parent)
+      .map((f) => baseOf(f.path));
+    const i = names.indexOf(baseOf(pathRel));
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= names.length) return;
+    [names[i], names[j]] = [names[j], names[i]];
+    libAction('/api/order', { dir: parent, names });
+  }
+
+  function moveFile(pathRel) {
+    const folders = lastFiles.filter((f) => f.dir).map((f) => f.path);
+    const hint = folders.length ? `Folders:\n${folders.join('\n')}\n\n` : '';
+    const to = prompt(`${hint}Move "${pathRel}" to folder (leave empty for library root):`, parentOf(pathRel));
+    if (to === null) return;
+    libAction('/api/move', { from: pathRel, to: to.trim() });
+  }
+
+  function newFolder() {
+    const name = prompt('New folder name (nest with "shows/cartoons"):');
+    if (!name || !name.trim()) return;
+    libAction('/api/mkdir', { path: name.trim() });
   }
 
   function btn(label, fn, cls) {
@@ -211,7 +287,11 @@
   }
 
   async function del(path) {
-    if (!confirm(`Delete "${path}" from the Pi? This can't be undone.`)) return;
+    const isDir = lastFiles.find((f) => f.path === path)?.dir;
+    const q = isDir
+      ? `Delete folder "${path}"? (only works when it's empty)`
+      : `Delete "${path}" from the Pi? This can't be undone.`;
+    if (!confirm(q)) return;
     err('');
     try {
       const res = await fetch('/api/media?path=' + encodeURIComponent(path), { method: 'DELETE' });
@@ -270,7 +350,8 @@
   function uploadOne(file, label) {
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name));
+      xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name)
+        + '&dir=' + encodeURIComponent($('upload-dir').value));
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable) {
           const pct = Math.round(100 * ev.loaded / ev.total);
