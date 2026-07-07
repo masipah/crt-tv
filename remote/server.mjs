@@ -448,6 +448,11 @@ const server = http.createServer(async (req, res) => {
     } else if (req.method === 'POST' && pathname === '/api/audio/output') {
       const { id } = JSON.parse(await readBody(req) || '{}');
       if (!Number.isInteger(id)) return sendJson(res, 400, { error: 'id: sink id required' });
+      // AirPlay sinks engage at 10% — they usually drive amplified speakers
+      const inspect = await wpExec(['inspect', String(id)]) ?? '';
+      if (/raop/i.test(inspect)) {
+        await wpExec(['set-volume', String(id), '0.10']);
+      }
       const ok = await new Promise((resolve) => {
         execFile('wpctl', ['set-default', String(id)], { env: WP_ENV }, (err) => resolve(!err));
       });

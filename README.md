@@ -146,7 +146,9 @@ on the CLI toggles between the jack and the first receiver found.)
 
 Boot always lands on the TV jack: AirPlay needs the receiver awake and a
 fresh handshake, so after a reboot or power cycle the TV never sits waiting
-on one — re-pick the AirPlay output when you want it.
+on one — re-pick the AirPlay output when you want it. Every time an AirPlay
+device is engaged it starts at **10% volume** (they usually feed amplified
+speakers); raise the slider from there. The jack levels at 100%.
 
 Volume is normalized: every stage in the chain (mpv, the weather music,
 each output device) is pinned to 100% at boot, so switching outputs never
