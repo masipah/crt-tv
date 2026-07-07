@@ -114,7 +114,20 @@ echo "==> Audio routing (PipeWire + AirPlay out)"
 # socket isn't ready at launch, and raw ALSA bypasses the graph entirely —
 # with it installed, even that fallback routes through PipeWire (and thus
 # follows the AirPlay/jack output selection).
-apt-get install -y pipewire pipewire-pulse pipewire-alsa wireplumber dbus-user-session avahi-daemon
+apt-get install -y pipewire pipewire-pulse pipewire-alsa wireplumber dbus-user-session avahi-daemon rtkit
+
+# Realtime scheduling for the audio stack: RAOP packet pacing is
+# timer-driven and starves under CPU load without RT priority (Chromium +
+# mpv contend), which kills AirPlay sessions after ~30s ("missing
+# timeout" → broken pipe). Lite has no desktop session setup, so grant
+# the headroom to user managers directly. Takes effect on reboot.
+install -d /etc/systemd/system/user@.service.d
+cat >/etc/systemd/system/user@.service.d/crt-tv-rt.conf <<'EOF'
+[Service]
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+EOF
+systemctl daemon-reload
 install -d /etc/pipewire/pipewire.conf.d
 install -m 644 "$REPO_DIR/setup/pipewire-airplay.conf" /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
 # crt's user manager (which hosts pipewire) must run from boot, sessions or not
