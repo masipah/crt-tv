@@ -73,6 +73,7 @@ tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
 tv airplay          # toggle audio output: AirPlay speakers <-> TV jack
 tv volume [0-100]   # show or set the volume of the active output
+tv normalize        # set every output (jack and AirPlay) to 100%
 tv shuffle          # toggle shuffled playback — videos only (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
@@ -142,6 +143,10 @@ name plus the TV jack — tap one and the audio moves there live, no restart;
 the Mute chip and the volume slider both follow whichever output is active.
 (`tv airplay` on the CLI toggles between the jack and the first receiver
 found.)
+
+Volume is normalized: every stage in the chain (mpv, the weather music,
+each output device) is pinned to 100% at boot, so switching outputs never
+jumps loudness and the slider is the one volume control that matters.
 
 Notes: the receiver must be powered on and on the same network (discovery
 is via mDNS/avahi). AirPlay buffers about two seconds; players compensate

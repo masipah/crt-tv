@@ -115,6 +115,9 @@ loginctl enable-linger crt 2>/dev/null || true
 crt_uid=$(id -u crt)
 sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
   systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
+# Level the field: every output at 100% (the remote's slider takes it from there)
+sleep 2
+/usr/local/bin/tv normalize 2>/dev/null || true
 
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
