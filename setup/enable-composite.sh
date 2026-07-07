@@ -36,8 +36,11 @@ if ! grep -Eq '^enable_tvout=1' "$CFG"; then
 fi
 
 # Force NTSC and the 480i mode on the kernel command line (cmdline.txt is one
-# line; sdtv_mode= in config.txt is ignored under full KMS).
-for arg in 'vc4.tv_norm=NTSC' 'video=Composite-1:720x480@60i'; do
+# line; sdtv_mode= in config.txt is ignored under full KMS). The quiet/
+# loglevel/cursor args keep boot text off the CRT — an appliance shouldn't
+# scroll kernel logs on screen (SSH and journalctl still have everything).
+for arg in 'vc4.tv_norm=NTSC' 'video=Composite-1:720x480@60i' \
+  'quiet' 'loglevel=3' 'vt.global_cursor_default=0' 'logo.nologo'; do
   if ! grep -q "$arg" "$CMD"; then
     sed -i "1s|\$| $arg|" "$CMD"
   fi

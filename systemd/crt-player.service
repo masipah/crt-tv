@@ -15,7 +15,9 @@ TTYVTDisallocate=yes
 StandardInput=tty-fail
 StandardOutput=journal
 StandardError=journal
+ExecStartPre=+/usr/local/lib/crt-tv/clear-console.sh
 ExecStart=/usr/local/lib/crt-tv/play-media.sh
+ExecStopPost=+/usr/local/lib/crt-tv/clear-console.sh
 Restart=no
 TimeoutStopSec=10
 # xinit exits 1 and mpv exits 4 when we stop them — not failures
