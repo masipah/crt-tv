@@ -15,13 +15,16 @@ fi
 
 REPO_DIR=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || echo /nonexistent)
 
-# Piped from curl (or run outside a checkout): fetch the repo and re-exec
+# Piped from curl (or run outside a checkout): fetch the repo and re-exec.
+# fetch+reset rather than pull so a rewritten upstream history can't break
+# the appliance's self-update (no local edits are expected in /opt/crt-tv).
 if [[ ! -f $REPO_DIR/systemd/ws4kp.service ]]; then
   echo "==> Not running from a checkout — cloning to /opt/crt-tv"
   apt-get update
   apt-get install -y git
   if [[ -d /opt/crt-tv/.git ]]; then
-    git -C /opt/crt-tv pull --ff-only
+    git -C /opt/crt-tv fetch origin
+    git -C /opt/crt-tv reset --hard origin/main
   else
     git clone "$CRT_TV_REPO" /opt/crt-tv
   fi
