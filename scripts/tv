@@ -29,6 +29,7 @@ usage: tv <command>
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   airplay            toggle audio output: AirPlay speakers <-> TV jack
+  volume [0-100]     show or set the volume of the active output
   shuffle            toggle shuffled playback (videos only)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
@@ -263,6 +264,24 @@ case $cmd in
   mute)
     as_root
     mixer toggle
+    ;;
+  volume)
+    as_root
+    if [[ -n ${1:-} ]]; then
+      if ! [[ $1 =~ ^[0-9]+$ ]] || (($1 > 100)); then
+        echo "tv: volume must be 0-100" >&2
+        exit 1
+      fi
+      v=$(awk "BEGIN { printf \"%.2f\", $1 / 100 }")
+      wp set-volume @DEFAULT_AUDIO_SINK@ "$v" ||
+        amixer -q sset Headphone "${1}%" 2>/dev/null ||
+        amixer -q sset PCM "${1}%" 2>/dev/null || true
+      echo "volume: ${1}%"
+    else
+      wp get-volume @DEFAULT_AUDIO_SINK@ ||
+        amixer sget Headphone 2>/dev/null ||
+        amixer sget PCM 2>/dev/null || true
+    fi
     ;;
   airplay)
     as_root

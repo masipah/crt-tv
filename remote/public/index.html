@@ -122,6 +122,8 @@
   }
   .chip.on { background: var(--accent); color: #fff; }
   button:disabled { opacity: 0.35; }
+  .vol { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 0 4px; }
+  .vol input { flex: 1; accent-color: var(--accent); }
 
   /* sections + lists */
   .sec-head {
@@ -370,6 +372,11 @@
           <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
           <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
         </div>
+        <div class="vol">
+          <span>&#128265;</span>
+          <input type="range" id="vol" min="0" max="100" step="1" value="100" aria-label="Volume">
+          <span>&#128266;</span>
+        </div>
       </div>
 
       <div class="sec-head"><h2>Upload</h2></div>
@@ -482,6 +489,9 @@
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
     $('btn-airplay').classList.toggle('on', !!st.airplay);
+    if (st.volume != null && Date.now() > volHold && document.activeElement !== $('vol')) {
+      $('vol').value = st.volume;
+    }
     $('btn-shuffle').classList.toggle('on', !!st.shuffled);
     $('btn-nocomm').classList.toggle('on', !!st.noCommercials);
     const p = st.playing;
@@ -534,6 +544,33 @@
     root.classList.remove('open');
     setTimeout(() => { root.hidden = true; root.innerHTML = ''; }, 220);
   }
+
+  // ---- volume -----------------------------------------------------------
+  // Sends are throttled while dragging; refresh() leaves the slider alone
+  // for a moment after any local change so polling can't fight the thumb.
+  let volHold = 0;
+  const sendVolume = (() => {
+    let pending = false;
+    const fire = async () => {
+      pending = false;
+      try {
+        await fetch('/api/audio/volume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: Number($('vol').value) }),
+        });
+      } catch {}
+    };
+    return () => {
+      if (pending) return;
+      pending = true;
+      setTimeout(fire, 150);
+    };
+  })();
+  $('vol').addEventListener('input', () => {
+    volHold = Date.now() + 1500;
+    sendVolume();
+  });
 
   // ---- audio output picker --------------------------------------------
   async function audioSheet() {
