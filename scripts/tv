@@ -121,7 +121,10 @@ mixer() {
   local id state
   case $1 in
     toggle)
-      if wp get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED; then
+      # the flag is the intent of record — enforced by the web remote's
+      # server every few seconds until unmute, so nothing (wireplumber
+      # route churn, late sinks) can un-mute the TV behind our backs
+      if [[ -f $RUN_DIR/muted ]]; then
         mixer unmute
       else
         mixer mute
@@ -133,6 +136,9 @@ mixer() {
       if [[ $1 == unmute ]]; then
         state=0
         amixer_arg=unmute
+        rm -f "$RUN_DIR/muted"
+      else
+        : >"$RUN_DIR/muted"
       fi
       for id in $(wp_sink_ids); do
         wp set-mute "$id" "$state" || true
