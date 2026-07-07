@@ -2,17 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CRT-TV Remote</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CRT-TV">
 <style>
+  html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: system-ui, sans-serif;
     max-width: 640px;
     margin: 0 auto;
-    padding: 16px;
+    /* breathe around notches/home bar when running as a home-screen app */
+    padding: calc(16px + env(safe-area-inset-top))
+      calc(16px + env(safe-area-inset-right))
+      calc(16px + env(safe-area-inset-bottom))
+      calc(16px + env(safe-area-inset-left));
     color: #222;
     background: #fff;
   }
+  button, select, input { touch-action: manipulation; }
   h1 { font-size: 1.3rem; margin: 8px 0 16px; }
   h2 {
     font-size: 1rem;
@@ -47,7 +61,7 @@
   }
   select { font: inherit; padding: 8px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
   li.folder .name { font-weight: 600; }
-  .name { flex: 1; overflow-wrap: anywhere; }
+  .name { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
   li button { padding: 5px 12px; flex: none; }
   button.danger { color: #b91c1c; border-color: #dfa8a8; }
   [hidden] { display: none !important; }
