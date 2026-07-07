@@ -108,6 +108,10 @@ channel, move files between buckets, delete, pause/skip/mute/shuffle what's
 playing, and reboot the Pi. It's the same `tv` command underneath, so the
 CLI and the web UI never disagree.
 
+The remote is a mobile web app: open it on your phone and use **Add to Home
+Screen** (Safari share menu on iOS, browser menu on Android) to get it as an
+app with its own icon, running fullscreen.
+
 **The videos bucket order is the broadcast schedule**: it persists (hidden
 `.order.json`/`.playorder.m3u` files in `MEDIA_DIR`) and is exactly what
 plays when you hit Play videos. The play queue, by contrast, is a one-off
