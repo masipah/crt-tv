@@ -16,9 +16,13 @@ URL=$(printf '%s' "$URL" | sed -E 's/([?&])kiosk=[^&]*&?/\1/g; s/[?&]$//')
 
 # Background music (ws4kp ships default tracks; audio rides the same TRRS
 # jack as the video). Forced on the same way; KIOSK_MUSIC=off disables.
+# mediaVolume is pinned to 1 (100%) — ws4kp defaults to 0.75, which made
+# the weather quieter than the videos; the remote's slider is the one
+# volume control.
 if [[ ${KIOSK_MUSIC:-on} != off ]]; then
   URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
-  URL="$URL&mediaPlaying=true"
+  URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaVolume=[^&]*&?/\1/g; s/[?&]$//')
+  URL="$URL&mediaPlaying=true&mediaVolume=1"
 fi
 
 echo "kiosk: launching $URL"

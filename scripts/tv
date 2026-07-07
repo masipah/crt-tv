@@ -30,6 +30,7 @@ usage: tv <command>
   mute               toggle mute (whole TV: weather music and videos)
   airplay            toggle audio output: AirPlay speakers <-> TV jack
   volume [0-100]     show or set the volume of the active output
+  normalize          set every output (jack and AirPlay) to 100%
   shuffle            toggle shuffled playback (videos only)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
@@ -88,6 +89,18 @@ wp_find_sink() { # <pattern matched against wpctl inspect output>
     fi
   done
   return 1
+}
+
+# Every output (jack and each AirPlay sink) to 100%, volumes only — mute
+# state is left alone. Keeps loudness identical when switching outputs;
+# the session volume slider is the single knob on top.
+normalize_outputs() {
+  local id
+  for id in $(wp_sink_ids); do
+    wp set-volume "$id" 1.0 || true
+  done
+  amixer -q sset Headphone 100% 2>/dev/null ||
+    amixer -q sset PCM 100% 2>/dev/null || true
 }
 
 # One mute for the whole TV: whatever the default sink is (jack or AirPlay)
@@ -253,9 +266,16 @@ case $cmd in
   autostart)
     as_root
     # Boot default (crt-autostart.service): the kiosk unit brings up the
-    # weather on its own; just make sure the whole TV starts silent. Take
+    # weather on its own; start silent with every output normalized to
+    # 100% so unmuting sounds the same on the jack and on AirPlay. Take
     # control from the web remote (unmute, play videos) when wanted.
     mixer mute
+    normalize_outputs
+    ;;
+  normalize)
+    as_root
+    normalize_outputs
+    echo "all outputs at 100%"
     ;;
   pause)
     as_root
