@@ -103,6 +103,11 @@
   <div id="upload-status"></div>
   <progress id="upload-bar" max="100" value="0"></progress>
 
+  <h2>System</h2>
+  <div class="row">
+    <button class="danger" onclick="if (confirm('Reboot the Pi? The TV goes dark for about a minute, then starts the boot rotation.')) post('/api/tv/reboot')">&#8635; Reboot Pi</button>
+  </div>
+
   <footer>ws4kp :8080 · also available via the <code>tv</code> command on the Pi</footer>
 
 <script>
