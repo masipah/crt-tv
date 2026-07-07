@@ -75,6 +75,23 @@ const wpExec = (args) => new Promise((resolve) => {
   execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
 });
 
+// Unmute every output, PipeWire and hardware layers alike — used when the
+// user explicitly picks an output (choosing a speaker = wanting to hear it)
+async function unmuteAll() {
+  for (const o of await audioOutputs()) {
+    await wpExec(['set-mute', String(o.id), '0']);
+  }
+  await new Promise((resolve) => {
+    execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', 'unmute'], (e1) => {
+      if (!e1) return resolve();
+      execFile('amixer', ['-q', 'sset', 'Headphone', 'unmute'], (e2) => {
+        if (!e2) return resolve();
+        execFile('amixer', ['-q', 'sset', 'PCM', 'unmute'], () => resolve());
+      });
+    });
+  });
+}
+
 // AirPlay buffers ~2s; shift mpv's video by the same amount for lip-sync
 const AIRPLAY_LATENCY_MS = Number(process.env.AIRPLAY_LATENCY_MS ?? 2000);
 
@@ -480,6 +497,9 @@ const server = http.createServer(async (req, res) => {
         await new Promise((r) => setTimeout(r, 700));
         await wpExec(['set-volume', String(id), '0.10']);
       }
+      // an explicit output choice always unmutes — a muted "new speaker"
+      // reads as broken
+      await unmuteAll();
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
