@@ -26,6 +26,7 @@ exec mpv \
   --log-file=/run/crt-tv/mpv.log \
   --input-ipc-server=/run/crt-tv/mpv.sock \
   --script=/usr/local/lib/crt-tv/commercials.lua \
+  --script=/usr/local/lib/crt-tv/loudness.lua \
   --loop-playlist=inf \
   --playlist=/run/crt-tv/playlist.m3u \
   "${RESUME_ARGS[@]}"
