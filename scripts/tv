@@ -91,13 +91,17 @@ wp_find_sink() { # <pattern matched against wpctl inspect output>
   return 1
 }
 
-# Every output (jack and each AirPlay sink) to 100%, volumes only — mute
-# state is left alone. Keeps loudness identical when switching outputs;
-# the session volume slider is the single knob on top.
+# Level the outputs, volumes only — mute state is left alone. The jack
+# runs at 100% (the PVM's own knob is the last stage); AirPlay sinks are
+# parked at a safe 10% because they usually feed amplified speakers.
 normalize_outputs() {
   local id
   for id in $(wp_sink_ids); do
-    wp set-volume "$id" 1.0 || true
+    if wp inspect "$id" | grep -qi raop; then
+      wp set-volume "$id" 0.10 || true
+    else
+      wp set-volume "$id" 1.0 || true
+    fi
   done
   amixer -q sset Headphone 100% 2>/dev/null ||
     amixer -q sset PCM 100% 2>/dev/null || true
@@ -331,8 +335,10 @@ case $cmd in
         echo "tv: no AirPlay device found — is it on and on this network?" >&2
         exit 1
       }
+      # engage AirPlay gently: amplified speakers start at 10%
+      wp set-volume "$id" 0.10 || true
       wp set-default "$id"
-      echo "audio: AirPlay"
+      echo "audio: AirPlay (volume starts at 10%)"
     fi
     ;;
   shuffle)
