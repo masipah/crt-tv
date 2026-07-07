@@ -195,6 +195,15 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, await status());
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, { mediaDir: MEDIA_DIR, files: await listMedia() });
+    } else if (req.method === 'GET' && pathname === '/api/doctor') {
+      // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
+      const out = await new Promise((resolve) => {
+        execFile('sudo', ['-n', '/usr/local/bin/tv', 'doctor'],
+          { timeout: 30_000, maxBuffer: 1024 * 1024 },
+          (err, stdout, stderr) => resolve(`${stdout}${stderr ? `\n[stderr]\n${stderr}` : ''}`));
+      });
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(out);
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
