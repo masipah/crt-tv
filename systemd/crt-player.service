@@ -1,0 +1,19 @@
+[Unit]
+Description=CRT video player (mpv direct to composite)
+Conflicts=weather-kiosk.service getty@tty1.service
+After=weather-kiosk.service getty@tty1.service
+
+[Service]
+User=crt
+PAMName=login
+UtmpIdentifier=tty1
+UtmpMode=user
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/bin/mpv --fs --vo=gpu --gpu-context=drm --input-ipc-server=/run/crt-tv/mpv.sock --loop-playlist=inf --playlist=/run/crt-tv/playlist.m3u
+Restart=no
