@@ -55,12 +55,14 @@ If the screen is black but `tv status` shows weather-kiosk running, check
 the `crt` user lacking `video`/`render` group membership (re-run
 `setup/install.sh`). Run `tv doctor` for a full diagnostic dump.
 
-**Why X11 and not Wayland for the kiosk?** wlroots-based compositors (cage,
-sway, labwc) refuse interlaced modes outright — on a connector that only
-offers 480i/576i they hang without ever presenting a frame. X's modesetting
-driver sets interlaced modes without complaint, so the kiosk runs Chromium in
-a bare X session. mpv talks straight to KMS and handles 480i fine, so the
-video player needs no X.
+**Why X11 and not Wayland (or direct KMS) for the display?** wlroots-based
+compositors (cage, sway, labwc) refuse interlaced modes outright — on a
+connector that only offers 480i/576i they hang without ever presenting a
+frame. mpv's direct-KMS output (`--gpu-context=drm`) also failed to
+initialize video on this connector (audio kept playing, screen stayed put).
+X's modesetting driver sets interlaced modes without complaint, so both the
+Chromium kiosk and the mpv player run in bare X sessions on tty1 — no
+desktop, one fullscreen app each.
 
 ## Audio
 
