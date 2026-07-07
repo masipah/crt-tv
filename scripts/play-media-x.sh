@@ -27,9 +27,16 @@ fi
 
 # --volume=100: mpv's own softvol stays out of the way — the sink volume
 # (remote slider / tv volume) is the one volume control
+# --monitoraspect=4:3: the 720x480 raster displays as 4:3 on the CRT
+# (non-square pixels) — without this mpv assumes square pixels and
+# squeezes everything ~7%
+# --panscan: 16:9 videos zoom to fill the 4:3 screen, cropping the sides
+# (center-cut, like broadcast). CRT_PANSCAN=0 in crt-tv.env letterboxes.
 exec mpv \
   --fs \
   --volume=100 \
+  --monitoraspect=4:3 \
+  --panscan="${CRT_PANSCAN:-1.0}" \
   --log-file=/run/crt-tv/mpv.log \
   --input-ipc-server=/run/crt-tv/mpv.sock \
   --script=/usr/local/lib/crt-tv/commercials.lua \

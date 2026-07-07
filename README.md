@@ -155,6 +155,11 @@ Volume is normalized: every stage in the chain (mpv, the weather music,
 each output device) is pinned to 100% at boot, so switching outputs never
 jumps loudness and the slider is the one volume control that matters.
 
+Widescreen handling: 16:9 videos zoom to fill the 4:3 screen (center-cut,
+sides cropped — the broadcast way). Set `CRT_PANSCAN=0` in
+`/etc/crt-tv/crt-tv.env` for letterboxing instead. The player also knows the
+720×480 raster displays as 4:3, so nothing renders squeezed.
+
 Files are loudness-normalized too: each upload gets a one-time EBU R128
 analysis (ffmpeg, in the background) and the player applies a per-file gain
 toward −16 LUFS with true-peak headroom — so quiet rips and loud commercials
