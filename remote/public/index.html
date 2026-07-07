@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRT-TV Remote</title>
+<style>
+  :root {
+    --navy: #000033;
+    --navy-2: #1a1a5e;
+    --cyan: #00eaff;
+    --amber: #ff9a00;
+    --white: #f0f0f0;
+    --dim: #8888bb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(180deg, var(--navy-2), var(--navy) 40%);
+    color: var(--white);
+    font-family: "Courier New", ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  /* scanlines */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px,
+      transparent 1px, transparent 3px);
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 {
+    margin: 8px 0 4px;
+    font-size: 1.6rem;
+    color: var(--amber);
+    text-shadow: 2px 2px 0 #000;
+    text-align: center;
+  }
+  h2 {
+    font-size: 0.9rem;
+    color: var(--cyan);
+    border-bottom: 2px solid var(--cyan);
+    padding-bottom: 4px;
+    margin: 24px 0 10px;
+  }
+  #now {
+    background: rgba(0,0,0,0.35);
+    border: 2px solid var(--cyan);
+    padding: 12px;
+    text-align: center;
+  }
+  #mode { font-size: 1.2rem; color: var(--amber); }
+  #now-title {
+    color: var(--white);
+    font-size: 0.85rem;
+    margin-top: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #bar-wrap { display: none; margin-top: 8px; background: #000; height: 10px; border: 1px solid var(--dim); }
+  #bar { height: 100%; width: 0; background: var(--amber); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button {
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    padding: 14px 8px;
+    color: var(--white);
+    background: var(--navy-2);
+    border: 2px solid var(--cyan);
+    box-shadow: 3px 3px 0 #000;
+  }
+  button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.on { background: var(--amber); border-color: var(--amber); color: #000; }
+  #media-list { list-style: none; margin: 0; padding: 0; }
+  #media-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 4px;
+    border-bottom: 1px solid rgba(136,136,187,0.3);
+    text-transform: none;
+  }
+  #media-list li.folder { color: var(--cyan); }
+  #media-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #media-list button { padding: 6px 12px; box-shadow: none; }
+  #media-empty, #error { color: var(--dim); text-transform: none; }
+  #error { color: #ff5555; min-height: 1.2em; margin-top: 12px; text-align: center; }
+  footer { color: var(--dim); font-size: 0.7rem; text-align: center; margin: 24px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>&#9643; CRT-TV Remote</h1>
+
+  <div id="now">
+    <div id="mode">…</div>
+    <div id="now-title"></div>
+    <div id="bar-wrap"><div id="bar"></div></div>
+  </div>
+  <div id="error"></div>
+
+  <h2>Channels</h2>
+  <div class="grid">
+    <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
+    <button id="btn-retro" onclick="post('/api/tv/retro')">Retro 3000+</button>
+    <button id="btn-off" onclick="post('/api/tv/stop')">Blank</button>
+  </div>
+
+  <h2>Player</h2>
+  <div class="grid">
+    <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Prev</button>
+    <button id="btn-pause" onclick="post('/api/tv/pause')">&#9199; Pause</button>
+    <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
+  </div>
+
+  <h2>Video Library</h2>
+  <ul id="media-list"></ul>
+  <p id="media-empty" hidden>Nothing here yet — drop files into <code id="media-dir"></code> on the Pi.</p>
+
+  <footer>ws4kp :8080 &middot; ws3kp :8083 &middot; remote :8090 &middot; also try the `tv` command</footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const err = (msg) => { $('error').textContent = msg || ''; };
+
+  async function post(url, body) {
+    err('');
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    } catch (e) {
+      err(e.message);
+    }
+    setTimeout(refresh, 500);
+  }
+
+  const play = (path) => post('/api/play', { paths: [path] });
+
+  const MODE_LABEL = {
+    weather: 'WeatherStar 4000+',
+    retro: 'WeatherStar 3000+',
+    video: 'Video',
+    off: 'Screen blank',
+  };
+
+  const fmt = (s) => {
+    if (s == null) return '';
+    s = Math.floor(s);
+    const m = Math.floor(s / 60), h = Math.floor(m / 60);
+    const pad = (n) => String(n).padStart(2, '0');
+    return (h ? h + ':' + pad(m % 60) : m) + ':' + pad(s % 60);
+  };
+
+  async function refresh() {
+    let st;
+    try {
+      st = await (await fetch('/api/status')).json();
+      err('');
+    } catch {
+      err('Remote unreachable — is the Pi up?');
+      return;
+    }
+    $('mode').textContent = '▶ ' + MODE_LABEL[st.mode];
+    $('btn-weather').classList.toggle('on', st.mode === 'weather');
+    $('btn-retro').classList.toggle('on', st.mode === 'retro');
+    $('btn-off').classList.toggle('on', st.mode === 'off');
+    for (const b of ['btn-prev', 'btn-pause', 'btn-next']) {
+      $(b).disabled = st.mode !== 'video';
+    }
+    const p = st.playing;
+    if (p) {
+      const pos = p.playlistCount > 1 ? ` [${p.playlistPos}/${p.playlistCount}]` : '';
+      const time = p.duration ? ` ${fmt(p.timePos)} / ${fmt(p.duration)}` : '';
+      $('now-title').textContent = (p.paused ? '⏸ ' : '') + p.title + pos + time;
+      $('bar-wrap').style.display = p.duration ? 'block' : 'none';
+      if (p.duration) $('bar').style.width = (100 * p.timePos / p.duration) + '%';
+      $('btn-pause').classList.toggle('on', p.paused);
+    } else {
+      $('now-title').textContent = '';
+      $('bar-wrap').style.display = 'none';
+      $('btn-pause').classList.remove('on');
+    }
+  }
+
+  async function loadMedia() {
+    const { mediaDir, files } = await (await fetch('/api/media')).json();
+    $('media-dir').textContent = mediaDir;
+    $('media-empty').hidden = files.length > 0;
+    const list = $('media-list');
+    list.innerHTML = '';
+    for (const f of files) {
+      const li = document.createElement('li');
+      if (f.dir) li.className = 'folder';
+      const name = document.createElement('span');
+      name.className = 'name';
+      const depth = f.path.split('/').length - 1;
+      name.textContent = ' '.repeat(depth * 2) + (f.dir ? '◆ ' : '') + f.path.split('/').pop();
+      const btn = document.createElement('button');
+      btn.textContent = f.dir ? '▶ All' : '▶';
+      btn.onclick = () => play(f.path);
+      li.append(name, btn);
+      list.append(li);
+    }
+  }
+
+  refresh();
+  loadMedia();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

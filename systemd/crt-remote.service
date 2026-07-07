@@ -1,0 +1,14 @@
+[Unit]
+Description=crt-tv web remote
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=crt
+EnvironmentFile=-/etc/crt-tv/crt-tv.env
+ExecStart=/usr/bin/node /usr/local/lib/crt-tv/remote/server.mjs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
