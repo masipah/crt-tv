@@ -148,7 +148,7 @@ case $cmd in
     command -v chromium chromium-browser cage mpv 2>/dev/null || true
     echo
     echo "== recent logs =="
-    for u in ws4kp weather-kiosk crt-remote; do
+    for u in ws4kp weather-kiosk crt-player crt-remote; do
       echo "--- $u"
       journalctl -u "$u.service" -b --no-pager -n 15 2>/dev/null || true
     done
