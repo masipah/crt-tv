@@ -38,6 +38,13 @@ apt-get install -y chromium || apt-get install -y chromium-browser
 # Let the crt service user start X on tty1 without being root
 printf 'allowed_users=anybody\nneeds_root_rights=yes\n' > /etc/X11/Xwrapper.config
 
+# The kiosk runs Chromium under en_US so the WeatherStar clock is 12-hour
+# AM/PM; make sure the locale actually exists (RPi OS ships en_GB only)
+if ! locale -a 2>/dev/null | grep -qi '^en_US.utf-\?8$'; then
+  sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+  locale-gen || true
+fi
+
 echo "==> Creating service user 'crt'"
 if ! id crt &>/dev/null; then
   useradd --create-home --shell /bin/bash crt

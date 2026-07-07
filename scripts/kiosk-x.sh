@@ -6,12 +6,14 @@ set -euo pipefail
 # Never blank a weather display (the PVM has no DPMS to speak of anyway)
 xset s off -dpms || true
 
-# --lang=en-US: RPi OS defaults to en_GB, which makes ws4kp's clock render
-# 24-hour; the authentic WeatherStar clock is 12-hour AM/PM (en-US locale).
+# en-US locale: RPi OS defaults to en_GB, which makes ws4kp's clock render
+# 24-hour; the authentic WeatherStar clock is 12-hour AM/PM. On Linux,
+# Chromium ignores --lang and reads the locale from the environment.
+export LANGUAGE=en_US:en LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
 # shellcheck disable=SC2086  # KIOSK_FLAGS is intentionally word-split
 exec "$BROWSER" \
   --kiosk "$URL" \
-  --lang=en-US \
   --window-position=0,0 \
   --noerrdialogs \
   --disable-infobars \
