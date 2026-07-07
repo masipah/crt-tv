@@ -69,9 +69,9 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 tv weather          # WeatherStar 4000+
 tv play <path>...   # play videos (loops forever)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
-tv autobreak        # toggle: 2 min of weather after every 5 videos
+tv autobreak        # toggle: 2 min of weather after every 4 videos
 tv pause            # toggle pause
-tv mute             # toggle mute
+tv mute             # toggle mute — whole TV (weather music and videos)
 tv shuffle          # shuffle the playlist order
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
@@ -84,10 +84,13 @@ multi-file list (like the web remote's queue) plays exactly that list. A
 weather break saves the video position (and mute state) and resumes when the
 break ends; switching modes manually cancels any pending break.
 
-**On boot** the TV runs itself, headless: 2 minutes of the WeatherStar, then
-the video library — muted — with the every-5-videos weather rotation already
-enabled. Any manual action (channel buttons, play, stop) takes over from the
-rotation; unmute from the Player row when you want sound.
+**On boot** the TV runs itself, headless and silent: the whole TV starts
+muted (weather music included), showing 2 minutes of the WeatherStar, then
+the video library with the every-4-videos weather rotation already enabled.
+Any manual action (channel buttons, play, stop) takes over from the rotation;
+one press of Mute brings the sound back everywhere. Mute is a hardware-mixer
+toggle, so it applies to the weather channel and the player alike without
+touching the ws4kp music setting.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
@@ -99,7 +102,7 @@ Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, browse/play/delete the video library
 (`MEDIA_DIR`), build a play queue in whatever order you like, upload videos
 straight from your phone or laptop, pause/skip/mute/shuffle what's playing,
-and toggle "Weather every 5" — 2 minutes of WeatherStar after every 5th
+and toggle "Weather every 4" — 2 minutes of WeatherStar after every 4th
 video, then back to the videos where they left off. It's the same `tv`
 command underneath, so the CLI and the web UI never disagree.
 
