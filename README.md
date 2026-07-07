@@ -71,7 +71,7 @@ tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
-tv shuffle          # shuffle the playlist order
+tv shuffle          # toggle shuffled playback (highlights in the web remote)
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
 tv status           # what's running
