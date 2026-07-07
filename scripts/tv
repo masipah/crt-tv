@@ -271,6 +271,18 @@ case $cmd in
     # control from the web remote (unmute, play videos) when wanted.
     mixer mute
     normalize_outputs
+    # Audio always boots on the TV jack: AirPlay receivers need discovery
+    # and a handshake and may not even be powered — never leave the TV
+    # waiting on one. Setting it explicitly also stops wireplumber from
+    # restoring a remembered AirPlay default when the device reappears.
+    # (Retry briefly — PipeWire may still be coming up this early in boot.)
+    for _ in 1 2 3 4 5; do
+      if id=$(wp_find_sink 'api\.alsa'); then
+        wp set-default "$id" || true
+        break
+      fi
+      sleep 3
+    done
     ;;
   normalize)
     as_root
