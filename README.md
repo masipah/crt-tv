@@ -104,8 +104,9 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, upload into either bucket (videos or
 commercials) straight from your phone or laptop, drag to reorder the
-channel, tap a name to rename, move files between buckets, delete,
-pause/skip/mute/shuffle what's playing, and reboot the Pi. It's the same `tv` command underneath, so the
+channel, and tap any row for actions (play, queue, rename, move between
+buckets, delete) — plus transport, mute/shuffle/no-commercials toggles,
+and a Pi reboot. Styled like a native iOS app, dark mode included. It's the same `tv` command underneath, so the
 CLI and the web UI never disagree.
 
 The remote is a mobile web app: open it on your phone and use **Add to Home
