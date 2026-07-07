@@ -357,7 +357,7 @@ case $cmd in
     # running video gets its audio-delay adjusted to match the AirPlay
     # buffer so lip-sync holds (see AIRPLAY_LATENCY_MS in crt-tv.env).
     ap_ms=$(env_get AIRPLAY_LATENCY_MS)
-    ap_sec=$(awk "BEGIN { printf \"%.3f\", ${ap_ms:-2000} / 1000 }")
+    ap_sec=$(awk "BEGIN { printf \"%.3f\", ${ap_ms:-0} / 1000 }")
     if wp inspect @DEFAULT_AUDIO_SINK@ | grep -qi raop; then
       id=$(wp_find_sink 'api\.alsa') || {
         echo "tv: no jack sink found" >&2

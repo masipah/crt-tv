@@ -107,8 +107,12 @@ async function unmuteAll() {
   await hwMixer('unmute');
 }
 
-// AirPlay buffers ~2s; shift mpv's video by the same amount for lip-sync
-const AIRPLAY_LATENCY_MS = Number(process.env.AIRPLAY_LATENCY_MS ?? 2000);
+// Extra lip-sync shift while casting. Default 0: PipeWire 1.4+ reports the
+// AirPlay sink's buffer into the graph and mpv compensates natively —
+// manual shifting on top double-compensates. Tunable live via
+// POST /api/audio/sync {ms} for chains that still drift; boot default
+// comes from AIRPLAY_LATENCY_MS in crt-tv.env.
+let airplayLatencyMs = Number(process.env.AIRPLAY_LATENCY_MS ?? 0);
 
 const setMpvAudioDelay = (seconds) => new Promise((resolve) => {
   const sock = net.createConnection(MPV_SOCK);
@@ -506,7 +510,7 @@ const server = http.createServer(async (req, res) => {
       });
       if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
       // keep a running video in lip-sync with the new output's buffering
-      await setMpvAudioDelay(toAirplay ? -(AIRPLAY_LATENCY_MS / 1000) : 0);
+      await setMpvAudioDelay(toAirplay ? -(airplayLatencyMs / 1000) : 0);
       if (toAirplay) {
         // wireplumber restores its remembered device volume when the sink
         // activates, racing the engage level — re-assert 10% after it
@@ -517,6 +521,17 @@ const server = http.createServer(async (req, res) => {
       // reads as broken
       await unmuteAll();
       sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/audio/sync') {
+      // live lip-sync trim while casting: positive ms delays video
+      const { ms } = JSON.parse(await readBody(req) || '{}');
+      if (typeof ms !== 'number' || ms < -5000 || ms > 5000) {
+        return sendJson(res, 400, { error: 'ms: number between -5000 and 5000 required' });
+      }
+      airplayLatencyMs = ms;
+      const applied = await isAirplay()
+        ? await setMpvAudioDelay(-(airplayLatencyMs / 1000))
+        : false;
+      sendJson(res, 200, { ok: true, ms, applied });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
       if (typeof volume !== 'number' || volume < 0 || volume > 100) {
@@ -677,7 +692,7 @@ setInterval(async () => {
     }
     const ap = await isAirplay();
     if (ap !== lastAppliedAirplay) {
-      const ok = await setMpvAudioDelay(ap ? -(AIRPLAY_LATENCY_MS / 1000) : 0);
+      const ok = await setMpvAudioDelay(ap ? -(airplayLatencyMs / 1000) : 0);
       if (ok) lastAppliedAirplay = ap;
     }
   } catch { /* next tick */ }
