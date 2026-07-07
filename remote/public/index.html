@@ -365,8 +365,8 @@
         </div>
         <div class="chips">
           <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
-          <button class="chip" id="btn-airplay" onclick="post('/api/tv/airplay')"
-                  title="Send the TV's audio to AirPlay speakers">AirPlay</button>
+          <button class="chip" id="btn-airplay" onclick="audioSheet()"
+                  title="Choose where the TV's audio plays">AirPlay</button>
           <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
           <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
         </div>
@@ -533,6 +533,39 @@
     const root = $('sheet-root');
     root.classList.remove('open');
     setTimeout(() => { root.hidden = true; root.innerHTML = ''; }, 220);
+  }
+
+  // ---- audio output picker --------------------------------------------
+  async function audioSheet() {
+    err('');
+    let outs = [];
+    try {
+      outs = (await (await fetch('/api/audio/outputs')).json()).outputs ?? [];
+    } catch {}
+    if (!outs.length) {
+      err('No audio outputs found — is the Pi updated and PipeWire running?');
+      return;
+    }
+    openSheet('Audio output', outs.map((o) => ({
+      label: (o.default ? '✓  ' : '') + (o.airplay ? o.name : 'TV speaker (jack)'),
+      fn: () => setOutput(o.id),
+    })));
+  }
+
+  async function setOutput(id) {
+    err('');
+    try {
+      const res = await fetch('/api/audio/output', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    } catch (e) {
+      err(e.message);
+    }
+    setTimeout(refresh, 400);
   }
 
   // ---- library ------------------------------------------------------------

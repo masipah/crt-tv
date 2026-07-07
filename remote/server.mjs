@@ -57,6 +57,30 @@ const isAirplay = () => new Promise((resolve) => {
     (err, stdout) => resolve(!err && /raop/i.test(stdout)));
 });
 
+const wpExec = (args) => new Promise((resolve) => {
+  execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
+});
+
+// Every selectable output: the jack plus each discovered AirPlay receiver
+async function audioOutputs() {
+  const status = await wpExec(['status']);
+  if (!status) return [];
+  const outs = [];
+  let inSinks = false;
+  for (const line of status.split('\n')) {
+    if (/Sinks:/.test(line)) { inSinks = true; continue; }
+    if (/(Sources|Filters|Streams):/.test(line)) inSinks = false;
+    if (!inSinks) continue;
+    const m = line.match(/(\*)?\s*(\d+)\.\s*(.*)$/);
+    if (!m) continue;
+    const id = Number(m[2]);
+    const name = m[3].replace(/\s*\[vol:.*$/, '').trim();
+    const inspect = await wpExec(['inspect', String(id)]) ?? '';
+    outs.push({ id, name, airplay: /raop/i.test(inspect), default: !!m[1] });
+  }
+  return outs;
+}
+
 // Ask mpv for properties over its IPC socket; null if the player isn't up.
 function mpvQuery(props) {
   return new Promise((resolve) => {
@@ -314,6 +338,16 @@ const server = http.createServer(async (req, res) => {
         videos: await listBucket('videos'),
         commercials: await listBucket('commercials'),
       });
+    } else if (req.method === 'GET' && pathname === '/api/audio/outputs') {
+      sendJson(res, 200, { outputs: await audioOutputs() });
+    } else if (req.method === 'POST' && pathname === '/api/audio/output') {
+      const { id } = JSON.parse(await readBody(req) || '{}');
+      if (!Number.isInteger(id)) return sendJson(res, 400, { error: 'id: sink id required' });
+      const ok = await new Promise((resolve) => {
+        execFile('wpctl', ['set-default', String(id)], { env: WP_ENV }, (err) => resolve(!err));
+      });
+      if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
+      sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
       const out = await new Promise((resolve) => {
