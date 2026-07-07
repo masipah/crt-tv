@@ -25,6 +25,7 @@ usage: tv <command>
                      whole library from there; lists/folders play as given)
   break [secs]       cut to the weather now, then back to the video (default 120s)
   autobreak [on|off] weather for 2 min after every 5 videos (no arg: toggle)
+  autostart          (run at boot) weather 2 min, then muted videos, rotation on
   pause              toggle pause
   mute               toggle mute
   shuffle            shuffle the playlist order
@@ -53,13 +54,16 @@ mpv_cmd() {
 mpv_get() {
   { printf '{"command":["get_property","%s"]}\n' "$1" |
     socat - "UNIX-CONNECT:$MPV_SOCK" 2>/dev/null |
-    sed -n 's/.*"data":\([0-9][0-9.]*\).*/\1/p' | head -n1; } || true
+    sed -nE 's/.*"data":(true|false|[0-9][0-9.]*).*/\1/p' | head -n1; } || true
 }
 
-# A pending weather break must not outlive a manual mode change
+# A pending weather break or boot switch must not outlive a manual mode
+# change. Timer only for the boot switch — its fired service may be the very
+# process running us.
 cancel_break() {
   systemctl stop crt-weatherbreak.timer 2>/dev/null || true
   systemctl stop crt-weatherbreak.service 2>/dev/null || true
+  systemctl stop crt-autostart-videos.timer 2>/dev/null || true
   rm -f "$RUN_DIR/resume"
 }
 
@@ -142,7 +146,8 @@ case $cmd in
     cancel_break
     pos=$(mpv_get playlist-pos)
     time_pos=$(mpv_get time-pos)
-    printf '%s %s\n' "${pos:-0}" "${time_pos:-0}" >"$RUN_DIR/resume"
+    muted=$(mpv_get mute)
+    printf '%s %s %s\n' "${pos:-0}" "${time_pos:-0}" "${muted:-false}" >"$RUN_DIR/resume"
     systemd-run --quiet --collect --unit=crt-weatherbreak \
       --on-active="${secs}s" --timer-property=AccuracySec=1s \
       /usr/local/bin/tv resume
@@ -176,6 +181,18 @@ case $cmd in
     # Fired by the crt-weatherbreak timer; play-media-x.sh consumes the
     # resume file and picks up where the video left off
     systemctl restart crt-player.service
+    ;;
+  autostart)
+    as_root
+    # Boot rotation (crt-autostart.service): the kiosk unit is already
+    # bringing up the weather; after 2 minutes switch to the video library,
+    # muted, with the every-5-videos rotation enabled. Any manual channel
+    # change cancels the pending switch (see cancel_break).
+    printf '5\n' >"$RUN_DIR/autobreak"
+    : >"$RUN_DIR/start-muted"
+    systemd-run --quiet --collect --unit=crt-autostart-videos \
+      --on-active=120s --timer-property=AccuracySec=1s \
+      /usr/local/bin/tv play "$MEDIA_DIR"
     ;;
   pause)
     as_root

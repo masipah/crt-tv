@@ -132,7 +132,7 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable ws4kp.service weather-kiosk.service crt-remote.service
+systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service
 systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
