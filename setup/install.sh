@@ -32,7 +32,13 @@ if [[ ! -f $REPO_DIR/systemd/ws4kp.service ]]; then
 fi
 
 echo "==> Installing packages"
-apt-get update
+# Heal a half-configured OwnTone repo from a previous failed run — a list
+# without its key breaks every apt update from then on
+if [[ -f /etc/apt/sources.list.d/owntone.list ]] &&
+  [[ ! -s /usr/share/keyrings/owntone-archive-keyring.gpg ]]; then
+  rm -f /etc/apt/sources.list.d/owntone.list
+fi
+apt-get update || true
 apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
   xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
 # Package name differs between Debian (chromium) and some RPi OS builds
@@ -144,17 +150,37 @@ sleep 2
 echo "==> OwnTone (AirPlay with track titles)"
 # OwnTone isn't in Debian; the project runs an apt repo with a trixie dist.
 # Everything degrades gracefully if this fails — the direct AirPlay path
-# doesn't depend on it.
-if [[ ! -f /usr/share/keyrings/owntone-archive-keyring.gpg ]]; then
-  wget -q -O - http://www.gyfgafguf.dk/raspbian/owntone.gpg |
-    gpg --dearmor --output /usr/share/keyrings/owntone-archive-keyring.gpg || true
+# doesn't depend on it. Lite images lack the full gnupg needed to dearmor
+# the key, so install prerequisites first, validate every artifact, and
+# never leave a list without its key.
+apt-get install -y gnupg wget || true
+ot_key=/usr/share/keyrings/owntone-archive-keyring.gpg
+ot_list=/etc/apt/sources.list.d/owntone.list
+if [[ ! -s $ot_key ]]; then
+  rm -f "$ot_key"
+  ot_tmp=$(mktemp)
+  if wget -q -O "$ot_tmp" http://www.gyfgafguf.dk/raspbian/owntone.gpg &&
+    [[ -s $ot_tmp ]] && gpg --dearmor --output "$ot_key" <"$ot_tmp"; then
+    echo "  owntone repo key installed"
+  else
+    rm -f "$ot_key"
+    echo "  !! could not fetch/convert the owntone repo key"
+  fi
+  rm -f "$ot_tmp"
 fi
-if [[ ! -f /etc/apt/sources.list.d/owntone.list ]]; then
-  wget -q -O /etc/apt/sources.list.d/owntone.list \
-    "https://raw.githubusercontent.com/owntone/owntone-apt/refs/heads/master/repo/rpi/owntone-trixie.list" || true
-  apt-get update || true
+if [[ -s $ot_key && ! -s $ot_list ]]; then
+  ot_tmp=$(mktemp)
+  if wget -q -O "$ot_tmp" \
+    "https://raw.githubusercontent.com/owntone/owntone-apt/refs/heads/master/repo/rpi/owntone-trixie.list" &&
+    [[ -s $ot_tmp ]]; then
+    install -m 644 "$ot_tmp" "$ot_list"
+    apt-get update || true
+  else
+    echo "  !! could not fetch the owntone repo list"
+  fi
+  rm -f "$ot_tmp"
 fi
-if apt-get install -y owntone; then
+if [[ -s $ot_key && -s $ot_list ]] && apt-get install -y owntone; then
   install -m 644 "$REPO_DIR/setup/owntone.conf" /etc/owntone.conf
   # the audio pipe + its metadata companion, writable by crt, readable by owntone
   install -d -m 755 /srv/owntone-pipe
