@@ -159,6 +159,8 @@ install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commerc
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
+install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh
+install -m 644 "$REPO_DIR/setup/splash.txt" /usr/local/lib/crt-tv/splash.txt
 install -d /usr/local/lib/crt-tv/kiosk-ext
 install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
@@ -175,7 +177,7 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service
+systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service crt-splash.service
 systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
