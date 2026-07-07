@@ -17,9 +17,10 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle',
-  'weatherbreak', 'autobreak', 'reboot',
+  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'reboot',
 ]);
+// Fixed upload buckets: the ordered channel and the random interstitials
+const BUCKETS = ['videos', 'commercials'];
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
@@ -81,11 +82,10 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, autoBreak, muted] = await Promise.all([
+  const [ws4kp, kiosk, player, muted] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
-    fs.access('/run/crt-tv/autobreak').then(() => true, () => false),
     isMuted(),
   ]);
   let mode = 'off';
@@ -108,7 +108,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, autoBreak, muted };
+  return { units: { ws4kp, kiosk, player }, mode, playing, muted };
 }
 
 // ---- persistent library order ------------------------------------------
@@ -146,29 +146,19 @@ async function orderedChildNames(order, dirAbs, dirRel) {
   return { names: [...listed, ...rest], byName };
 }
 
-async function orderedWalk(order, dirAbs, dirRel, out) {
-  const { names, byName } = await orderedChildNames(order, dirAbs, dirRel);
-  for (const name of names) {
-    const e = byName.get(name);
-    const rel = dirRel ? `${dirRel}/${name}` : name;
-    if (e.isDirectory()) {
-      out.push({ path: rel, dir: true });
-      await orderedWalk(order, path.join(dirAbs, name), rel, out);
-    } else if (VIDEO_EXT.has(path.extname(name).toLowerCase())) {
-      out.push({ path: rel, dir: false });
-    }
-  }
+// Direct child video files of a bucket, in persistent order
+async function listBucket(bucket) {
+  const order = await loadOrder();
+  const { names, byName } = await orderedChildNames(order, path.join(MEDIA_DIR, bucket), bucket);
+  return names.filter((n) => !byName.get(n).isDirectory()
+    && VIDEO_EXT.has(path.extname(n).toLowerCase()));
 }
 
-async function listMedia() {
-  const out = [];
-  await orderedWalk(await loadOrder(), MEDIA_DIR, '', out);
-  return out;
-}
-
+// The channel playlist tv plays from — the videos bucket only; commercials
+// are injected at play time by the mpv script.
 async function regeneratePlaylist() {
-  const files = (await listMedia()).filter((f) => !f.dir)
-    .map((f) => path.join(MEDIA_DIR, f.path));
+  const files = (await listBucket('videos'))
+    .map((n) => path.join(MEDIA_DIR, 'videos', n));
   const tmp = `${PLAYORDER_FILE}.tmp`;
   await fs.writeFile(tmp, files.length ? `${files.join('\n')}\n` : '');
   await fs.rename(tmp, PLAYORDER_FILE);
@@ -216,13 +206,12 @@ async function handleUpload(req, res, url) {
       error: `need a video filename (${[...VIDEO_EXT].join(' ')})`,
     });
   }
-  await fs.mkdir(MEDIA_DIR, { recursive: true });
-  const dirRel = (url.searchParams.get('dir') ?? '').replace(/^\/+|\/+$/g, '');
-  const destDir = dirRel ? resolveMedia(dirRel) : MEDIA_DIR;
-  const dirStat = await fs.stat(destDir).catch(() => null);
-  if (!dirStat?.isDirectory()) {
-    return sendJson(res, 400, { error: `no such folder: ${dirRel}` });
+  const dirRel = url.searchParams.get('dir') ?? 'videos';
+  if (!BUCKETS.includes(dirRel)) {
+    return sendJson(res, 400, { error: `bucket must be one of: ${BUCKETS.join(', ')}` });
   }
+  const destDir = path.join(MEDIA_DIR, dirRel);
+  await fs.mkdir(destDir, { recursive: true });
   const dest = await uniqueMediaPath(destDir, name);
   const tmp = path.join(MEDIA_DIR, `.upload-${process.pid}-${Date.now()}.part`);
   try {
@@ -283,7 +272,11 @@ const server = http.createServer(async (req, res) => {
     } else if (req.method === 'GET' && pathname === '/api/status') {
       sendJson(res, 200, await status());
     } else if (req.method === 'GET' && pathname === '/api/media') {
-      sendJson(res, 200, { mediaDir: MEDIA_DIR, files: await listMedia() });
+      sendJson(res, 200, {
+        mediaDir: MEDIA_DIR,
+        videos: await listBucket('videos'),
+        commercials: await listBucket('commercials'),
+      });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
       const out = await new Promise((resolve) => {
@@ -317,44 +310,37 @@ const server = http.createServer(async (req, res) => {
       await removeFromOrder(parentOf(rel), path.basename(rel));
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true });
-    } else if (req.method === 'POST' && pathname === '/api/mkdir') {
-      const { path: rel } = JSON.parse(await readBody(req) || '{}');
-      if (!rel || typeof rel !== 'string' || !rel.trim()) {
-        return sendJson(res, 400, { error: 'path: folder name required' });
-      }
-      const cleaned = rel.trim().replace(/^\/+|\/+$/g, '');
-      await fs.mkdir(resolveMedia(cleaned), { recursive: true });
-      await appendToDirOrder(parentOf(cleaned), path.basename(cleaned));
-      await regeneratePlaylist();
-      sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/move') {
+      // Move a file to the other bucket
       const { from, to } = JSON.parse(await readBody(req) || '{}');
       if (!from || typeof from !== 'string') {
         return sendJson(res, 400, { error: 'from: file path required' });
       }
+      if (!BUCKETS.includes(to)) {
+        return sendJson(res, 400, { error: `bucket must be one of: ${BUCKETS.join(', ')}` });
+      }
       const fromAbs = resolveMedia(from);
       const st = await fs.stat(fromAbs).catch(() => null);
       if (!st?.isFile()) return sendJson(res, 400, { error: 'only files can be moved' });
-      const toRel = String(to ?? '').trim().replace(/^\/+|\/+$/g, '');
-      const toAbs = toRel ? resolveMedia(toRel) : MEDIA_DIR;
-      const toStat = await fs.stat(toAbs).catch(() => null);
-      if (!toStat?.isDirectory()) return sendJson(res, 400, { error: `no such folder: ${toRel}` });
+      const toAbs = path.join(MEDIA_DIR, to);
+      await fs.mkdir(toAbs, { recursive: true });
       const dest = await uniqueMediaPath(toAbs, path.basename(from));
       await fs.rename(fromAbs, dest);
       await removeFromOrder(parentOf(from), path.basename(from));
-      await appendToDirOrder(toRel, path.basename(dest));
+      await appendToDirOrder(to, path.basename(dest));
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/order') {
       const { dir, names } = JSON.parse(await readBody(req) || '{}');
-      const dirRel = String(dir ?? '').trim().replace(/^\/+|\/+$/g, '');
+      if (!BUCKETS.includes(dir)) {
+        return sendJson(res, 400, { error: `bucket must be one of: ${BUCKETS.join(', ')}` });
+      }
       if (!Array.isArray(names)
         || names.some((n) => typeof n !== 'string' || n.includes('/') || n.startsWith('.'))) {
         return sendJson(res, 400, { error: 'names: array of child names required' });
       }
-      if (dirRel) resolveMedia(dirRel);
       const order = await loadOrder();
-      order[dirRel] = names;
+      order[dir] = names;
       await saveOrder(order);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true });
@@ -384,9 +370,11 @@ fs.readdir(MEDIA_DIR)
     .map((n) => fs.rm(path.join(MEDIA_DIR, n), { force: true }))))
   .catch(() => {});
 
-// Sync the persistent play order with reality (files added/removed over
-// ssh, etc.) — runs once per boot before the rotation ever plays
-regeneratePlaylist().catch(() => {});
+// Make sure the buckets exist, then sync the persistent play order with
+// reality (files added/removed over ssh, etc.)
+Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: true })))
+  .then(() => regeneratePlaylist())
+  .catch(() => {});
 
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
