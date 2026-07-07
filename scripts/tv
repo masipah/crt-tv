@@ -75,8 +75,24 @@ cancel_break() {
   rm -f "$RUN_DIR/resume"
 }
 
-find_media() { # <dir> — all playable files, sorted
-  find "$(realpath "$1")" -type f \( \
+# All playable files under <dir>, in the library's persistent play order
+# (.playorder.m3u, maintained by the web remote) when available; plain
+# alphabetical otherwise.
+find_media() { # <dir>
+  local dir lib m3u f matched=0
+  dir=$(realpath "$1")
+  lib=$(realpath "$MEDIA_DIR" 2>/dev/null) || lib=""
+  m3u="$lib/.playorder.m3u"
+  if [[ -n $lib && -f $m3u && ($dir == "$lib" || $dir == "$lib"/*) ]]; then
+    while IFS= read -r f; do
+      if [[ $f == "$dir"/* && -f $f ]]; then
+        printf '%s\n' "$f"
+        matched=1
+      fi
+    done <"$m3u"
+    [[ $matched -eq 1 ]] && return 0
+  fi
+  find "$dir" -type f \( \
     -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o \
     -iname '*.mov' -o -iname '*.m4v' -o -iname '*.mpg' -o \
     -iname '*.mpeg' -o -iname '*.ts' -o -iname '*.webm' \) | sort

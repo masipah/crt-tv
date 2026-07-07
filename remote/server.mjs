@@ -111,38 +111,97 @@ async function status() {
   return { units: { ws4kp, kiosk, player }, mode, playing, autoBreak, muted };
 }
 
-async function listMedia() {
-  const out = [];
-  async function walk(dir, rel) {
-    let entries;
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
-    entries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    for (const e of entries) {
-      if (e.name.startsWith('.')) continue;
-      const relPath = rel ? `${rel}/${e.name}` : e.name;
-      if (e.isDirectory()) {
-        out.push({ path: relPath, dir: true });
-        await walk(path.join(dir, e.name), relPath);
-      } else if (VIDEO_EXT.has(path.extname(e.name).toLowerCase())) {
-        out.push({ path: relPath, dir: false });
-      }
+// ---- persistent library order ------------------------------------------
+// .order.json holds, per directory, the explicit ordering of its children;
+// anything not listed sorts alphabetically after the listed entries.
+// .playorder.m3u is the flattened result — the file `tv` plays from
+// (boot rotation included). Both live in MEDIA_DIR and survive reboots.
+const ORDER_FILE = path.join(MEDIA_DIR, '.order.json');
+const PLAYORDER_FILE = path.join(MEDIA_DIR, '.playorder.m3u');
+
+const parentOf = (rel) => rel.split('/').slice(0, -1).join('/');
+
+async function loadOrder() {
+  try { return JSON.parse(await fs.readFile(ORDER_FILE, 'utf8')); }
+  catch { return {}; }
+}
+
+async function saveOrder(order) {
+  const tmp = `${ORDER_FILE}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(order, null, 1));
+  await fs.rename(tmp, ORDER_FILE);
+}
+
+async function orderedChildNames(order, dirAbs, dirRel) {
+  let entries;
+  try { entries = await fs.readdir(dirAbs, { withFileTypes: true }); } catch {
+    return { names: [], byName: new Map() };
+  }
+  const visible = entries.filter((e) => !e.name.startsWith('.'));
+  const byName = new Map(visible.map((e) => [e.name, e]));
+  const listed = (order[dirRel] ?? []).filter((n) => byName.has(n));
+  const rest = visible.map((e) => e.name)
+    .filter((n) => !listed.includes(n))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return { names: [...listed, ...rest], byName };
+}
+
+async function orderedWalk(order, dirAbs, dirRel, out) {
+  const { names, byName } = await orderedChildNames(order, dirAbs, dirRel);
+  for (const name of names) {
+    const e = byName.get(name);
+    const rel = dirRel ? `${dirRel}/${name}` : name;
+    if (e.isDirectory()) {
+      out.push({ path: rel, dir: true });
+      await orderedWalk(order, path.join(dirAbs, name), rel, out);
+    } else if (VIDEO_EXT.has(path.extname(name).toLowerCase())) {
+      out.push({ path: rel, dir: false });
     }
   }
-  await walk(MEDIA_DIR, '');
+}
+
+async function listMedia() {
+  const out = [];
+  await orderedWalk(await loadOrder(), MEDIA_DIR, '', out);
   return out;
 }
 
+async function regeneratePlaylist() {
+  const files = (await listMedia()).filter((f) => !f.dir)
+    .map((f) => path.join(MEDIA_DIR, f.path));
+  const tmp = `${PLAYORDER_FILE}.tmp`;
+  await fs.writeFile(tmp, files.length ? `${files.join('\n')}\n` : '');
+  await fs.rename(tmp, PLAYORDER_FILE);
+}
+
+// New/moved entries go to the end of their directory's explicit order
+async function appendToDirOrder(dirRel, name) {
+  const order = await loadOrder();
+  const dirAbs = dirRel ? path.join(MEDIA_DIR, dirRel) : MEDIA_DIR;
+  const { names } = await orderedChildNames(order, dirAbs, dirRel);
+  order[dirRel] = [...names.filter((n) => n !== name), name];
+  await saveOrder(order);
+}
+
+async function removeFromOrder(dirRel, name) {
+  const order = await loadOrder();
+  if (order[dirRel]) {
+    order[dirRel] = order[dirRel].filter((n) => n !== name);
+    await saveOrder(order);
+  }
+}
+
 // Never clobber an existing file: name.ext, name-1.ext, name-2.ext, ...
-async function uniqueMediaPath(name) {
+async function uniqueMediaPath(dirAbs, name) {
   const ext = path.extname(name);
   const base = name.slice(0, name.length - ext.length);
   let candidate = name;
   for (let i = 1; ; i += 1) {
     try {
-      await fs.access(path.join(MEDIA_DIR, candidate));
+      await fs.access(path.join(dirAbs, candidate));
       candidate = `${base}-${i}${ext}`;
     } catch {
-      return path.join(MEDIA_DIR, candidate);
+      return path.join(dirAbs, candidate);
     }
   }
 }
@@ -158,7 +217,13 @@ async function handleUpload(req, res, url) {
     });
   }
   await fs.mkdir(MEDIA_DIR, { recursive: true });
-  const dest = await uniqueMediaPath(name);
+  const dirRel = (url.searchParams.get('dir') ?? '').replace(/^\/+|\/+$/g, '');
+  const destDir = dirRel ? resolveMedia(dirRel) : MEDIA_DIR;
+  const dirStat = await fs.stat(destDir).catch(() => null);
+  if (!dirStat?.isDirectory()) {
+    return sendJson(res, 400, { error: `no such folder: ${dirRel}` });
+  }
+  const dest = await uniqueMediaPath(destDir, name);
   const tmp = path.join(MEDIA_DIR, `.upload-${process.pid}-${Date.now()}.part`);
   try {
     await pipeline(req, createWriteStream(tmp, { flags: 'wx' }));
@@ -172,11 +237,17 @@ async function handleUpload(req, res, url) {
     await fs.rm(tmp, { force: true });
     throw err;
   }
+  await appendToDirOrder(dirRel, path.basename(dest));
+  await regeneratePlaylist();
   sendJson(res, 200, { ok: true, name: path.basename(dest) });
 }
 
-// The web UI only plays what lives under MEDIA_DIR (the CLI has no such limit).
+// The web UI only touches what lives under MEDIA_DIR (the CLI has no such
+// limit), and never the hidden order/playlist/temp files.
 function resolveMedia(rel) {
+  if (String(rel).split('/').some((seg) => seg.startsWith('.'))) {
+    throw new Error(`hidden paths not allowed: ${rel}`);
+  }
   const abs = path.resolve(MEDIA_DIR, rel);
   if (abs !== MEDIA_DIR && !abs.startsWith(MEDIA_DIR + path.sep)) {
     throw new Error(`path escapes media dir: ${rel}`);
@@ -234,8 +305,58 @@ const server = http.createServer(async (req, res) => {
       const abs = resolveMedia(rel);
       const st = await fs.stat(abs).catch(() => null);
       if (!st) return sendJson(res, 404, { error: `not found: ${rel}` });
-      if (!st.isFile()) return sendJson(res, 400, { error: 'only files can be deleted' });
-      await fs.rm(abs);
+      if (st.isDirectory()) {
+        try {
+          await fs.rmdir(abs);
+        } catch {
+          return sendJson(res, 400, { error: 'folder not empty — move or delete its videos first' });
+        }
+      } else {
+        await fs.rm(abs);
+      }
+      await removeFromOrder(parentOf(rel), path.basename(rel));
+      await regeneratePlaylist();
+      sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/mkdir') {
+      const { path: rel } = JSON.parse(await readBody(req) || '{}');
+      if (!rel || typeof rel !== 'string' || !rel.trim()) {
+        return sendJson(res, 400, { error: 'path: folder name required' });
+      }
+      const cleaned = rel.trim().replace(/^\/+|\/+$/g, '');
+      await fs.mkdir(resolveMedia(cleaned), { recursive: true });
+      await appendToDirOrder(parentOf(cleaned), path.basename(cleaned));
+      await regeneratePlaylist();
+      sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/move') {
+      const { from, to } = JSON.parse(await readBody(req) || '{}');
+      if (!from || typeof from !== 'string') {
+        return sendJson(res, 400, { error: 'from: file path required' });
+      }
+      const fromAbs = resolveMedia(from);
+      const st = await fs.stat(fromAbs).catch(() => null);
+      if (!st?.isFile()) return sendJson(res, 400, { error: 'only files can be moved' });
+      const toRel = String(to ?? '').trim().replace(/^\/+|\/+$/g, '');
+      const toAbs = toRel ? resolveMedia(toRel) : MEDIA_DIR;
+      const toStat = await fs.stat(toAbs).catch(() => null);
+      if (!toStat?.isDirectory()) return sendJson(res, 400, { error: `no such folder: ${toRel}` });
+      const dest = await uniqueMediaPath(toAbs, path.basename(from));
+      await fs.rename(fromAbs, dest);
+      await removeFromOrder(parentOf(from), path.basename(from));
+      await appendToDirOrder(toRel, path.basename(dest));
+      await regeneratePlaylist();
+      sendJson(res, 200, { ok: true, name: path.basename(dest) });
+    } else if (req.method === 'POST' && pathname === '/api/order') {
+      const { dir, names } = JSON.parse(await readBody(req) || '{}');
+      const dirRel = String(dir ?? '').trim().replace(/^\/+|\/+$/g, '');
+      if (!Array.isArray(names)
+        || names.some((n) => typeof n !== 'string' || n.includes('/') || n.startsWith('.'))) {
+        return sendJson(res, 400, { error: 'names: array of child names required' });
+      }
+      if (dirRel) resolveMedia(dirRel);
+      const order = await loadOrder();
+      order[dirRel] = names;
+      await saveOrder(order);
+      await regeneratePlaylist();
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/play') {
       const { paths } = JSON.parse(await readBody(req) || '{}');
@@ -262,6 +383,10 @@ fs.readdir(MEDIA_DIR)
     .filter((n) => n.startsWith('.upload-') && n.endsWith('.part'))
     .map((n) => fs.rm(path.join(MEDIA_DIR, n), { force: true }))))
   .catch(() => {});
+
+// Sync the persistent play order with reality (files added/removed over
+// ssh, etc.) — runs once per boot before the rotation ever plays
+regeneratePlaylist().catch(() => {});
 
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
