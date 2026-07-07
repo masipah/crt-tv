@@ -51,6 +51,16 @@
   li button { padding: 5px 12px; flex: none; }
   button.danger { color: #b91c1c; border-color: #dfa8a8; }
   [hidden] { display: none !important; }
+  .drag {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    color: #999;
+    font-size: 1.2rem;
+    padding: 4px 10px 4px 2px;
+  }
+  li.dragging { opacity: 0.65; background: #eef2ff; }
   #upload-status { font-size: 0.9rem; color: #555; margin-top: 8px; }
   #upload-bar { width: 100%; margin-top: 6px; display: none; }
   .hint { font-size: 0.85rem; color: #777; }
@@ -85,7 +95,7 @@
 
   <h2>Videos — the channel</h2>
   <p class="hint">Plays top to bottom and loops, with one random commercial
-    after every 4th video. This order persists — use ↑↓ to rearrange.</p>
+    after every 4th video. This order persists — drag &#8801; to rearrange.</p>
   <div class="row" style="margin-bottom: 8px">
     <button onclick="post('/api/play', { paths: ['videos'] })">&#9654; Play videos</button>
   </div>
@@ -201,25 +211,65 @@
     renderBucket('commercials');
   }
 
+  // Touch- and mouse-friendly vertical drag: pointer events on a ≡ handle,
+  // live DOM reordering, onDrop fires once the row is let go.
+  function dragHandle(li, onDrop) {
+    const h = document.createElement('span');
+    h.className = 'drag';
+    h.textContent = '≡';
+    h.title = 'Drag to rearrange';
+    h.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { h.setPointerCapture(e.pointerId); } catch {}
+      const list = li.parentElement;
+      li.classList.add('dragging');
+      const move = (ev) => {
+        let before = null;
+        for (const sib of list.children) {
+          if (sib === li) continue;
+          const r = sib.getBoundingClientRect();
+          if (ev.clientY < r.top + r.height / 2) { before = sib; break; }
+        }
+        if (before) {
+          if (before !== li.nextElementSibling) list.insertBefore(li, before);
+        } else if (list.lastElementChild !== li) {
+          list.appendChild(li);
+        }
+      };
+      const finish = () => {
+        h.removeEventListener('pointermove', move);
+        li.classList.remove('dragging');
+        onDrop();
+      };
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', finish, { once: true });
+      h.addEventListener('pointercancel', finish, { once: true });
+    });
+    return h;
+  }
+
   function renderBucket(bucket) {
     const names = lib[bucket] ?? [];
     $(bucket + '-empty').hidden = names.length > 0;
     const list = $(bucket + '-list');
     list.innerHTML = '';
-    names.forEach((n, i) => {
+    for (const n of names) {
       const rel = bucket + '/' + n;
       const li = document.createElement('li');
+      li.dataset.name = n;
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = n;
-      li.append(name);
       if (bucket === 'videos') {
-        li.append(
-          btn('↑', () => reorder(bucket, i, -1)),
-          btn('↓', () => reorder(bucket, i, 1)),
-        );
+        li.append(dragHandle(li, () => {
+          const order = [...list.children].map((el) => el.dataset.name);
+          if (order.join('\n') !== (lib.videos ?? []).join('\n')) {
+            libAction('/api/order', { dir: 'videos', names: order });
+          }
+        }));
       }
       li.append(
+        name,
         btn('Queue', () => addToQueue(rel)),
         btn('Play', () => play(rel)),
         btn(bucket === 'videos' ? '→ Comm.' : '→ Videos',
@@ -230,7 +280,7 @@
         btn('✕', () => del(rel), 'danger'),
       );
       list.append(li);
-    });
+    }
   }
 
   // POST a library mutation, surface errors, refresh the listing
@@ -248,15 +298,6 @@
       err(e.message);
     }
     loadMedia();
-  }
-
-  // Swap with the neighbor and persist the bucket order
-  function reorder(bucket, i, delta) {
-    const names = [...lib[bucket]];
-    const j = i + delta;
-    if (j < 0 || j >= names.length) return;
-    [names[i], names[j]] = [names[j], names[i]];
-    libAction('/api/order', { dir: bucket, names });
   }
 
   function btn(label, fn, cls) {
@@ -292,22 +333,20 @@
     list.innerHTML = '';
     queue.forEach((path, i) => {
       const li = document.createElement('li');
+      li.dataset.path = path;
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = `${i + 1}. ${path}`;
-      const up = btn('↑', () => moveInQueue(i, -1));
-      const down = btn('↓', () => moveInQueue(i, 1));
-      if (i === 0) up.disabled = true;
-      if (i === queue.length - 1) down.disabled = true;
-      li.append(name, up, down, btn('✕', () => { queue.splice(i, 1); renderQueue(); }, 'danger'));
+      li.append(
+        dragHandle(li, () => {
+          queue = [...list.children].map((el) => el.dataset.path);
+          renderQueue();
+        }),
+        name,
+        btn('✕', () => { queue.splice(i, 1); renderQueue(); }, 'danger'),
+      );
       list.append(li);
     });
-  }
-
-  function moveInQueue(i, delta) {
-    const [item] = queue.splice(i, 1);
-    queue.splice(i + delta, 0, item);
-    renderQueue();
   }
 
   function addToQueue(path) {
