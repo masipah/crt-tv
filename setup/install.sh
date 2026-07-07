@@ -64,9 +64,21 @@ install -d /usr/local/lib/crt-tv
 install -m 755 "$REPO_DIR/scripts/kiosk.sh" /usr/local/lib/crt-tv/kiosk.sh
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
+echo "==> Installing web remote"
+install -d /usr/local/lib/crt-tv/remote/public
+install -m 644 "$REPO_DIR/remote/server.mjs" /usr/local/lib/crt-tv/remote/server.mjs
+install -m 644 "$REPO_DIR/remote/public/index.html" /usr/local/lib/crt-tv/remote/public/index.html
+
+# The remote runs unprivileged as 'crt'; this lets it (and the crt user
+# generally) run the tv command without a password.
+visudo -cf "$REPO_DIR/setup/sudoers-crt-tv"
+install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
+
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable ws4kp.service ws3kp.service weather-kiosk.service
+systemctl enable ws4kp.service ws3kp.service weather-kiosk.service crt-remote.service
+# Safe to (re)start before the composite reboot — these don't touch the display
+systemctl restart ws4kp.service ws3kp.service crt-remote.service
 
 install -d -m 775 -o crt -g crt /srv/media
 
@@ -80,5 +92,6 @@ Done. Reboot to switch output from HDMI to composite:
   sudo reboot
 
 The PVM should come up with the WeatherStar 4000+. Control with `tv`
-(tv weather / tv retro / tv play <file> / tv status).
+(tv weather / tv retro / tv play <file> / tv status) or from a browser
+on your network:  http://<this-pi>:8090/
 EOF

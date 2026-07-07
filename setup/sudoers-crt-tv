@@ -1,0 +1,3 @@
+# Let the crt-tv web remote (running as user 'crt') drive the tv command.
+# Installed to /etc/sudoers.d/crt-tv by setup/install.sh.
+crt ALL=(root) NOPASSWD: /usr/local/bin/tv
