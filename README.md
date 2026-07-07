@@ -100,12 +100,18 @@ seamless — starting one stops the other via systemd `Conflicts=`.
 ### Web remote
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
-remote control: switch channels, browse/play/delete the video library
-(`MEDIA_DIR`), build a play queue in whatever order you like, upload videos
-straight from your phone or laptop, pause/skip/mute/shuffle what's playing,
-and toggle "Weather every 4" — 2 minutes of WeatherStar after every 4th
-video, then back to the videos where they left off. It's the same `tv`
-command underneath, so the CLI and the web UI never disagree.
+remote control: switch channels, manage the video library (`MEDIA_DIR`) —
+create folders, move videos into them, reorder everything with ↑↓, upload
+straight from your phone or laptop, delete — plus pause/skip/mute/shuffle
+what's playing and toggle "Weather every 4" (2 minutes of WeatherStar after
+every 4th video). It's the same `tv` command underneath, so the CLI and the
+web UI never disagree.
+
+**The library order is the broadcast schedule**: it persists (hidden
+`.order.json`/`.playorder.m3u` files in `MEDIA_DIR`) and is exactly what the
+TV plays through automatically — continuous play, the boot rotation, all of
+it. The play queue, by contrast, is a one-off list for live mixing and
+vanishes when replaced.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
