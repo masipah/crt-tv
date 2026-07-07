@@ -149,6 +149,11 @@ async function handleUpload(req, res, url) {
   const tmp = path.join(MEDIA_DIR, `.upload-${process.pid}-${Date.now()}.part`);
   try {
     await pipeline(req, createWriteStream(tmp, { flags: 'wx' }));
+    // Flush to the SD card before the rename makes it visible — a power cut
+    // can then only ever leave a (cleaned-up) .part, never a hollow video
+    const fh = await fs.open(tmp, 'r+');
+    await fh.sync();
+    await fh.close();
     await fs.rename(tmp, dest);
   } catch (err) {
     await fs.rm(tmp, { force: true });
@@ -237,6 +242,13 @@ const server = http.createServer(async (req, res) => {
 // Node kills requests after 5 minutes by default — far too short for
 // multi-GB video uploads over Wi-Fi.
 server.requestTimeout = 0;
+
+// Sweep upload temp files orphaned by a crash or power cut
+fs.readdir(MEDIA_DIR)
+  .then((names) => Promise.all(names
+    .filter((n) => n.startsWith('.upload-') && n.endsWith('.part'))
+    .map((n) => fs.rm(path.join(MEDIA_DIR, n), { force: true }))))
+  .catch(() => {});
 
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
