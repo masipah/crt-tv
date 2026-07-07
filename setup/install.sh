@@ -33,7 +33,7 @@ fi
 
 echo "==> Installing packages"
 apt-get update
-apt-get install -y git curl nodejs npm mpv socat alsa-utils \
+apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
   xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
 # Package name differs between Debian (chromium) and some RPi OS builds
 apt-get install -y chromium || apt-get install -y chromium-browser
@@ -134,6 +134,7 @@ install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
+install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
 install -d /usr/local/lib/crt-tv/kiosk-ext
