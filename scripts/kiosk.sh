@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Launched by weather-kiosk.service: waits for the weather server to answer,
-# then runs Chromium fullscreen inside the cage Wayland compositor.
+# then starts a bare X session (no desktop) running Chromium fullscreen.
+# X11 instead of a Wayland compositor on purpose: wlroots/cage refuse the
+# interlaced modes (480i) that composite output offers, and hang trying.
 set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
@@ -9,6 +11,7 @@ BROWSER=$(command -v chromium || command -v chromium-browser) || {
   echo "kiosk: chromium not installed" >&2
   exit 1
 }
+export URL BROWSER
 
 # Chromium renders a permanent error page if the server isn't up yet.
 tries=0
@@ -20,13 +23,4 @@ until curl -fsS --max-time 2 -o /dev/null "$URL"; do
   sleep 2
 done
 
-# shellcheck disable=SC2086  # KIOSK_FLAGS is intentionally word-split
-exec cage -- "$BROWSER" \
-  --kiosk "$URL" \
-  --ozone-platform=wayland \
-  --noerrdialogs \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --autoplay-policy=no-user-gesture-required \
-  --check-for-update-interval=31536000 \
-  ${KIOSK_FLAGS:-}
+exec xinit /usr/local/lib/crt-tv/kiosk-x.sh -- :0 vt1 -nolisten tcp -nocursor

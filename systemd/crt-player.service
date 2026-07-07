@@ -17,3 +17,4 @@ StandardOutput=journal
 StandardError=journal
 ExecStart=/usr/bin/mpv --fs --vo=gpu --gpu-context=drm --input-ipc-server=/run/crt-tv/mpv.sock --loop-playlist=inf --playlist=/run/crt-tv/playlist.m3u
 Restart=no
+TimeoutStopSec=10
