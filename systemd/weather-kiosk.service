@@ -19,7 +19,9 @@ StandardError=journal
 Environment=KIOSK_URL=http://127.0.0.1:8080/
 EnvironmentFile=-/etc/crt-tv/crt-tv.env
 EnvironmentFile=-/run/crt-tv/kiosk.env
+ExecStartPre=+/usr/local/lib/crt-tv/clear-console.sh
 ExecStart=/usr/local/lib/crt-tv/kiosk.sh
+ExecStopPost=+/usr/local/lib/crt-tv/clear-console.sh
 Restart=always
 RestartSec=3
 TimeoutStopSec=10
