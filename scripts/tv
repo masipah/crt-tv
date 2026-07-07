@@ -24,10 +24,10 @@ usage: tv <command>
   play <path>...     play videos (a single library file continues through the
                      whole library from there; lists/folders play as given)
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autobreak [on|off] weather for 2 min after every 5 videos (no arg: toggle)
-  autostart          (run at boot) weather 2 min, then muted videos, rotation on
+  autobreak [on|off] weather for 2 min after every 4 videos (no arg: toggle)
+  autostart          (run at boot) weather 2 min, then videos, rotation on, muted
   pause              toggle pause
-  mute               toggle mute
+  mute               toggle mute (whole TV: weather music and videos)
   shuffle            shuffle the playlist order
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
@@ -55,6 +55,13 @@ mpv_get() {
   { printf '{"command":["get_property","%s"]}\n' "$1" |
     socat - "UNIX-CONNECT:$MPV_SOCK" 2>/dev/null |
     sed -nE 's/.*"data":(true|false|[0-9][0-9.]*).*/\1/p' | head -n1; } || true
+}
+
+# One hardware mute for the whole TV: the weather music (chromium) and the
+# videos (mpv) come out of the same jack, so mute at the ALSA mixer.
+mixer() {
+  amixer -q sset Headphone "$@" 2>/dev/null ||
+    amixer -q sset PCM "$@" 2>/dev/null || true
 }
 
 # A pending weather break or boot switch must not outlive a manual mode
@@ -146,8 +153,7 @@ case $cmd in
     cancel_break
     pos=$(mpv_get playlist-pos)
     time_pos=$(mpv_get time-pos)
-    muted=$(mpv_get mute)
-    printf '%s %s %s\n' "${pos:-0}" "${time_pos:-0}" "${muted:-false}" >"$RUN_DIR/resume"
+    printf '%s %s\n' "${pos:-0}" "${time_pos:-0}" >"$RUN_DIR/resume"
     systemd-run --quiet --collect --unit=crt-weatherbreak \
       --on-active="${secs}s" --timer-property=AccuracySec=1s \
       /usr/local/bin/tv resume
@@ -160,18 +166,18 @@ case $cmd in
   autobreak)
     as_root
     case ${1:-toggle} in
-      on) printf '5\n' >"$RUN_DIR/autobreak" ;;
+      on) printf '4\n' >"$RUN_DIR/autobreak" ;;
       off) rm -f "$RUN_DIR/autobreak" ;;
       *)
         if [[ -f $RUN_DIR/autobreak ]]; then
           rm -f "$RUN_DIR/autobreak"
         else
-          printf '5\n' >"$RUN_DIR/autobreak"
+          printf '4\n' >"$RUN_DIR/autobreak"
         fi
         ;;
     esac
     if [[ -f $RUN_DIR/autobreak ]]; then
-      echo "auto weather break: ON (2 min of weather after every 5 videos)"
+      echo "auto weather break: ON (2 min of weather after every 4 videos)"
     else
       echo "auto weather break: OFF"
     fi
@@ -185,11 +191,12 @@ case $cmd in
   autostart)
     as_root
     # Boot rotation (crt-autostart.service): the kiosk unit is already
-    # bringing up the weather; after 2 minutes switch to the video library,
-    # muted, with the every-5-videos rotation enabled. Any manual channel
-    # change cancels the pending switch (see cancel_break).
-    printf '5\n' >"$RUN_DIR/autobreak"
-    : >"$RUN_DIR/start-muted"
+    # bringing up the weather; after 2 minutes switch to the video library
+    # with the every-4-videos rotation enabled. The whole TV starts muted
+    # (hardware mixer) — one press of Mute brings the sound back. Any manual
+    # channel change cancels the pending switch (see cancel_break).
+    printf '4\n' >"$RUN_DIR/autobreak"
+    mixer mute
     systemd-run --quiet --collect --unit=crt-autostart-videos \
       --on-active=120s --timer-property=AccuracySec=1s \
       /usr/local/bin/tv play "$MEDIA_DIR"
@@ -200,7 +207,7 @@ case $cmd in
     ;;
   mute)
     as_root
-    mpv_cmd 'cycle mute'
+    mixer toggle
     ;;
   shuffle)
     as_root
@@ -248,6 +255,9 @@ case $cmd in
       [[ -e $c ]] || continue
       echo "$c: status=$(cat "$c/status" 2>/dev/null) modes: $(tr '\n' ' ' <"$c/modes" 2>/dev/null)"
     done
+    echo
+    echo "== audio =="
+    amixer sget Headphone 2>/dev/null || amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
     echo
     echo "== boot config =="
     grep -E 'vc4|tvout|sdtv' /boot/firmware/config.txt 2>/dev/null || true

@@ -31,6 +31,15 @@ const isActive = (unit) => new Promise((resolve) => {
     (err, stdout) => resolve(stdout.trim() === 'active'));
 });
 
+// Whole-TV mute lives in the ALSA mixer (see `tv mute`)
+const isMuted = () => new Promise((resolve) => {
+  execFile('amixer', ['sget', 'Headphone'], (err, stdout) => {
+    if (!err && /\[(on|off)\]/.test(stdout)) return resolve(stdout.includes('[off]'));
+    execFile('amixer', ['sget', 'PCM'],
+      (err2, stdout2) => resolve(String(stdout2 || '').includes('[off]')));
+  });
+});
+
 // Ask mpv for properties over its IPC socket; null if the player isn't up.
 function mpvQuery(props) {
   return new Promise((resolve) => {
@@ -69,11 +78,12 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, autoBreak] = await Promise.all([
+  const [ws4kp, kiosk, player, autoBreak, muted] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     fs.access('/run/crt-tv/autobreak').then(() => true, () => false),
+    isMuted(),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
@@ -82,13 +92,12 @@ async function status() {
   let playing = null;
   if (player) {
     const p = await mpvQuery([
-      'media-title', 'pause', 'mute', 'time-pos', 'duration', 'playlist-pos-1', 'playlist-count',
+      'media-title', 'pause', 'time-pos', 'duration', 'playlist-pos-1', 'playlist-count',
     ]);
     if (p) {
       playing = {
         title: p['media-title'] ?? '',
         paused: p.pause ?? false,
-        muted: p.mute ?? false,
         timePos: p['time-pos'] ?? null,
         duration: p.duration ?? null,
         playlistPos: p['playlist-pos-1'] ?? null,
@@ -96,7 +105,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, autoBreak };
+  return { units: { ws4kp, kiosk, player }, mode, playing, autoBreak, muted };
 }
 
 async function listMedia() {
