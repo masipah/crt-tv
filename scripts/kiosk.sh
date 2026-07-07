@@ -7,12 +7,19 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
-# Force ws4kp/ws3kp kiosk mode: no location bar, no toolbar, display scaled
-# to fill the screen (no scrollbars). Permalinks serialize the page's kiosk
+# Force ws4kp kiosk mode: no location bar, no toolbar, display scaled to
+# fill the screen (no scrollbars). Permalinks serialize the page's kiosk
 # checkbox — usually kiosk=false — which would put the location bar on the
 # TV, so strip any existing kiosk= parameter and set our own.
 URL=$(printf '%s' "$URL" | sed -E 's/([?&])kiosk=[^&]*&?/\1/g; s/[?&]$//')
 [[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
+
+# Background music (ws4kp ships default tracks; audio rides the same TRRS
+# jack as the video). Forced on the same way; KIOSK_MUSIC=off disables.
+if [[ ${KIOSK_MUSIC:-on} != off ]]; then
+  URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
+  URL="$URL&mediaPlaying=true"
+fi
 
 echo "kiosk: launching $URL"
 
@@ -26,7 +33,7 @@ export URL BROWSER
 tries=0
 until curl -fsS --max-time 2 -o /dev/null "$URL"; do
   if ((tries % 15 == 0)); then
-    echo "kiosk: waiting for $URL — check the ws4kp/ws3kp service if this repeats"
+    echo "kiosk: waiting for $URL — check the ws4kp service if this repeats"
   fi
   tries=$((tries + 1))
   sleep 2

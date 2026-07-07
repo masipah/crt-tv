@@ -12,12 +12,11 @@ import { fileURLToPath } from 'node:url';
 const PORT = Number(process.env.CRT_REMOTE_PORT ?? 8090);
 const MEDIA_DIR = path.resolve(process.env.MEDIA_DIR ?? '/srv/media');
 const MPV_SOCK = '/run/crt-tv/mpv.sock';
-const KIOSK_ENV_FILES = ['/run/crt-tv/kiosk.env', '/etc/crt-tv/crt-tv.env'];
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
-const TV_COMMANDS = new Set(['weather', 'retro', 'stop', 'pause', 'next', 'prev']);
+const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev']);
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
@@ -69,27 +68,15 @@ function mpvQuery(props) {
   });
 }
 
-async function kioskUrl() {
-  for (const file of KIOSK_ENV_FILES) {
-    try {
-      const m = (await fs.readFile(file, 'utf8')).match(/^KIOSK_URL=(.+)$/m);
-      if (m) return m[1].trim();
-    } catch { /* next file */ }
-  }
-  return 'http://127.0.0.1:8080/';
-}
-
 async function status() {
-  const [ws4kp, ws3kp, kiosk, player, url] = await Promise.all([
+  const [ws4kp, kiosk, player] = await Promise.all([
     isActive('ws4kp.service'),
-    isActive('ws3kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
-    kioskUrl(),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
-  else if (kiosk) mode = url.includes(':8083') ? 'retro' : 'weather';
+  else if (kiosk) mode = 'weather';
 
   let playing = null;
   if (player) {
@@ -107,7 +94,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, ws3kp, kiosk, player }, mode, playing };
+  return { units: { ws4kp, kiosk, player }, mode, playing };
 }
 
 async function listMedia() {

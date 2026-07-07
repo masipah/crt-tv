@@ -44,19 +44,30 @@ if ! id crt &>/dev/null; then
 fi
 usermod -aG video,render,input,audio,tty crt
 
-echo "==> Installing WeatherStar servers to /opt"
+echo "==> Installing WeatherStar 4000+ to /opt/ws4kp"
 # Everything as the crt user: git refuses to touch crt-owned repos as root
 # ("dubious ownership"), and the service runs as crt anyway.
-for app in ws4kp ws3kp; do
-  if [[ -d /opt/$app/.git ]]; then
-    chown -R crt:crt "/opt/$app"
-    sudo -u crt git -C "/opt/$app" pull --ff-only
-  else
-    install -d -o crt -g crt "/opt/$app"
-    sudo -u crt git clone "https://github.com/netbymatt/$app" "/opt/$app"
-  fi
-  (cd "/opt/$app" && sudo -u crt npm install --no-audit --no-fund)
-done
+if [[ -d /opt/ws4kp/.git ]]; then
+  chown -R crt:crt /opt/ws4kp
+  sudo -u crt git -C /opt/ws4kp pull --ff-only
+else
+  install -d -o crt -g crt /opt/ws4kp
+  sudo -u crt git clone https://github.com/netbymatt/ws4kp /opt/ws4kp
+fi
+(cd /opt/ws4kp && sudo -u crt npm install --no-audit --no-fund)
+
+# Retired: WeatherStar 3000+ was removed from this project
+if [[ -f /etc/systemd/system/ws3kp.service || -d /opt/ws3kp ]]; then
+  echo "==> Removing retired WeatherStar 3000+"
+  systemctl disable --now ws3kp.service 2>/dev/null || true
+  rm -f /etc/systemd/system/ws3kp.service
+  rm -rf /opt/ws3kp
+fi
+
+echo "==> Enabling analog audio out (TRRS jack)"
+amixer -q sset Headphone 90% unmute 2>/dev/null \
+  || amixer -q sset PCM 90% unmute 2>/dev/null || true
+alsactl store 2>/dev/null || true
 
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
@@ -84,8 +95,8 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable ws4kp.service ws3kp.service weather-kiosk.service crt-remote.service
-systemctl restart ws4kp.service ws3kp.service crt-remote.service
+systemctl enable ws4kp.service weather-kiosk.service crt-remote.service
+systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
 
@@ -101,6 +112,6 @@ Done. Reboot to switch output from HDMI to composite:
   sudo reboot
 
 The PVM should come up with the WeatherStar 4000+. Control with `tv`
-(tv weather / tv retro / tv play <file> / tv status) or from a browser
+(tv weather / tv play <file> / tv status) or from a browser
 on your network:  http://<this-pi>:8090/
 EOF
