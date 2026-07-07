@@ -159,8 +159,11 @@ case $cmd in
     echo
     echo "== recent logs =="
     for u in ws4kp weather-kiosk crt-player crt-remote; do
+      # extra lines for the player: mpv's vo errors scroll past quickly
+      n=15
+      [[ $u == crt-player ]] && n=50
       echo "--- $u"
-      journalctl -u "$u.service" -b --no-pager -n 15 2>/dev/null || true
+      journalctl -u "$u.service" -b --no-pager -n "$n" 2>/dev/null || true
     done
     ;;
   help | -h | --help)
