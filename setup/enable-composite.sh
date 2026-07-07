@@ -35,6 +35,11 @@ if ! grep -Eq '^enable_tvout=1' "$CFG"; then
   printf '\n[pi4]\nenable_tvout=1\n\n[all]\n' >> "$CFG"
 fi
 
+# No firmware rainbow square at power-on — the ASCII splash is the boot face
+if ! grep -Eq '^disable_splash=1' "$CFG"; then
+  printf '\ndisable_splash=1\n' >> "$CFG"
+fi
+
 # Force NTSC and the 480i mode on the kernel command line (cmdline.txt is one
 # line; sdtv_mode= in config.txt is ignored under full KMS). The quiet/
 # loglevel/cursor args keep boot text off the CRT — an appliance shouldn't
