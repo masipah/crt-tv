@@ -7,13 +7,12 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
-# ws4kp/ws3kp kiosk mode: no location bar, no toolbar, display scaled to fill
-# the screen (no scrollbars). Appended unless the URL already has a standalone
-# kiosk= parameter. Careful: permalinks contain settings-kiosk-checkbox=false,
-# which must NOT count as a match — ws4kp gives an explicit kiosk= priority.
-if [[ $URL != *['?&']kiosk=* ]]; then
-  [[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
-fi
+# Force ws4kp/ws3kp kiosk mode: no location bar, no toolbar, display scaled
+# to fill the screen (no scrollbars). Permalinks serialize the page's kiosk
+# checkbox — usually kiosk=false — which would put the location bar on the
+# TV, so strip any existing kiosk= parameter and set our own.
+URL=$(printf '%s' "$URL" | sed -E 's/([?&])kiosk=[^&]*&?/\1/g; s/[?&]$//')
+[[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
 
 echo "kiosk: launching $URL"
 
