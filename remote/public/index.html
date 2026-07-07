@@ -188,6 +188,7 @@
       $(b).disabled = st.mode !== 'video';
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
+    $('btn-shuffle').classList.toggle('on', !!st.shuffled);
     const p = st.playing;
     if (p) {
       const pos = p.playlistCount > 1 ? ` (${p.playlistPos} of ${p.playlistCount})` : '';

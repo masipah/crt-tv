@@ -82,11 +82,12 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, muted] = await Promise.all([
+  const [ws4kp, kiosk, player, muted, shuffled] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     isMuted(),
+    fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
@@ -108,7 +109,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing, muted };
+  return { units: { ws4kp, kiosk, player }, mode, playing, muted, shuffled };
 }
 
 // ---- persistent library order ------------------------------------------
