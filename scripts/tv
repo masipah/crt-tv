@@ -20,8 +20,7 @@ usage() {
   cat <<'EOF'
 usage: tv <command>
 
-  weather | 4000     show WeatherStar 4000+
-  retro   | 3000     show WeatherStar 3000+
+  weather            show the WeatherStar 4000+
   play <path>...     play video file(s)/folder(s) with mpv (loops forever)
   pause              toggle pause
   next | prev        skip within the playlist
@@ -56,17 +55,6 @@ case $cmd in
     # it already points at ws4kp; only fall back to the bare default otherwise.
     url=$(env_get KIOSK_URL)
     [[ $url == *:8080* ]] || url=http://127.0.0.1:8080/
-    printf 'KIOSK_URL=%s\n' "$url" >"$KIOSK_ENV"
-    systemctl restart weather-kiosk.service
-    ;;
-  retro | 3000)
-    as_root
-    # Dedicated 3000+ URL wins; else reuse KIOSK_URL when it's a ws3kp one
-    url=$(env_get KIOSK_URL_3000)
-    if [[ -z $url ]]; then
-      url=$(env_get KIOSK_URL)
-      [[ $url == *:8083* ]] || url=http://127.0.0.1:8083/
-    fi
     printf 'KIOSK_URL=%s\n' "$url" >"$KIOSK_ENV"
     systemctl restart weather-kiosk.service
     ;;
@@ -122,21 +110,21 @@ case $cmd in
     systemctl stop crt-player.service weather-kiosk.service
     ;;
   status)
-    for u in ws4kp ws3kp weather-kiosk crt-player; do
+    for u in ws4kp weather-kiosk crt-player; do
       printf '%-15s %s\n' "$u" "$(systemctl is-active "$u.service" 2>/dev/null || true)"
     done
     ;;
   doctor)
     as_root
     echo "== units =="
-    for u in ws4kp ws3kp weather-kiosk crt-player crt-remote; do
+    for u in ws4kp weather-kiosk crt-player crt-remote; do
       printf '%-15s active=%-10s enabled=%s\n' "$u" \
         "$(systemctl is-active "$u.service" 2>/dev/null || true)" \
         "$(systemctl is-enabled "$u.service" 2>/dev/null || true)"
     done
     echo
     echo "== web servers =="
-    for p in 8080 8083 8090; do
+    for p in 8080 8090; do
       printf ':%-5s http %s\n' "$p" \
         "$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$p/" 2>/dev/null || echo unreachable)"
     done
@@ -160,7 +148,7 @@ case $cmd in
     command -v chromium chromium-browser cage mpv 2>/dev/null || true
     echo
     echo "== recent logs =="
-    for u in ws4kp ws3kp weather-kiosk crt-remote; do
+    for u in ws4kp weather-kiosk crt-remote; do
       echo "--- $u"
       journalctl -u "$u.service" -b --no-pager -n 15 2>/dev/null || true
     done

@@ -4,8 +4,8 @@ An analogue weather station and video player for a Sony PVM, driven by a
 Raspberry Pi 4B over composite video (480i NTSC).
 
 - **Weather**: runs the real [WeatherStar 4000+](https://github.com/netbymatt/ws4kp)
-  and [WeatherStar 3000+](https://github.com/netbymatt/ws3kp) locally, rendered
-  fullscreen by Chromium — scroll effect and all.
+  locally, rendered fullscreen by Chromium — scroll effect, background music,
+  and all.
 - **Video**: mpv playing straight to the composite output, no desktop involved.
 - **Display**: Sony PVM-9045Q fed from the Pi's 3.5mm TRRS jack (yellow RCA).
 
@@ -48,23 +48,25 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
 
 ### Setting your location
 
-ws4kp/ws3kp store their settings in the browser. Two ways to set them:
+ws4kp stores its settings in the browser. Two ways to set them:
 
 - **Keyboard on the Pi**: plug a keyboard/mouse into the Pi and configure
   directly on the PVM. Settings persist in the kiosk's Chromium profile.
 - **Permalink** (headless): open `http://<pi-address>:8080/` from your laptop,
   configure everything, copy the permalink/share URL, then put it in
   `/etc/crt-tv/crt-tv.env` as `KIOSK_URL` (change the host to `127.0.0.1:8080`)
-  and run `tv weather`. Same for the 3000+: configure at
-  `http://<pi-address>:8083/` and put its permalink in `KIOSK_URL_3000`.
+  and run `tv weather`.
+
+The kiosk always forces fullscreen (`kiosk=true`) and background music
+(`mediaPlaying=true`) regardless of what the permalink says; set
+`KIOSK_MUSIC=off` in `/etc/crt-tv/crt-tv.env` to silence the weather channel.
 
 ## Usage
 
 Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 
 ```text
-tv weather          # WeatherStar 4000+ (alias: tv 4000)
-tv retro            # WeatherStar 3000+ (alias: tv 3000)
+tv weather          # WeatherStar 4000+
 tv play <path>...   # play file(s) or a folder with mpv, loops forever
 tv pause            # toggle pause
 tv next / tv prev   # skip within the playlist
@@ -90,7 +92,7 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ```text
 setup/      install.sh (run once with sudo) + boot config for composite 480i
-systemd/    ws4kp, ws3kp, weather-kiosk (chromium kiosk under X), crt-player (mpv), crt-remote
+systemd/    ws4kp, weather-kiosk (chromium kiosk under X), crt-player (mpv), crt-remote
 scripts/    tv control command, kiosk launcher
 remote/     web remote (zero-dependency Node server + single-page UI on :8090)
 docs/       hardware wiring, composite video deep-dive & troubleshooting
