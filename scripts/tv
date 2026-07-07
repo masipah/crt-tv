@@ -28,7 +28,8 @@ usage: tv <command>
   autostart          (run at boot) show the weather, muted
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
-  shuffle            toggle shuffled playback
+  shuffle            toggle shuffled playback (videos only)
+  commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
   status             show what's running
@@ -215,6 +216,18 @@ case $cmd in
       : >"$RUN_DIR/shuffle"
       mpv_try 'playlist-shuffle'
       echo "shuffle: ON"
+    fi
+    ;;
+  commercials)
+    as_root
+    # The Lua script in mpv checks this flag at every injection point,
+    # so the change applies live — no player restart needed
+    if [[ -f $RUN_DIR/no-commercials ]]; then
+      rm -f "$RUN_DIR/no-commercials"
+      echo "commercials: ON (one random spot after every 4 videos)"
+    else
+      : >"$RUN_DIR/no-commercials"
+      echo "commercials: OFF"
     fi
     ;;
   next)

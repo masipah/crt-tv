@@ -71,7 +71,8 @@ tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
-tv shuffle          # toggle shuffled playback (highlights in the web remote)
+tv shuffle          # toggle shuffled playback — videos only (lit in the web remote)
+tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
 tv status           # what's running
@@ -81,6 +82,9 @@ tv reboot           # reboot the Pi (also a button on the web remote)
 The media library is two buckets: **videos** (the channel — plays top to
 bottom in your saved order and loops) and **commercials** (after every 4th
 video, one plays at random, picked fresh each time by the player itself).
+Shuffle affects the videos only — the commercial cadence is by count, so it
+holds either way — and the "No commercials" toggle suspends the spots
+entirely until turned off (or the next boot).
 Playing a single bucket video continues through the bucket from that point;
 a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
