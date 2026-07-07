@@ -136,9 +136,10 @@ docs/       hardware wiring, composite video deep-dive & troubleshooting
 The TV's sound (weather music and video audio alike) can play through
 AirPlay speakers instead of the PVM: PipeWire's RAOP module discovers
 AirPlay receivers on the LAN (an EverSolo, HomePod, AirPort amp, …) and the
-**AirPlay chip in the web remote** (or `tv airplay`) toggles the output
-between the receiver and the TV jack, live — streams move over without a
-restart, and Mute covers whichever output is active.
+**AirPlay chip in the web remote** opens a picker listing every receiver by
+name plus the TV jack — tap one and the audio moves there live, no restart;
+Mute covers whichever output is active. (`tv airplay` on the CLI toggles
+between the jack and the first receiver found.)
 
 Notes: the receiver must be powered on and on the same network (discovery
 is via mDNS/avahi). AirPlay buffers about two seconds; players compensate
