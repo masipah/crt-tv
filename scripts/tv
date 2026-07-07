@@ -340,10 +340,14 @@ case $cmd in
         echo "tv: no AirPlay device found — is it on and on this network?" >&2
         exit 1
       }
-      # engage AirPlay gently: amplified speakers start at 10%
+      # engage AirPlay gently: amplified speakers start at 10%; re-assert
+      # after activation because wireplumber restores its remembered
+      # device volume and can race the first set
       wp set-volume "$id" 0.10 || true
       wp set-default "$id"
       mpv_try "set audio-delay -$ap_sec"
+      sleep 1
+      wp set-volume "$id" 0.10 || true
       echo "audio: AirPlay (volume starts at 10%)"
     fi
     ;;

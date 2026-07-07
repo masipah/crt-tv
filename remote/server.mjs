@@ -474,6 +474,12 @@ const server = http.createServer(async (req, res) => {
       if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
       // keep a running video in lip-sync with the new output's buffering
       await setMpvAudioDelay(toAirplay ? -(AIRPLAY_LATENCY_MS / 1000) : 0);
+      if (toAirplay) {
+        // wireplumber restores its remembered device volume when the sink
+        // activates, racing the engage level — re-assert 10% after it
+        await new Promise((r) => setTimeout(r, 700));
+        await wpExec(['set-volume', String(id), '0.10']);
+      }
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
