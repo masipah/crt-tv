@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# tv — control what's showing on the PVM.
+set -euo pipefail
+
+RUN_DIR=/run/crt-tv
+PLAYLIST=$RUN_DIR/playlist.m3u
+KIOSK_ENV=$RUN_DIR/kiosk.env
+MPV_SOCK=$RUN_DIR/mpv.sock
+ENV_FILE=/etc/crt-tv/crt-tv.env
+
+# shellcheck disable=SC1090
+[[ -f $ENV_FILE ]] && source "$ENV_FILE"
+
+usage() {
+  cat <<'EOF'
+usage: tv <command>
+
+  weather | 4000     show WeatherStar 4000+
+  retro   | 3000     show WeatherStar 3000+
+  play <path>...     play video file(s)/folder(s) with mpv (loops forever)
+  pause              toggle pause
+  next | prev        skip within the playlist
+  stop               blank the screen (stop player and kiosk)
+  status             show what's running
+EOF
+}
+
+ARGS=("$@")
+as_root() {
+  if [[ $EUID -ne 0 ]]; then
+    exec sudo "$0" "${ARGS[@]}"
+  fi
+  mkdir -p "$RUN_DIR"
+}
+
+mpv_cmd() {
+  printf '%s\n' "$1" | socat - "UNIX-CONNECT:$MPV_SOCK" >/dev/null || {
+    echo "tv: player not running (start one with: tv play <path>)" >&2
+    exit 1
+  }
+}
+
+cmd=${1:-status}
+[[ $# -gt 0 ]] && shift
+
+case $cmd in
+  weather | 4000)
+    as_root
+    printf 'KIOSK_URL=http://127.0.0.1:8080/\n' >"$KIOSK_ENV"
+    systemctl restart weather-kiosk.service
+    ;;
+  retro | 3000)
+    as_root
+    printf 'KIOSK_URL=http://127.0.0.1:8083/\n' >"$KIOSK_ENV"
+    systemctl restart weather-kiosk.service
+    ;;
+  play)
+    [[ $# -ge 1 ]] || {
+      usage
+      exit 1
+    }
+    as_root
+    tmp=$(mktemp)
+    for p in "$@"; do
+      # Bare names resolve against MEDIA_DIR
+      if [[ ! -e $p && -n ${MEDIA_DIR:-} && -e $MEDIA_DIR/$p ]]; then
+        p=$MEDIA_DIR/$p
+      fi
+      if [[ -d $p ]]; then
+        find "$(realpath "$p")" -type f \( \
+          -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o \
+          -iname '*.mov' -o -iname '*.m4v' -o -iname '*.mpg' -o \
+          -iname '*.mpeg' -o -iname '*.ts' -o -iname '*.webm' \) |
+          sort >>"$tmp"
+      elif [[ -f $p ]]; then
+        realpath "$p" >>"$tmp"
+      else
+        echo "tv: not found: $p" >&2
+        rm -f "$tmp"
+        exit 1
+      fi
+    done
+    if [[ ! -s $tmp ]]; then
+      echo "tv: no playable files found" >&2
+      rm -f "$tmp"
+      exit 1
+    fi
+    install -m 644 "$tmp" "$PLAYLIST"
+    rm -f "$tmp"
+    systemctl restart crt-player.service
+    ;;
+  pause)
+    as_root
+    mpv_cmd 'cycle pause'
+    ;;
+  next)
+    as_root
+    mpv_cmd 'playlist-next'
+    ;;
+  prev)
+    as_root
+    mpv_cmd 'playlist-prev'
+    ;;
+  stop)
+    as_root
+    systemctl stop crt-player.service weather-kiosk.service
+    ;;
+  status)
+    for u in ws4kp ws3kp weather-kiosk crt-player; do
+      printf '%-15s %s\n' "$u" "$(systemctl is-active "$u.service" 2>/dev/null || true)"
+    done
+    ;;
+  help | -h | --help)
+    usage
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

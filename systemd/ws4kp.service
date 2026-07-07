@@ -1,0 +1,15 @@
+[Unit]
+Description=WeatherStar 4000+ local server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=crt
+WorkingDirectory=/opt/ws4kp
+Environment=WS4KP_PORT=8080
+ExecStart=/usr/bin/node index.mjs
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
