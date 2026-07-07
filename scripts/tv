@@ -23,6 +23,8 @@ usage: tv <command>
   weather            show the WeatherStar 4000+
   play <path>...     play video file(s)/folder(s) with mpv (loops forever)
   pause              toggle pause
+  mute               toggle mute
+  shuffle            shuffle the playlist order
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
   status             show what's running
@@ -96,6 +98,14 @@ case $cmd in
   pause)
     as_root
     mpv_cmd 'cycle pause'
+    ;;
+  mute)
+    as_root
+    mpv_cmd 'cycle mute'
+    ;;
+  shuffle)
+    as_root
+    mpv_cmd 'playlist-shuffle'
     ;;
   next)
     as_root

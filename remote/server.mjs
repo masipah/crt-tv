@@ -16,7 +16,7 @@ const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'publ
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
-const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev']);
+const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle']);
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
@@ -81,12 +81,13 @@ async function status() {
   let playing = null;
   if (player) {
     const p = await mpvQuery([
-      'media-title', 'pause', 'time-pos', 'duration', 'playlist-pos-1', 'playlist-count',
+      'media-title', 'pause', 'mute', 'time-pos', 'duration', 'playlist-pos-1', 'playlist-count',
     ]);
     if (p) {
       playing = {
         title: p['media-title'] ?? '',
         paused: p.pause ?? false,
+        muted: p.mute ?? false,
         timePos: p['time-pos'] ?? null,
         duration: p.duration ?? null,
         playlistPos: p['playlist-pos-1'] ?? null,
@@ -201,6 +202,14 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'PUT' && pathname === '/api/upload') {
       await handleUpload(req, res, url);
+    } else if (req.method === 'DELETE' && pathname === '/api/media') {
+      const rel = url.searchParams.get('path') ?? '';
+      const abs = resolveMedia(rel);
+      const st = await fs.stat(abs).catch(() => null);
+      if (!st) return sendJson(res, 404, { error: `not found: ${rel}` });
+      if (!st.isFile()) return sendJson(res, 400, { error: 'only files can be deleted' });
+      await fs.rm(abs);
+      sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/play') {
       const { paths } = JSON.parse(await readBody(req) || '{}');
       if (!Array.isArray(paths) || paths.length === 0) {
