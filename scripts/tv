@@ -23,7 +23,8 @@ usage: tv <command>
   weather            show the WeatherStar 4000+
   play <path>...     play videos (a single library file continues through the
                      whole library from there; lists/folders play as given)
-  break [secs]       cut to the weather, then back to the video (default 120s)
+  break [secs]       cut to the weather now, then back to the video (default 120s)
+  autobreak [on|off] weather for 2 min after every 5 videos (no arg: toggle)
   pause              toggle pause
   mute               toggle mute
   shuffle            shuffle the playlist order
@@ -142,11 +143,33 @@ case $cmd in
     pos=$(mpv_get playlist-pos)
     time_pos=$(mpv_get time-pos)
     printf '%s %s\n' "${pos:-0}" "${time_pos:-0}" >"$RUN_DIR/resume"
-    systemctl restart weather-kiosk.service
     systemd-run --quiet --collect --unit=crt-weatherbreak \
       --on-active="${secs}s" --timer-property=AccuracySec=1s \
       /usr/local/bin/tv resume
+    # Timer first, switch queued last with --no-block: when mpv's auto-break
+    # script calls us, stopping the player kills this very process — make
+    # sure everything is scheduled before that happens.
+    systemctl --no-block restart weather-kiosk.service
     echo "weather for ${secs}s, then back to the video"
+    ;;
+  autobreak)
+    as_root
+    case ${1:-toggle} in
+      on) printf '5\n' >"$RUN_DIR/autobreak" ;;
+      off) rm -f "$RUN_DIR/autobreak" ;;
+      *)
+        if [[ -f $RUN_DIR/autobreak ]]; then
+          rm -f "$RUN_DIR/autobreak"
+        else
+          printf '5\n' >"$RUN_DIR/autobreak"
+        fi
+        ;;
+    esac
+    if [[ -f $RUN_DIR/autobreak ]]; then
+      echo "auto weather break: ON (2 min of weather after every 5 videos)"
+    else
+      echo "auto weather break: OFF"
+    fi
     ;;
   resume)
     as_root
