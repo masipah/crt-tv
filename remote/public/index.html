@@ -66,7 +66,6 @@
   <h2>Channels</h2>
   <div class="row">
     <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
-    <button id="btn-retro" onclick="post('/api/tv/retro')">Retro 3000+</button>
     <button id="btn-off" onclick="post('/api/tv/stop')">Blank screen</button>
   </div>
 
@@ -90,7 +89,7 @@
   <div id="upload-status"></div>
   <progress id="upload-bar" max="100" value="0"></progress>
 
-  <footer>ws4kp :8080 · ws3kp :8083 · also available via the <code>tv</code> command on the Pi</footer>
+  <footer>ws4kp :8080 · also available via the <code>tv</code> command on the Pi</footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -116,7 +115,6 @@
 
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
-    retro: 'Now showing: WeatherStar 3000+',
     video: 'Now showing: video',
     off: 'Screen blank',
   };
@@ -140,7 +138,6 @@
     }
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('on', st.mode === 'weather');
-    $('btn-retro').classList.toggle('on', st.mode === 'retro');
     $('btn-off').classList.toggle('on', st.mode === 'off');
     for (const b of ['btn-prev', 'btn-pause', 'btn-next']) {
       $(b).disabled = st.mode !== 'video';
