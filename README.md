@@ -55,7 +55,8 @@ ws4kp/ws3kp store their settings in the browser. Two ways to set them:
 - **Permalink** (headless): open `http://<pi-address>:8080/` from your laptop,
   configure everything, copy the permalink/share URL, then put it in
   `/etc/crt-tv/crt-tv.env` as `KIOSK_URL` (change the host to `127.0.0.1:8080`)
-  and run `tv weather`.
+  and run `tv weather`. Same for the 3000+: configure at
+  `http://<pi-address>:8083/` and put its permalink in `KIOSK_URL_3000`.
 
 ## Usage
 

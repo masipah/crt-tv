@@ -61,8 +61,12 @@ case $cmd in
     ;;
   retro | 3000)
     as_root
-    url=$(env_get KIOSK_URL)
-    [[ $url == *:8083* ]] || url=http://127.0.0.1:8083/
+    # Dedicated 3000+ URL wins; else reuse KIOSK_URL when it's a ws3kp one
+    url=$(env_get KIOSK_URL_3000)
+    if [[ -z $url ]]; then
+      url=$(env_get KIOSK_URL)
+      [[ $url == *:8083* ]] || url=http://127.0.0.1:8083/
+    fi
     printf 'KIOSK_URL=%s\n' "$url" >"$KIOSK_ENV"
     systemctl restart weather-kiosk.service
     ;;
