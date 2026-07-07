@@ -16,7 +16,7 @@ const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'publ
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
-const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'weatherbreak']);
+const TV_COMMANDS = new Set(['weather', 'stop', 'pause', 'next', 'prev', 'mute', 'shuffle', 'weatherbreak', 'autobreak']);
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
@@ -69,10 +69,11 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player] = await Promise.all([
+  const [ws4kp, kiosk, player, autoBreak] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
+    fs.access('/run/crt-tv/autobreak').then(() => true, () => false),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
@@ -95,7 +96,7 @@ async function status() {
       };
     }
   }
-  return { units: { ws4kp, kiosk, player }, mode, playing };
+  return { units: { ws4kp, kiosk, player }, mode, playing, autoBreak };
 }
 
 async function listMedia() {
