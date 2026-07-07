@@ -89,7 +89,7 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ```text
 setup/      install.sh (run once with sudo) + boot config for composite 480i
-systemd/    ws4kp, ws3kp, weather-kiosk (cage+chromium), crt-player (mpv), crt-remote
+systemd/    ws4kp, ws3kp, weather-kiosk (chromium kiosk under X), crt-player (mpv), crt-remote
 scripts/    tv control command, kiosk launcher
 remote/     web remote (zero-dependency Node server + single-page UI on :8090)
 docs/       hardware wiring, composite video deep-dive & troubleshooting

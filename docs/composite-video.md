@@ -53,7 +53,14 @@ journalctl -b | grep -iE 'composite|vc4'
 If the screen is black but `tv status` shows weather-kiosk running, check
 `journalctl -u weather-kiosk -b` — the usual suspects are Chromium missing or
 the `crt` user lacking `video`/`render` group membership (re-run
-`setup/install.sh`).
+`setup/install.sh`). Run `tv doctor` for a full diagnostic dump.
+
+**Why X11 and not Wayland for the kiosk?** wlroots-based compositors (cage,
+sway, labwc) refuse interlaced modes outright — on a connector that only
+offers 480i/576i they hang without ever presenting a frame. X's modesetting
+driver sets interlaced modes without complaint, so the kiosk runs Chromium in
+a bare X session. mpv talks straight to KMS and handles 480i fine, so the
+video player needs no X.
 
 ## Audio
 

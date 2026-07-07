@@ -1,5 +1,5 @@
 [Unit]
-Description=Weather kiosk (Chromium in cage on composite out)
+Description=Weather kiosk (Chromium under X on composite out)
 After=systemd-user-sessions.service network-online.target ws4kp.service ws3kp.service getty@tty1.service
 Wants=network-online.target
 Conflicts=getty@tty1.service crt-player.service
@@ -22,6 +22,7 @@ EnvironmentFile=-/run/crt-tv/kiosk.env
 ExecStart=/usr/local/lib/crt-tv/kiosk.sh
 Restart=always
 RestartSec=3
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
