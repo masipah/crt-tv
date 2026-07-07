@@ -30,9 +30,13 @@ fi
 
 echo "==> Installing packages"
 apt-get update
-apt-get install -y git curl nodejs npm mpv cage socat alsa-utils
+apt-get install -y git curl nodejs npm mpv socat alsa-utils \
+  xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
 # Package name differs between Debian (chromium) and some RPi OS builds
 apt-get install -y chromium || apt-get install -y chromium-browser
+
+# Let the crt service user start X on tty1 without being root
+printf 'allowed_users=anybody\nneeds_root_rights=yes\n' > /etc/X11/Xwrapper.config
 
 echo "==> Creating service user 'crt'"
 if ! id crt &>/dev/null; then
@@ -65,6 +69,7 @@ systemd-tmpfiles --create /etc/tmpfiles.d/crt-tv.conf
 
 install -d /usr/local/lib/crt-tv
 install -m 755 "$REPO_DIR/scripts/kiosk.sh" /usr/local/lib/crt-tv/kiosk.sh
+install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
@@ -80,8 +85,9 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable ws4kp.service ws3kp.service weather-kiosk.service crt-remote.service
-# Safe to (re)start before the composite reboot — these don't touch the display
 systemctl restart ws4kp.service ws3kp.service crt-remote.service
+# Restart the kiosk too so display-stack changes take effect on re-runs
+systemctl restart weather-kiosk.service
 
 install -d -m 775 -o crt -g crt /srv/media
 
