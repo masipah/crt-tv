@@ -1,0 +1,12 @@
+/* Injected at document_start (before first paint) into the kiosk's ws4kp
+ * pages. ws4kp applies the .kiosk class to <body> once its JS initializes;
+ * until then the raw page layout (location bar, scrollbars) would flash on
+ * screen. Keep everything black-on-hidden until that class lands. */
+html {
+  background: #000 !important;
+}
+
+body:not(.kiosk) {
+  visibility: hidden !important;
+  background: #000 !important;
+}

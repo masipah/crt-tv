@@ -11,10 +11,17 @@ xset s off -dpms || true
 # Chromium ignores --lang and reads the locale from the environment.
 export LANGUAGE=en_US:en LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
+# The kiosk-ext content script hides ws4kp until its kiosk layout is applied,
+# killing the startup flash of the un-scaled page; default-background-color
+# kills Chromium's own white flash. DisableLoadExtensionCommandLineSwitch must
+# be off for --load-extension to work on newer Chromium.
 # shellcheck disable=SC2086  # KIOSK_FLAGS is intentionally word-split
 exec "$BROWSER" \
   --kiosk "$URL" \
   --window-position=0,0 \
+  --default-background-color=000000 \
+  --load-extension=/usr/local/lib/crt-tv/kiosk-ext \
+  --disable-features=DisableLoadExtensionCommandLineSwitch \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
