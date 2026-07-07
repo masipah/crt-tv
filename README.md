@@ -75,12 +75,22 @@ tv status           # what's running
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
 seamless — starting one stops the other via systemd `Conflicts=`.
 
+### Web remote
+
+Open `http://<pi-address>:8090/` from any browser on your network for a
+remote control: switch channels, browse and play the video library
+(`MEDIA_DIR`), pause/skip, and see what's on. It's the same `tv` command
+underneath, so the CLI and the web UI never disagree.
+
+No authentication — it's meant for your LAN. Don't port-forward it.
+
 ## Layout
 
 ```text
 setup/      install.sh (run once with sudo) + boot config for composite 480i
-systemd/    ws4kp, ws3kp, weather-kiosk (cage+chromium), crt-player (mpv)
+systemd/    ws4kp, ws3kp, weather-kiosk (cage+chromium), crt-player (mpv), crt-remote
 scripts/    tv control command, kiosk launcher
+remote/     web remote (zero-dependency Node server + single-page UI on :8090)
 docs/       hardware wiring, composite video deep-dive & troubleshooting
 ```
 
