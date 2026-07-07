@@ -3,168 +3,348 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CRT-TV Remote</title>
+<title>CRT-TV</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="CRT-TV">
 <style>
+  :root {
+    --bg: #f2f2f7;
+    --card: #ffffff;
+    --text: #1c1c1e;
+    --sub: #8e8e93;
+    --line: rgba(60, 60, 67, 0.12);
+    --tint: #e9e9ec;
+    --accent: #007aff;
+    --danger: #ff3b30;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card: #1c1c1e;
+      --text: #ffffff;
+      --sub: #98989f;
+      --line: rgba(84, 84, 88, 0.5);
+      --tint: #2c2c2e;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    font-family: system-ui, sans-serif;
-    max-width: 640px;
+    font-family: system-ui, -apple-system, sans-serif;
     margin: 0 auto;
-    /* breathe around notches/home bar when running as a home-screen app */
-    padding: calc(16px + env(safe-area-inset-top))
+    max-width: 560px;
+    padding: calc(10px + env(safe-area-inset-top))
       calc(16px + env(safe-area-inset-right))
-      calc(16px + env(safe-area-inset-bottom))
+      calc(28px + env(safe-area-inset-bottom))
       calc(16px + env(safe-area-inset-left));
-    color: #222;
-    background: #fff;
+    color: var(--text);
+    background: var(--bg);
   }
-  button, select, input { touch-action: manipulation; }
-  h1 { font-size: 1.3rem; margin: 8px 0 16px; }
-  h2 {
-    font-size: 1rem;
-    margin: 28px 0 10px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #ddd;
-  }
-  #now { margin: 0; padding: 12px; background: #f3f4f6; border-radius: 6px; }
-  #now-title { font-size: 0.9rem; color: #555; margin-top: 4px; overflow-wrap: anywhere; }
-  #pos { width: 100%; margin-top: 8px; display: none; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .row button { flex: 1; min-width: 110px; }
-  button {
-    font: inherit;
-    padding: 10px 12px;
-    cursor: pointer;
-    background: #fff;
-    border: 1px solid #bbb;
-    border-radius: 6px;
-  }
-  button:disabled { opacity: 0.4; cursor: default; }
-  button.on { background: #2563eb; border-color: #2563eb; color: #fff; }
-  #error { color: #b91c1c; min-height: 1.2em; margin: 10px 0 0; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 2px;
-    border-bottom: 1px solid #eee;
-  }
-  select { font: inherit; padding: 8px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
-  li.folder .name { font-weight: 600; }
-  .name { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
-  #videos-list .name, #commercials-list .name {
-    cursor: pointer;
-    text-decoration: underline dotted #ccc;
-    text-underline-offset: 3px;
-  }
-  li button { padding: 5px 12px; flex: none; }
-  button.danger { color: #b91c1c; border-color: #dfa8a8; }
+  h1 { font-size: 1.7rem; margin: 10px 2px 14px; letter-spacing: -0.02em; }
+  button, input, select { font: inherit; touch-action: manipulation; }
+  button { border: 0; background: none; color: inherit; padding: 0; cursor: pointer; }
   [hidden] { display: none !important; }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  /* now showing */
+  #mode { font-weight: 600; }
+  #now-title {
+    color: var(--sub);
+    font-size: 0.88rem;
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #pos {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    margin-top: 10px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--tint);
+    display: none;
+  }
+  #pos::-webkit-progress-bar { background: var(--tint); border-radius: 2px; }
+  #pos::-webkit-progress-value { background: var(--accent); border-radius: 2px; }
+  #error { color: var(--danger); font-size: 0.85rem; min-height: 1.1em; margin: 0 2px 10px; }
+
+  /* segmented control */
+  .seg {
+    display: flex;
+    background: var(--tint);
+    border-radius: 10px;
+    padding: 2px;
+    margin-bottom: 14px;
+  }
+  .seg button {
+    flex: 1;
+    padding: 9px 6px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  .seg button.active { background: var(--card); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+
+  /* transport + mode chips */
+  .transport { display: flex; justify-content: center; gap: 22px; margin: 2px 0 12px; }
+  .transport button {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--tint);
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .transport button:active { filter: brightness(0.9); }
+  .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--tint);
+    font-size: 0.88rem;
+    font-weight: 500;
+  }
+  .chip.on { background: var(--accent); color: #fff; }
+  button:disabled { opacity: 0.35; }
+
+  /* sections + lists */
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 4px 2px 6px;
+  }
+  .sec-head h2 { font-size: 1.15rem; margin: 0; flex: 1; letter-spacing: -0.01em; }
+  .link { color: var(--accent); font-weight: 500; font-size: 0.92rem; }
+  .hint { color: var(--sub); font-size: 0.8rem; margin: 0 2px 8px; }
+  ul.list {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    background: var(--card);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  ul.list:empty { display: none; }
+  ul.list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 8px 13px 16px;
+    position: relative;
+  }
+  ul.list li + li::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 16px; right: 0;
+    border-top: 0.5px solid var(--line);
+  }
+  ul.list li:active { background: var(--tint); }
+  .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
+  }
   .drag {
-    cursor: grab;
+    color: var(--sub);
+    font-size: 1.15rem;
+    padding: 6px 14px;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    color: #999;
-    font-size: 1.2rem;
-    padding: 4px 10px 4px 2px;
+    cursor: grab;
   }
+  .row-x { color: var(--sub); font-size: 1rem; padding: 6px 14px; }
   li.dragging {
-    opacity: 0.75;
-    background: #eef2ff;
-    transition: none;
-    position: relative;
+    opacity: 0.85;
+    background: var(--tint);
     z-index: 5;
+    transition: none;
+    border-radius: 10px;
   }
   .drag-shift { transition: transform 0.12s ease; }
-  #upload-status { font-size: 0.9rem; color: #555; margin-top: 8px; }
-  #upload-bar { width: 100%; margin-top: 6px; display: none; }
-  .hint { font-size: 0.85rem; color: #777; }
-  footer { margin: 32px 0 8px; font-size: 0.8rem; color: #999; }
+
+  .btn-primary {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    padding: 13px;
+    border-radius: 12px;
+  }
+  .btn-primary:active { filter: brightness(0.9); }
+
+  /* upload */
+  #upload-status { margin-top: 8px; }
+  #upload-bar {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--tint);
+    margin-top: 8px;
+  }
+  #upload-bar::-webkit-progress-bar { background: var(--tint); border-radius: 2px; }
+  #upload-bar::-webkit-progress-value { background: var(--accent); border-radius: 2px; }
+
+  footer {
+    margin-top: 26px;
+    text-align: center;
+    color: var(--sub);
+    font-size: 0.78rem;
+  }
+  footer button { color: var(--danger); font-size: 0.85rem; font-weight: 500; margin-top: 10px; }
+
+  /* bottom action sheet */
+  #sheet-root .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    z-index: 20;
+  }
+  #sheet-root .sheet {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 21;
+    transform: translateY(110%);
+    transition: transform 0.22s ease;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+  #sheet-root.open .backdrop { opacity: 1; }
+  #sheet-root.open .sheet { transform: translateY(0); }
+  .sheet-group { background: var(--card); border-radius: 14px; overflow: hidden; }
+  .sheet-title {
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    color: var(--sub);
+    text-align: center;
+    overflow-wrap: anywhere;
+    border-bottom: 0.5px solid var(--line);
+  }
+  .sheet-group button {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    font-size: 1.02rem;
+    color: var(--accent);
+    text-align: center;
+  }
+  .sheet-group button + button { border-top: 0.5px solid var(--line); }
+  .sheet-group button.danger { color: var(--danger); }
+  .sheet-cancel {
+    margin-top: 8px;
+    background: var(--card);
+    border-radius: 14px;
+    width: 100%;
+    padding: 15px;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
 </style>
 </head>
 <body>
-  <h1>CRT-TV Remote</h1>
+  <h1>CRT-TV</h1>
 
-  <p id="now">
-    <span id="mode">…</span>
-    <span id="now-title"></span>
+  <div class="card">
+    <div id="mode">…</div>
+    <div id="now-title"></div>
     <progress id="pos" max="100" value="0"></progress>
-  </p>
+  </div>
   <p id="error"></p>
 
-  <h2>Channels</h2>
-  <div class="row">
+  <div class="seg" id="channels">
     <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
-    <button id="btn-off" onclick="post('/api/tv/stop')">Blank screen</button>
+    <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
+    <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
   </div>
 
-  <h2>Player</h2>
-  <div class="row">
-    <button id="btn-prev" onclick="post('/api/tv/prev')">&#9198; Previous</button>
-    <button id="btn-pause" onclick="post('/api/tv/pause')">&#9199; Pause</button>
-    <button id="btn-next" onclick="post('/api/tv/next')">&#9197; Next</button>
-    <button id="btn-mute" onclick="post('/api/tv/mute')"
-            title="Mutes the whole TV — weather music and videos">&#128263; Mute</button>
-    <button id="btn-shuffle" onclick="post('/api/tv/shuffle')"
-            title="Shuffles the videos only — commercials keep their own rotation">&#128256; Shuffle</button>
-    <button id="btn-nocomm" onclick="post('/api/tv/commercials')"
-            title="While lit, no commercials play">&#128683; No commercials</button>
+  <div class="card">
+    <div class="transport">
+      <button id="btn-prev" onclick="post('/api/tv/prev')" aria-label="Previous">&#9198;</button>
+      <button id="btn-pause" onclick="post('/api/tv/pause')" aria-label="Play/Pause">&#9199;</button>
+      <button id="btn-next" onclick="post('/api/tv/next')" aria-label="Next">&#9197;</button>
+    </div>
+    <div class="chips">
+      <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
+      <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
+      <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
+    </div>
   </div>
 
-  <h2>Videos — the channel</h2>
-  <p class="hint">Plays top to bottom and loops, with one random commercial
-    after every 4th video. This order persists — drag &#8801; to rearrange,
-    tap a name to rename.</p>
-  <div class="row" style="margin-bottom: 8px">
-    <button onclick="post('/api/play', { paths: ['videos'] })">&#9654; Play videos</button>
+  <div class="sec-head">
+    <h2>Channel</h2>
   </div>
-  <ul id="videos-list"></ul>
+  <p class="hint">Loops in this order, one random commercial after every 4th
+    video. Drag &#8801; to reorder, tap a row for actions.</p>
+  <ul class="list" id="videos-list"></ul>
   <p id="videos-empty" class="hint" hidden>No videos yet — upload some below.</p>
 
-  <h2>Commercials</h2>
-  <p class="hint">One plays at random after every 4th video — unless the
-    "No commercials" button is lit.</p>
-  <ul id="commercials-list"></ul>
-  <p id="commercials-empty" class="hint" hidden>No commercials yet — upload some below.</p>
+  <div class="sec-head">
+    <h2>Commercials</h2>
+  </div>
+  <ul class="list" id="commercials-list"></ul>
+  <p id="commercials-empty" class="hint" hidden>No commercials yet — the channel plays uninterrupted.</p>
 
-  <h2 id="queue-h" hidden>Play queue (one-off — for live mixing)</h2>
-  <ul id="queue-list"></ul>
-  <div class="row" id="queue-actions" hidden>
-    <button onclick="playQueue()">&#9654; Play queue</button>
-    <button onclick="clearQueue()">Clear queue</button>
+  <div id="queue-sec" hidden>
+    <div class="sec-head">
+      <h2>Queue</h2>
+      <button class="link" onclick="playQueue()">Play</button>
+      <button class="link" onclick="clearQueue()">Clear</button>
+    </div>
+    <p class="hint">One-off list for live mixing — doesn't touch the channel order.</p>
+    <ul class="list" id="queue-list"></ul>
   </div>
 
-  <h2>Upload</h2>
-  <div class="row" style="margin-bottom: 8px">
-    <label for="upload-dir" class="hint" style="align-self: center">Into:</label>
-    <select id="upload-dir">
-      <option value="videos">Videos</option>
-      <option value="commercials">Commercials</option>
-    </select>
-  </div>
-  <input type="file" id="file-input" multiple
-         accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
-  <p class="hint">Files land in the video library. Big files take a while over Wi-Fi — keep this page open.</p>
-  <div id="upload-status"></div>
-  <progress id="upload-bar" max="100" value="0"></progress>
-
-  <h2>System</h2>
-  <div class="row">
-    <button class="danger" onclick="if (confirm('Reboot the Pi? The TV goes dark for about a minute, then starts the boot rotation.')) post('/api/tv/reboot')">&#8635; Reboot Pi</button>
+  <div class="sec-head"><h2>Upload</h2></div>
+  <div class="card">
+    <div class="seg" id="upload-seg" style="margin-bottom: 12px">
+      <button class="active" data-bucket="videos">Videos</button>
+      <button data-bucket="commercials">Commercials</button>
+    </div>
+    <label class="btn-primary">
+      Choose videos…
+      <input type="file" id="file-input" hidden multiple
+             accept=".mp4,.mkv,.avi,.mov,.m4v,.mpg,.mpeg,.ts,.webm,video/*">
+    </label>
+    <div id="upload-status" class="hint"></div>
+    <progress id="upload-bar" max="100" value="0" hidden></progress>
   </div>
 
-  <footer>ws4kp :8080 · also available via the <code>tv</code> command on the Pi</footer>
+  <footer>
+    ws4kp :8080 · also on the Pi as the <code>tv</code> command<br>
+    <button onclick="if (confirm('Reboot the Pi? The TV goes dark for about a minute.')) post('/api/tv/reboot')">Reboot Pi</button>
+  </footer>
+
+  <div id="sheet-root" hidden></div>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -190,8 +370,8 @@
 
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
-    video: 'Now showing: video',
-    off: 'Screen blank',
+    video: 'Now showing: videos',
+    off: 'Screen off',
   };
 
   const fmt = (s) => {
@@ -212,8 +392,9 @@
       return;
     }
     $('mode').textContent = MODE_LABEL[st.mode];
-    $('btn-weather').classList.toggle('on', st.mode === 'weather');
-    $('btn-off').classList.toggle('on', st.mode === 'off');
+    $('btn-weather').classList.toggle('active', st.mode === 'weather');
+    $('btn-video').classList.toggle('active', st.mode === 'video');
+    $('btn-off').classList.toggle('active', st.mode === 'off');
     for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle', 'btn-nocomm']) {
       $(b).disabled = st.mode !== 'video';
     }
@@ -227,14 +408,51 @@
       $('now-title').textContent = (p.paused ? '⏸ ' : '') + p.title + pos + time;
       $('pos').style.display = p.duration ? 'block' : 'none';
       if (p.duration) $('pos').value = 100 * p.timePos / p.duration;
-      $('btn-pause').classList.toggle('on', p.paused);
     } else {
       $('now-title').textContent = '';
       $('pos').style.display = 'none';
-      $('btn-pause').classList.remove('on');
     }
   }
 
+  // ---- bottom action sheet ------------------------------------------------
+  function openSheet(title, actions) {
+    const root = $('sheet-root');
+    root.hidden = false;
+    root.innerHTML = '';
+    const backdrop = document.createElement('div');
+    backdrop.className = 'backdrop';
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    const group = document.createElement('div');
+    group.className = 'sheet-group';
+    const t = document.createElement('div');
+    t.className = 'sheet-title';
+    t.textContent = title;
+    group.append(t);
+    for (const a of actions) {
+      const b = document.createElement('button');
+      b.textContent = a.label;
+      if (a.danger) b.className = 'danger';
+      b.onclick = () => { closeSheet(); a.fn(); };
+      group.append(b);
+    }
+    const cancel = document.createElement('button');
+    cancel.className = 'sheet-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.onclick = closeSheet;
+    sheet.append(group, cancel);
+    backdrop.onclick = (e) => { if (e.target === backdrop) closeSheet(); };
+    root.append(backdrop, sheet);
+    requestAnimationFrame(() => root.classList.add('open'));
+  }
+
+  function closeSheet() {
+    const root = $('sheet-root');
+    root.classList.remove('open');
+    setTimeout(() => { root.hidden = true; root.innerHTML = ''; }, 220);
+  }
+
+  // ---- library ------------------------------------------------------------
   let lib = { videos: [], commercials: [] };
 
   async function loadMedia() {
@@ -243,84 +461,15 @@
     renderBucket('commercials');
   }
 
-  // Touch- and mouse-friendly vertical drag. Built for smoothness: row
-  // geometry is measured once at grab time, all movement is transform-only
-  // (no reflow), rendering is capped at one pass per animation frame, and
-  // the DOM is mutated exactly once, on release. Dragging near the viewport
-  // edge auto-scrolls so long lists stay draggable.
-  function dragHandle(li, onDrop) {
-    const h = document.createElement('span');
-    h.className = 'drag';
-    h.textContent = '≡';
-    h.title = 'Drag to rearrange';
-    h.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      try { h.setPointerCapture(e.pointerId); } catch {}
-      const list = li.parentElement;
-      const rows = [...list.children];
-      const from = rows.indexOf(li);
-      const others = rows.filter((r) => r !== li);
-      const scroll0 = window.scrollY;
-      const rects = rows.map((r) => r.getBoundingClientRect());
-      const top = rects.map((r) => r.top + scroll0);   // document coords
-      const hgt = rects.map((r) => r.height);
-      const startDocY = e.clientY + scroll0;
-      let clientY = e.clientY;
-      let target = from;
-      let active = true;
-
-      li.classList.add('dragging');
-      others.forEach((r) => r.classList.add('drag-shift'));
-
-      const render = () => {
-        const dy = clientY + window.scrollY - startDocY;
-        li.style.transform = `translateY(${dy}px)`;
-        const center = top[from] + hgt[from] / 2 + dy;
-        let t = 0;
-        rows.forEach((r, i) => {
-          if (i !== from && center > top[i] + hgt[i] / 2) t += 1;
-        });
-        target = t;
-        rows.forEach((r, i) => {
-          if (i === from) return;
-          const oi = i < from ? i : i - 1; // index among the other rows
-          let shift = 0;
-          if (i > from && oi < t) shift = -hgt[from];
-          if (i < from && oi >= t) shift = hgt[from];
-          r.style.transform = shift ? `translateY(${shift}px)` : '';
-        });
-      };
-
-      const tick = () => {
-        if (!active) return;
-        const m = 70; // auto-scroll when the pointer nears the viewport edge
-        if (clientY < m) window.scrollBy(0, -Math.ceil((m - clientY) / 4));
-        else if (clientY > window.innerHeight - m) {
-          window.scrollBy(0, Math.ceil((clientY - (window.innerHeight - m)) / 4));
-        }
-        render();
-        requestAnimationFrame(tick);
-      };
-
-      const move = (ev) => { clientY = ev.clientY; };
-      const finish = () => {
-        active = false;
-        render(); // final position, even if no animation frame ever ran
-        h.removeEventListener('pointermove', move);
-        li.classList.remove('dragging');
-        rows.forEach((r) => {
-          r.classList.remove('drag-shift');
-          r.style.transform = '';
-        });
-        if (target !== from) list.insertBefore(li, others[target] ?? null);
-        onDrop();
-      };
-      h.addEventListener('pointermove', move);
-      h.addEventListener('pointerup', finish, { once: true });
-      h.addEventListener('pointercancel', finish, { once: true });
-      requestAnimationFrame(tick);
-    });
-    return h;
+  function rowActions(bucket, rel, n) {
+    const other = bucket === 'videos' ? 'commercials' : 'videos';
+    openSheet(n, [
+      { label: 'Play now', fn: () => play(rel) },
+      { label: 'Add to queue', fn: () => addToQueue(rel) },
+      { label: 'Rename…', fn: () => renameFile(rel, n) },
+      { label: `Move to ${other}`, fn: () => libAction('/api/move', { from: rel, to: other }) },
+      { label: 'Delete…', danger: true, fn: () => del(rel) },
+    ]);
   }
 
   function renderBucket(bucket) {
@@ -335,8 +484,7 @@
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = n;
-      name.title = 'Tap to rename';
-      name.onclick = () => renameFile(rel, n);
+      li.append(name);
       if (bucket === 'videos') {
         li.append(dragHandle(li, () => {
           const order = [...list.children].map((el) => el.dataset.name);
@@ -345,22 +493,11 @@
           }
         }));
       }
-      li.append(
-        name,
-        btn('Queue', () => addToQueue(rel)),
-        btn('Play', () => play(rel)),
-        btn(bucket === 'videos' ? '→ Comm.' : '→ Videos',
-          () => libAction('/api/move', {
-            from: rel,
-            to: bucket === 'videos' ? 'commercials' : 'videos',
-          })),
-        btn('✕', () => del(rel), 'danger'),
-      );
+      li.onclick = () => rowActions(bucket, rel, n);
       list.append(li);
     }
   }
 
-  // POST a library mutation, surface errors, refresh the listing
   async function libAction(url, body) {
     err('');
     try {
@@ -375,14 +512,6 @@
       err(e.message);
     }
     loadMedia();
-  }
-
-  function btn(label, fn, cls) {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.onclick = fn;
-    if (cls) b.className = cls;
-    return b;
   }
 
   function renameFile(rel, current) {
@@ -406,12 +535,90 @@
     loadMedia();
   }
 
+  // ---- drag to reorder ----------------------------------------------------
+  // Geometry cached at grab, transform-only movement rendered once per
+  // frame, single DOM write on release, edge auto-scroll.
+  function dragHandle(li, onDrop) {
+    const h = document.createElement('span');
+    h.className = 'drag';
+    h.textContent = '≡';
+    h.onclick = (e) => e.stopPropagation();
+    h.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { h.setPointerCapture(e.pointerId); } catch {}
+      const list = li.parentElement;
+      const rows = [...list.children];
+      const from = rows.indexOf(li);
+      const others = rows.filter((r) => r !== li);
+      const scroll0 = window.scrollY;
+      const rects = rows.map((r) => r.getBoundingClientRect());
+      const top = rects.map((r) => r.top + scroll0);
+      const hgt = rects.map((r) => r.height);
+      const startDocY = e.clientY + scroll0;
+      let clientY = e.clientY;
+      let target = from;
+      let active = true;
+
+      li.classList.add('dragging');
+      others.forEach((r) => r.classList.add('drag-shift'));
+
+      const render = () => {
+        const dy = clientY + window.scrollY - startDocY;
+        li.style.transform = `translateY(${dy}px)`;
+        const center = top[from] + hgt[from] / 2 + dy;
+        let t = 0;
+        rows.forEach((r, i) => {
+          if (i !== from && center > top[i] + hgt[i] / 2) t += 1;
+        });
+        target = t;
+        rows.forEach((r, i) => {
+          if (i === from) return;
+          const oi = i < from ? i : i - 1;
+          let shift = 0;
+          if (i > from && oi < t) shift = -hgt[from];
+          if (i < from && oi >= t) shift = hgt[from];
+          r.style.transform = shift ? `translateY(${shift}px)` : '';
+        });
+      };
+
+      const tick = () => {
+        if (!active) return;
+        const m = 70;
+        if (clientY < m) window.scrollBy(0, -Math.ceil((m - clientY) / 4));
+        else if (clientY > window.innerHeight - m) {
+          window.scrollBy(0, Math.ceil((clientY - (window.innerHeight - m)) / 4));
+        }
+        render();
+        requestAnimationFrame(tick);
+      };
+
+      const move = (ev) => { clientY = ev.clientY; };
+      const finish = () => {
+        active = false;
+        render();
+        h.removeEventListener('pointermove', move);
+        li.classList.remove('dragging');
+        rows.forEach((r) => {
+          r.classList.remove('drag-shift');
+          r.style.transform = '';
+        });
+        if (target !== from) list.insertBefore(li, others[target] ?? null);
+        onDrop();
+      };
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', finish, { once: true });
+      h.addEventListener('pointercancel', finish, { once: true });
+      requestAnimationFrame(tick);
+    });
+    return h;
+  }
+
+  // ---- queue ----------------------------------------------------------
   let queue = [];
 
   function renderQueue() {
-    const has = queue.length > 0;
-    $('queue-h').hidden = !has;
-    $('queue-actions').hidden = !has;
+    $('queue-sec').hidden = queue.length === 0;
     const list = $('queue-list');
     list.innerHTML = '';
     queue.forEach((path, i) => {
@@ -419,14 +626,22 @@
       li.dataset.path = path;
       const name = document.createElement('span');
       name.className = 'name';
-      name.textContent = `${i + 1}. ${path}`;
+      name.textContent = `${i + 1}.  ${path.split('/').pop()}`;
+      const x = document.createElement('button');
+      x.className = 'row-x';
+      x.textContent = '✕';
+      x.onclick = (e) => {
+        e.stopPropagation();
+        queue.splice(i, 1);
+        renderQueue();
+      };
       li.append(
+        name,
+        x,
         dragHandle(li, () => {
           queue = [...list.children].map((el) => el.dataset.path);
           renderQueue();
         }),
-        name,
-        btn('✕', () => { queue.splice(i, 1); renderQueue(); }, 'danger'),
       );
       list.append(li);
     });
@@ -446,11 +661,22 @@
     post('/api/play', { paths: queue });
   }
 
+  // ---- upload ---------------------------------------------------------
+  let uploadBucket = 'videos';
+  $('upload-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    uploadBucket = b.dataset.bucket;
+    for (const btn of $('upload-seg').children) {
+      btn.classList.toggle('active', btn === b);
+    }
+  });
+
   function uploadOne(file, label) {
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name)
-        + '&dir=' + encodeURIComponent($('upload-dir').value));
+        + '&dir=' + encodeURIComponent(uploadBucket));
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable) {
           const pct = Math.round(100 * ev.loaded / ev.total);
@@ -461,11 +687,9 @@
       xhr.onload = () => {
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch {}
-        if (xhr.status === 200) {
-          $('upload-status').textContent = `Uploaded ${data.name}`;
-        } else {
-          $('upload-status').textContent = `Upload failed: ${data.error || xhr.statusText}`;
-        }
+        $('upload-status').textContent = xhr.status === 200
+          ? `Uploaded ${data.name} to ${uploadBucket}`
+          : `Upload failed: ${data.error || xhr.statusText}`;
         resolve();
       };
       xhr.onerror = () => {
@@ -480,12 +704,12 @@
     const files = [...e.target.files];
     if (!files.length) return;
     $('file-input').disabled = true;
-    $('upload-bar').style.display = 'block';
+    $('upload-bar').hidden = false;
     for (let i = 0; i < files.length; i += 1) {
       await uploadOne(files[i], `${i + 1} of ${files.length}`);
       await loadMedia();
     }
-    $('upload-bar').style.display = 'none';
+    $('upload-bar').hidden = true;
     $('file-input').disabled = false;
     e.target.value = '';
   });
