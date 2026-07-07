@@ -8,10 +8,14 @@ set -euo pipefail
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
 # ws4kp/ws3kp kiosk mode: no location bar, no toolbar, display scaled to fill
-# the screen (no scrollbars). Appended unless the URL already sets it.
-if [[ $URL != *kiosk=* ]]; then
+# the screen (no scrollbars). Appended unless the URL already has a standalone
+# kiosk= parameter. Careful: permalinks contain settings-kiosk-checkbox=false,
+# which must NOT count as a match — ws4kp gives an explicit kiosk= priority.
+if [[ $URL != *['?&']kiosk=* ]]; then
   [[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
 fi
+
+echo "kiosk: launching $URL"
 
 BROWSER=$(command -v chromium || command -v chromium-browser) || {
   echo "kiosk: chromium not installed" >&2
