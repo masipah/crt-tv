@@ -280,6 +280,16 @@ case $cmd in
     systemctl --no-block restart weather-kiosk.service
     echo "weather for ${secs}s, then back to the video"
     ;;
+  bridge)
+    as_root
+    # internal: feeder for the OwnTone metadata bridge (started when the
+    # "(with titles)" output is selected, stopped when leaving it)
+    case ${1:-} in
+      start) systemctl start crt-bridge.service ;;
+      stop) systemctl stop crt-bridge.service 2>/dev/null || true ;;
+      *) echo "usage: tv bridge start|stop" >&2; exit 1 ;;
+    esac
+    ;;
   resume)
     as_root
     # Fired by the crt-weatherbreak timer; play-media-x.sh consumes the
@@ -431,7 +441,7 @@ case $cmd in
   doctor)
     as_root
     echo "== units =="
-    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash; do
+    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash owntone crt-bridge; do
       printf '%-15s active=%-10s enabled=%s\n' "$u" \
         "$(systemctl is-active "$u.service" 2>/dev/null || true)" \
         "$(systemctl is-enabled "$u.service" 2>/dev/null || true)"
@@ -460,6 +470,9 @@ case $cmd in
     wp status 2>/dev/null | awk '/Sinks:/ { f = 1 } /(Sources|Filters):/ { f = 0 } f' || echo "(pipewire not running)"
     echo "-- pipewire streams (who is actually in the graph):"
     wp status 2>/dev/null | sed -n '/Streams:/,/^$/p' || true
+    echo "-- owntone outputs:"
+    curl -fsS --max-time 3 http://127.0.0.1:3689/api/outputs 2>/dev/null | head -c 500 || echo "(owntone not reachable)"
+    echo
     echo "-- pipewire/raop log (user services, this boot):"
     journalctl _UID="$(id -u crt 2>/dev/null || echo 1001)" -b --no-pager -n 400 2>/dev/null |
       grep -iE 'raop|rtsp|wireplumber.*(default|sink)|pipewire.*(error|fail)' | tail -40 || true

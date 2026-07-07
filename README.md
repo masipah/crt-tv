@@ -151,6 +151,16 @@ on one — re-pick the AirPlay output when you want it. Every time an AirPlay
 device is engaged it starts at **10% volume** (they usually feed amplified
 speakers); raise the slider from there. The jack levels at 100%.
 
+**Track titles on the receiver**: each device also appears as a
+"(with titles)" variant, which routes through an OwnTone bridge instead of
+PipeWire's sender — the receiver's display then shows artist/title parsed
+from the `Artist - Title.ext` filename, updating on every track change.
+PipeWire's own sender can't carry metadata, so this is a parallel path:
+audio flows into a bridge sink, a feeder pipes it to OwnTone, and the
+player pushes metadata alongside. Slightly different plumbing, same
+controls (volume slider, mute, 10% engage) — pick whichever variant of
+your speaker you prefer.
+
 Volume is normalized: every stage in the chain (mpv, the weather music,
 each output device) is pinned to 100% at boot, so switching outputs never
 jumps loudness and the slider is the one volume control that matters.
