@@ -287,6 +287,11 @@ case $cmd in
     done
     mixer mute
     normalize_outputs
+    # second sweep: sinks that appeared late (or any async restore that
+    # slipped through) get muted and leveled too
+    sleep 8
+    mixer mute
+    normalize_outputs
     ;;
   normalize)
     as_root
