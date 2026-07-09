@@ -1,0 +1,9 @@
+# Cloudflare API token for the web remote's Let's Encrypt certificate
+# (DNS-01 challenge — see README "HTTPS for the web remote").
+#
+# Copy to /etc/crt-tv/cloudflare.ini and put your token in; install.sh
+# tightens it to mode 600. Create the token in the Cloudflare dashboard
+# (My Profile -> API Tokens) with exactly ONE permission — Zone / DNS /
+# Edit — scoped to the one zone the hostname lives under. It is only ever
+# used to place the _acme-challenge TXT record during issuance/renewal.
+dns_cloudflare_api_token = PASTE-TOKEN-HERE
