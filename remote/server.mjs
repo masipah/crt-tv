@@ -124,6 +124,10 @@ const MUTED_FLAG = '/run/crt-tv/muted';
 // sweep stops re-leveling the default sink (see normalize_outputs in tv)
 const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 
+// Someone is driving — tv autostart's boot rotation (weather 2 min, then
+// the videos channel) stands down once any remote control is tapped
+const USER_CONTROL_FLAG = '/run/crt-tv/user-control';
+
 const hwMixer = (arg) => new Promise((resolve) => {
   execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
     if (!e1) return resolve();
@@ -526,6 +530,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
   try {
+    // Control taps (transport, mode, mute, volume, outputs) cancel the boot
+    // rotation. Library management and status polling deliberately don't —
+    // curating uploads from the couch shouldn't stop the channel starting.
+    if (req.method !== 'GET'
+      && (pathname.startsWith('/api/tv/') || pathname === '/api/play'
+        || pathname.startsWith('/api/audio/'))) {
+      await fs.writeFile(USER_CONTROL_FLAG, '').catch(() => {});
+    }
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       const html = await fs.readFile(path.join(PUBLIC_DIR, 'index.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
