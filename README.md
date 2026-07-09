@@ -125,6 +125,33 @@ list for live mixing and vanishes when replaced.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
+### HTTPS for the web remote
+
+The remote can be served as `https://tv.example.com/` with a real
+Let's Encrypt certificate — no browser warnings — even though the Pi is
+LAN-only. Ownership is proven with the **DNS-01 challenge**: certbot
+places a TXT record in the domain's public zone through the Cloudflare
+API, so the Pi is never exposed to the internet and no port-forward is
+involved. The hostname itself doesn't need a public record — a local DNS
+entry on your router (UniFi, Pi-hole, …) pointing at the Pi's LAN IP is
+enough. (A public record for a private IP works too — keep it DNS-only /
+grey-cloud in Cloudflare, and note some routers' DNS-rebind protection
+blocks public names resolving to LAN addresses.)
+
+1. In Cloudflare (My Profile → API Tokens) create a token with exactly
+   one permission: **Zone → DNS → Edit**, scoped to your domain's zone.
+2. On the Pi, copy [setup/cloudflare.ini.example](setup/cloudflare.ini.example)
+   to `/etc/crt-tv/cloudflare.ini` and paste the token in.
+3. Set `HTTPS_DOMAIN=tv.example.com` in `/etc/crt-tv/crt-tv.env`
+   (optionally `LETSENCRYPT_EMAIL=` for expiry notices).
+4. Re-run the installer one-liner.
+
+nginx terminates TLS on 443 and proxies to the remote on :8090; port 80
+redirects to HTTPS, plain `http://<pi>:8090/` keeps working as before,
+and uploads stream through unbuffered. Renewal is automatic (certbot's
+systemd timer, ~30 days before expiry) with an nginx reload on each new
+certificate.
+
 ## Layout
 
 ```text
