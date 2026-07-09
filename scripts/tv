@@ -165,6 +165,12 @@ mixer() {
       amixer -q -c Headphones sset PCM "$amixer_arg" 2>/dev/null ||
         amixer -q sset Headphone "$amixer_arg" 2>/dev/null ||
         amixer -q sset PCM "$amixer_arg" 2>/dev/null || true
+      # landing level: until the user has picked a volume, unmuting always
+      # comes up at the defaults (jack 50%, AirPlay 10%) — never a blast,
+      # and the web slider shows exactly what's playing
+      if [[ $1 == unmute && ! -f $RUN_DIR/volume-set ]]; then
+        normalize_outputs
+      fi
       ;;
   esac
 }
