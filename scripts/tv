@@ -25,13 +25,13 @@ usage: tv <command>
                      files/folders; a single bucket video continues through
                      the bucket from there. Commercials cut in automatically.
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autostart          (run at boot) show the weather, muted
+  autostart          (run at boot) weather for 2 min, then videos on shuffle
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   airplay            toggle audio output: AirPlay speakers <-> TV jack
   volume [0-100]     show or set the volume of the active output
   normalize          reset output levels (jack 50%, AirPlay 10%)
-  shuffle            toggle shuffled playback (videos only)
+  shuffle            toggle shuffled playback (videos only; on at boot)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
@@ -175,11 +175,14 @@ mixer() {
   esac
 }
 
-# A pending weather break must not outlive a manual mode change
+# A pending weather break must not outlive a manual mode change — and any
+# manual mode change also takes the TV out of the boot rotation (the flag
+# tells tv autostart someone else is driving; see the autostart case)
 cancel_break() {
   systemctl stop crt-weatherbreak.timer 2>/dev/null || true
   systemctl stop crt-weatherbreak.service 2>/dev/null || true
   rm -f "$RUN_DIR/resume"
+  : >"$RUN_DIR/user-control"
 }
 
 # All playable files under <dir>, in the library's persistent play order
@@ -320,10 +323,15 @@ case $cmd in
     ;;
   autostart)
     as_root
-    # Boot default (crt-autostart.service): the kiosk unit brings up the
+    # Boot rotation (crt-autostart.service): the kiosk unit brings up the
     # weather on its own; start silent with every output at its default
-    # level (jack 50%, AirPlay 10%) so unmuting is never a blast. Take
-    # control from the web remote (unmute, play videos) when wanted.
+    # level (jack 50%, AirPlay 10%) so unmuting is never a blast. After
+    # 2 minutes of weather the TV switches itself to the videos channel —
+    # shuffled, commercials as usual — unless a control is tapped on the
+    # web remote first ($RUN_DIR/user-control, written by the server and
+    # by manual mode changes), in which case the TV is the user's.
+    : >"$RUN_DIR/shuffle" # boot default: the channel plays shuffled
+    rm -f "$RUN_DIR/user-control"
     # Order matters: pin the default to the TV jack FIRST (retrying while
     # PipeWire comes up), then mute — muting before the pin can land on a
     # remembered AirPlay default and leave the jack live. The jack pin also
@@ -335,13 +343,13 @@ case $cmd in
       fi
       sleep 3
     done
-    # keep sweeping for a minute: AirPlay sinks appear late (mDNS), and
+    # keep sweeping until the switch: AirPlay sinks appear late (mDNS), and
     # wireplumber re-applies unmuted route defaults when the jack's route
     # activates with the first stream (~20s in, when the weather music
     # starts). Mute always goes LAST so nothing in the sweep can undo it.
     normalize_outputs
     mixer mute
-    for _ in $(seq 1 12); do
+    while ((SECONDS < 120)); do
       sleep 5
       normalize_outputs
       # enforce the intent flag, don't re-assert it: an unmute from the web
@@ -355,6 +363,12 @@ case $cmd in
     # kiosk's own clear; wipe the VT buffer once everything has settled so
     # the first weather->video switch reveals black, not a flash of text
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
+    # the 2-minute mark: roll the channel unless someone took control (a
+    # running player means a video is already on some other way)
+    if [[ ! -f $RUN_DIR/user-control ]] &&
+      ! systemctl -q is-active crt-player.service; then
+      "$0" play || true # an empty videos bucket stays on the weather
+    fi
     ;;
   normalize)
     as_root

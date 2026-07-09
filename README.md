@@ -70,7 +70,7 @@ tv mute             # toggle mute — whole TV (weather music and videos)
 tv airplay          # toggle audio output: AirPlay speakers <-> TV jack
 tv volume [0-100]   # show or set the volume of the active output
 tv normalize        # reset output levels (jack 50%, AirPlay 10%)
-tv shuffle          # toggle shuffled playback — videos only (lit in the web remote)
+tv shuffle          # toggle shuffled playback — videos only, on at boot (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
 tv stop             # blank the screen
@@ -81,21 +81,24 @@ tv reboot           # reboot the Pi (also a button on the web remote)
 The media library is two buckets: **videos** (the channel — plays top to
 bottom in your saved order and loops) and **commercials** (after every 4th
 video, one plays at random, picked fresh each time by the player itself).
-Shuffle affects the videos only — the commercial cadence is by count, so it
-holds either way — and the "No commercials" toggle suspends the spots
-entirely until turned off (or the next boot).
+Shuffle is on by default at boot and affects the videos only — the
+commercial cadence is by count, so it holds either way — and the
+"No commercials" toggle suspends the spots entirely until turned off (or
+the next boot).
 Playing a single bucket video continues through the bucket from that point;
 a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
 manually and resumes the video where it left off.
 
-**On boot** the TV shows the WeatherStar, muted — and stays there. Take
-control from the web remote: unmute (one toggle covers the weather music
-and the videos alike) and hit Play videos when you want the channel
-rolling. Unmuting comes up at the default level — jack at 50%, AirPlay at
-10% — with the slider showing it, so there's headroom to raise it (the
-PVM's own volume sits at full). Once you move the slider, your level is
-the one that sticks.
+**On boot** the TV shows the WeatherStar, muted, for 2 minutes — then
+rolls the videos channel by itself, shuffled, commercials every 4th video
+as always. Tap any control on the web remote before then (mute, volume,
+a mode button…) and the rotation stands down: the TV is yours. Unmute
+when you want sound — one toggle covers the weather music and the videos
+alike, and it comes up at the default level (jack at 50%, AirPlay at 10%)
+with the slider showing it, so there's headroom to raise it (the PVM's
+own volume sits at full). Once you move the slider, your level is the one
+that sticks.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
