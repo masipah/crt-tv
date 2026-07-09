@@ -251,6 +251,50 @@ systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
 
+echo "==> HTTPS for the web remote (Let's Encrypt via Cloudflare DNS-01)"
+# Opt-in: needs HTTPS_DOMAIN in /etc/crt-tv/crt-tv.env and a Cloudflare
+# API token in /etc/crt-tv/cloudflare.ini (setup/cloudflare.ini.example).
+# DNS-01 proves ownership with a TXT record in the public zone, so the
+# hostname itself can stay on local DNS (the router) pointing at a LAN IP
+# — nothing is exposed to the internet and no port-forward is involved.
+https_domain=$(sed -n 's/^HTTPS_DOMAIN=//p' /etc/crt-tv/crt-tv.env 2>/dev/null | tail -n1 | tr -d '"')
+cf_ini=/etc/crt-tv/cloudflare.ini
+if [[ -n $https_domain && -f $cf_ini ]]; then
+  chmod 600 "$cf_ini"
+  apt-get install -y nginx certbot python3-certbot-dns-cloudflare
+  if [[ ! -s /etc/letsencrypt/live/$https_domain/fullchain.pem ]]; then
+    le_email=$(sed -n 's/^LETSENCRYPT_EMAIL=//p' /etc/crt-tv/crt-tv.env 2>/dev/null | tail -n1 | tr -d '"')
+    email_args=(--register-unsafely-without-email)
+    if [[ -n $le_email ]]; then
+      email_args=(-m "$le_email" --no-eff-email)
+    fi
+    certbot certonly --non-interactive --agree-tos "${email_args[@]}" \
+      --dns-cloudflare --dns-cloudflare-credentials "$cf_ini" \
+      -d "$https_domain" || true
+  fi
+  if [[ -s /etc/letsencrypt/live/$https_domain/fullchain.pem ]]; then
+    # the certbot package's systemd timer renews on its own; this hook
+    # hands each fresh certificate to nginx
+    install -d /etc/letsencrypt/renewal-hooks/deploy
+    printf '#!/bin/sh\nsystemctl reload nginx\n' >/etc/letsencrypt/renewal-hooks/deploy/crt-tv-nginx
+    chmod 755 /etc/letsencrypt/renewal-hooks/deploy/crt-tv-nginx
+    sed "s/__DOMAIN__/$https_domain/g" "$REPO_DIR/setup/nginx-crt-tv.conf" \
+      >/etc/nginx/sites-available/crt-tv
+    ln -sf /etc/nginx/sites-available/crt-tv /etc/nginx/sites-enabled/crt-tv
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t
+    systemctl enable --now nginx
+    systemctl reload nginx
+    echo "  https://$https_domain/ -> 127.0.0.1:8090"
+  else
+    echo "!! no certificate for $https_domain — issuance failed; check the"
+    echo "!! token in $cf_ini and /var/log/letsencrypt/letsencrypt.log"
+  fi
+else
+  echo "  skipped — set HTTPS_DOMAIN in /etc/crt-tv/crt-tv.env and create"
+  echo "  $cf_ini (from setup/cloudflare.ini.example) to enable"
+fi
+
 install -d -m 775 -o crt -g crt /srv/media /srv/media/videos /srv/media/commercials
 # Migrate a pre-bucket layout: loose videos at the top level belong to the
 # videos bucket now
