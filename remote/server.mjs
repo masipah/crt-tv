@@ -120,8 +120,8 @@ const wpExec = (args) => new Promise((resolve) => {
 // nothing can un-mute the TV behind the user's back.
 const MUTED_FLAG = '/run/crt-tv/muted';
 
-// The user's volume choice of record — once it exists, tv autostart's boot
-// sweep stops re-leveling the default sink (see normalize_outputs in tv)
+// The user's volume choice of record — once it exists, unmute returns to
+// the user's level instead of re-landing at the defaults (see tv's mixer)
 const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 
 // Someone is driving — tv autostart's boot rotation (weather 3 min, then
