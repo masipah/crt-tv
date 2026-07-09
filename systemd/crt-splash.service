@@ -1,5 +1,5 @@
 [Unit]
-Description=CRT-TV ASCII boot splash
+Description=CRT-TV teletext boot splash
 DefaultDependencies=no
 After=local-fs.target
 Before=getty.target
