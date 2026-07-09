@@ -234,6 +234,9 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service crt-splash.service
+# No login prompt over the splash: tty1 is the display, not a terminal. Log in
+# via SSH, or Ctrl+Alt+F2 for a console (logind still spawns getty on tty2+).
+systemctl disable getty@tty1.service 2>/dev/null || true
 systemctl restart ws4kp.service crt-remote.service
 # Restart the kiosk too so display-stack changes take effect on re-runs
 systemctl restart weather-kiosk.service
