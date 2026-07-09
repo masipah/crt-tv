@@ -90,7 +90,7 @@ a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
 manually and resumes the video where it left off.
 
-**On boot** the TV shows the WeatherStar, muted, for 5 minutes — then
+**On boot** the TV shows the WeatherStar, muted, for 3 minutes — then
 rolls the videos channel by itself, shuffled, commercials every 4th video
 as always. Tap any control on the web remote before then (mute, volume,
 a mode button…) and the rotation stands down: the TV is yours. Unmute
