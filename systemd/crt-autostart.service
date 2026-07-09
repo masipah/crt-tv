@@ -1,5 +1,5 @@
 [Unit]
-Description=crt-tv boot rotation (weather 2 min, then videos, alternating)
+Description=crt-tv boot rotation (weather 2 min, then the videos channel)
 After=weather-kiosk.service network-online.target
 
 [Service]
