@@ -162,16 +162,18 @@ async function unmuteAll() {
 // comes from AIRPLAY_LATENCY_MS in crt-tv.env.
 let airplayLatencyMs = Number(process.env.AIRPLAY_LATENCY_MS ?? 0);
 
-const setMpvAudioDelay = (seconds) => new Promise((resolve) => {
+const mpvSet = (prop, value) => new Promise((resolve) => {
   const sock = net.createConnection(MPV_SOCK);
   sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
   sock.on('error', () => resolve(false)); // player not running — fine
   sock.on('connect', () => {
-    sock.write(`${JSON.stringify({ command: ['set_property', 'audio-delay', seconds] })}\n`);
+    sock.write(`${JSON.stringify({ command: ['set_property', prop, value] })}\n`);
     sock.end();
     resolve(true);
   });
 });
+
+const setMpvAudioDelay = (seconds) => mpvSet('audio-delay', seconds);
 
 // Every selectable output: the jack plus each discovered AirPlay receiver
 async function audioOutputs() {
@@ -535,7 +537,7 @@ const server = http.createServer(async (req, res) => {
     // curating uploads from the couch shouldn't stop the channel starting.
     if (req.method !== 'GET'
       && (pathname.startsWith('/api/tv/') || pathname === '/api/play'
-        || pathname.startsWith('/api/audio/'))) {
+        || pathname.startsWith('/api/audio/') || pathname.startsWith('/api/player/'))) {
       await fs.writeFile(USER_CONTROL_FLAG, '').catch(() => {});
     }
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
@@ -659,6 +661,15 @@ const server = http.createServer(async (req, res) => {
       });
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end(out);
+    } else if (req.method === 'POST' && pathname === '/api/player/seek') {
+      // drag on the remote's position bar — absolute seek into the video
+      const { seconds } = JSON.parse(await readBody(req) || '{}');
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+        return sendJson(res, 400, { error: 'seconds: non-negative number required' });
+      }
+      const ok = await mpvSet('time-pos', seconds);
+      if (!ok) return sendJson(res, 409, { error: 'no video playing' });
+      sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });

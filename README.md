@@ -84,7 +84,9 @@ video, one plays at random, picked fresh each time by the player itself).
 Shuffle is on by default at boot and affects the videos only — the
 commercial cadence is by count, so it holds either way — and the
 "No commercials" toggle suspends the spots entirely until turned off (or
-the next boot).
+the next boot). A shuffled channel re-rolls itself on every full pass:
+when the looping playlist wraps around, the order is shuffled fresh, so
+no two passes play the same sequence.
 Playing a single bucket video continues through the bucket from that point;
 a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
@@ -110,7 +112,8 @@ Open `http://<pi-address>:8090/` from any browser on your network for a
 remote control: switch channels, upload into either bucket (videos or
 commercials) straight from your phone or laptop, drag to reorder the
 channel, and tap any row for actions (play, queue, rename, move between
-buckets, delete) — plus transport, mute/shuffle/no-commercials toggles,
+buckets, delete) — plus transport, a draggable position bar to skip or
+rewind within the playing video, mute/shuffle/no-commercials toggles,
 and a Pi reboot. Styled like a native iOS app, dark mode included. It's the same `tv` command underneath, so the
 CLI and the web UI never disagree.
 

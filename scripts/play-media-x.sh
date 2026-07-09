@@ -47,6 +47,7 @@ exec mpv \
   --script=/usr/local/lib/crt-tv/commercials.lua \
   --script=/usr/local/lib/crt-tv/loudness.lua \
   --script=/usr/local/lib/crt-tv/metadata.lua \
+  --script=/usr/local/lib/crt-tv/reshuffle.lua \
   --loop-playlist=inf \
   --playlist=/run/crt-tv/playlist.m3u \
   "${RESUME_ARGS[@]}"
