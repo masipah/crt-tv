@@ -30,7 +30,7 @@ usage: tv <command>
   mute               toggle mute (whole TV: weather music and videos)
   airplay            toggle audio output: AirPlay speakers <-> TV jack
   volume [0-100]     show or set the volume of the active output
-  normalize          set every output (jack and AirPlay) to 100%
+  normalize          reset output levels (jack 50%, AirPlay 10%)
   shuffle            toggle shuffled playback (videos only)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
@@ -91,16 +91,32 @@ wp_find_sink() { # <pattern matched against wpctl inspect output>
   return 1
 }
 
+# The current default sink (the '*' row in wpctl status), if any
+wp_default_sink_id() {
+  wp status | awk '/Sinks:/ { f = 1; next } /(Sources|Filters|Streams):/ { f = 0 } f' |
+    grep -F '*' | sed -nE 's/^[^0-9]*([0-9]+)\..*/\1/p' | head -n1
+}
+
 # Level the outputs, volumes only — mute state is left alone. The jack
-# runs at 100% (the PVM's own knob is the last stage); AirPlay sinks are
-# parked at a safe 10% because they usually feed amplified speakers.
+# starts at a 50% default (headroom on the slider; the PVM's own knob is
+# the last stage); AirPlay sinks are parked at a safe 10% because they
+# usually feed amplified speakers. Once the user has set a volume
+# ($RUN_DIR/volume-set — written by tv volume and the web slider), the
+# default sink is theirs and stays untouched; late-appearing sinks still
+# get parked at the defaults.
 normalize_outputs() {
-  local id
+  local id skip=""
+  if [[ -f $RUN_DIR/volume-set ]]; then
+    skip=$(wp_default_sink_id) || true
+  fi
   for id in $(wp_sink_ids); do
+    if [[ $id == "$skip" ]]; then
+      continue
+    fi
     if wp inspect "$id" | grep -qi raop; then
       wp set-volume "$id" 0.10 || true
     else
-      wp set-volume "$id" 1.0 || true
+      wp set-volume "$id" 0.50 || true
     fi
   done
   # hardware stage pinned at 100%, addressed by card — pipewire-alsa
@@ -299,8 +315,8 @@ case $cmd in
   autostart)
     as_root
     # Boot default (crt-autostart.service): the kiosk unit brings up the
-    # weather on its own; start silent with every output normalized to
-    # 100% so unmuting sounds the same on the jack and on AirPlay. Take
+    # weather on its own; start silent with every output at its default
+    # level (jack 50%, AirPlay 10%) so unmuting is never a blast. Take
     # control from the web remote (unmute, play videos) when wanted.
     # Order matters: pin the default to the TV jack FIRST (retrying while
     # PipeWire comes up), then mute — muting before the pin can land on a
@@ -336,8 +352,10 @@ case $cmd in
     ;;
   normalize)
     as_root
+    # an explicit reset: the user's volume choice yields to the defaults
+    rm -f "$RUN_DIR/volume-set"
     normalize_outputs
-    echo "all outputs at 100%"
+    echo "outputs reset: jack 50%, AirPlay 10%"
     ;;
   pause)
     as_root
@@ -358,6 +376,9 @@ case $cmd in
       wp set-volume @DEFAULT_AUDIO_SINK@ "$v" ||
         amixer -q sset Headphone "${1}%" 2>/dev/null ||
         amixer -q sset PCM "${1}%" 2>/dev/null || true
+      # record the choice — the boot sweep stops leveling the default
+      # sink once a volume has been set on purpose (see normalize_outputs)
+      : >"$RUN_DIR/volume-set"
       echo "volume: ${1}%"
     else
       wp get-volume @DEFAULT_AUDIO_SINK@ ||
