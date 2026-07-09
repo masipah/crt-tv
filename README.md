@@ -33,15 +33,11 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
    sudo reboot
    ```
 
-   Or the manual way:
+   **Updating later is the same command** — it re-syncs `/opt/crt-tv` to the
+   latest `main` and reinstalls, from any directory.
 
-   ```sh
-   sudo apt update && sudo apt install -y git
-   git clone https://github.com/masipah/crt-tv
-   cd crt-tv
-   sudo setup/install.sh
-   sudo reboot
-   ```
+   Developers can run `sudo setup/install.sh` from their own checkout
+   instead; that installs the checkout as-is, without syncing.
 
 3. After reboot the Pi switches to composite out and the PVM shows the
    WeatherStar 4000+.
