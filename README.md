@@ -196,9 +196,10 @@ your speaker you prefer.
 Volume is normalized: the software stages (mpv, the weather music, the
 hardware mixer) are pinned to 100% at boot and each output starts at its
 default level (jack 50%, AirPlay 10%), so switching outputs never jumps
-loudness and the slider is the one volume control that matters. Once you
-move the slider (or run `tv volume`), your level sticks — the boot sweep
-stops re-leveling the active output. `tv normalize` resets to the defaults.
+loudness and the slider is the one volume control that matters. Levels are
+set once at boot — nothing re-writes them behind your back — and once you
+move the slider (or run `tv volume`), your level sticks: unmuting returns
+to it instead of the defaults. `tv normalize` resets to the defaults.
 
 Widescreen handling: 16:9 videos zoom to fill the 4:3 screen (center-cut,
 sides cropped — the broadcast way). Set `CRT_PANSCAN=0` in
