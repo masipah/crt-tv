@@ -25,7 +25,7 @@ usage: tv <command>
                      files/folders; a single bucket video continues through
                      the bucket from there. Commercials cut in automatically.
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autostart          (run at boot) weather for 5 min, then videos on shuffle
+  autostart          (run at boot) weather for 3 min, then videos on shuffle
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   airplay            toggle audio output: AirPlay speakers <-> TV jack
@@ -326,7 +326,7 @@ case $cmd in
     # Boot rotation (crt-autostart.service): the kiosk unit brings up the
     # weather on its own; start silent with every output at its default
     # level (jack 50%, AirPlay 10%) so unmuting is never a blast. After
-    # 5 minutes of weather the TV switches itself to the videos channel —
+    # 3 minutes of weather the TV switches itself to the videos channel —
     # shuffled, commercials as usual — unless a control is tapped on the
     # web remote first ($RUN_DIR/user-control, written by the server and
     # by manual mode changes), in which case the TV is the user's.
@@ -349,7 +349,7 @@ case $cmd in
     # starts). Mute always goes LAST so nothing in the sweep can undo it.
     normalize_outputs
     mixer mute
-    while ((SECONDS < 300)); do
+    while ((SECONDS < 180)); do
       sleep 5
       normalize_outputs
       # enforce the intent flag, don't re-assert it: an unmute from the web
@@ -363,7 +363,7 @@ case $cmd in
     # kiosk's own clear; wipe the VT buffer once everything has settled so
     # the first weather->video switch reveals black, not a flash of text
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
-    # the 5-minute mark: roll the channel unless someone took control (a
+    # the 3-minute mark: roll the channel unless someone took control (a
     # running player means a video is already on some other way)
     if [[ ! -f $RUN_DIR/user-control ]] &&
       ! systemctl -q is-active crt-player.service; then
