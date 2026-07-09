@@ -322,7 +322,12 @@ case $cmd in
     for _ in $(seq 1 12); do
       sleep 5
       normalize_outputs
-      mixer mute
+      # enforce the intent flag, don't re-assert it: an unmute from the web
+      # remote during this window removes the flag, and that must win — the
+      # sweep only re-mutes while the boot mute is still the standing intent
+      if [[ -f $RUN_DIR/muted ]]; then
+        mixer mute
+      fi
     done
     # boot messages keep accumulating on the hidden console after the
     # kiosk's own clear; wipe the VT buffer once everything has settled so
