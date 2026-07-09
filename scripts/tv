@@ -91,28 +91,18 @@ wp_find_sink() { # <pattern matched against wpctl inspect output>
   return 1
 }
 
-# The current default sink (the '*' row in wpctl status), if any
-wp_default_sink_id() {
-  wp status | awk '/Sinks:/ { f = 1; next } /(Sources|Filters|Streams):/ { f = 0 } f' |
-    grep -F '*' | sed -nE 's/^[^0-9]*([0-9]+)\..*/\1/p' | head -n1
-}
-
 # Level the outputs, volumes only — mute state is left alone. The jack
 # starts at a 50% default (headroom on the slider; the PVM's own knob is
 # the last stage); AirPlay sinks are parked at a safe 10% because they
-# usually feed amplified speakers. Once the user has set a volume
-# ($RUN_DIR/volume-set — written by tv volume and the web slider), the
-# default sink is theirs and stays untouched; late-appearing sinks still
-# get parked at the defaults.
+# usually feed amplified speakers. One-shot by design: every call site is
+# an event (boot, unmute landing, tv normalize) — never a repeating loop,
+# whose wpctl writes against the live graph caused audible stutter. The
+# call sites also guard the user's own level: unmute skips this entirely
+# once a volume has been chosen ($RUN_DIR/volume-set), and tv normalize
+# clears that flag first because resetting is its whole point.
 normalize_outputs() {
-  local id skip=""
-  if [[ -f $RUN_DIR/volume-set ]]; then
-    skip=$(wp_default_sink_id) || true
-  fi
+  local id
   for id in $(wp_sink_ids); do
-    if [[ $id == "$skip" ]]; then
-      continue
-    fi
     if wp inspect "$id" | grep -qi raop; then
       wp set-volume "$id" 0.10 || true
     else
@@ -343,21 +333,18 @@ case $cmd in
       fi
       sleep 3
     done
-    # keep sweeping until the switch: AirPlay sinks appear late (mDNS), and
-    # wireplumber re-applies unmuted route defaults when the jack's route
-    # activates with the first stream (~20s in, when the weather music
-    # starts). Mute always goes LAST so nothing in the sweep can undo it.
+    # Level once, mute once — no repeating sweep: re-writing volumes into
+    # the live graph every few seconds caused audible stutter. The mute
+    # intent stays defended anyway (the web remote's server re-mutes every
+    # few seconds while the flag exists, catching wireplumber's route
+    # activation un-muting the jack when the weather music starts), and
+    # the volume contract holds without re-assertion: unmute lands at the
+    # defaults via mixer unmute, and AirPlay engages at 10% on selection.
     normalize_outputs
     mixer mute
+    # then just wait out the weather period
     while ((SECONDS < 180)); do
       sleep 5
-      normalize_outputs
-      # enforce the intent flag, don't re-assert it: an unmute from the web
-      # remote during this window removes the flag, and that must win — the
-      # sweep only re-mutes while the boot mute is still the standing intent
-      if [[ -f $RUN_DIR/muted ]]; then
-        mixer mute
-      fi
     done
     # boot messages keep accumulating on the hidden console after the
     # kiosk's own clear; wipe the VT buffer once everything has settled so
@@ -396,8 +383,8 @@ case $cmd in
       wp set-volume @DEFAULT_AUDIO_SINK@ "$v" ||
         amixer -q sset Headphone "${1}%" 2>/dev/null ||
         amixer -q sset PCM "${1}%" 2>/dev/null || true
-      # record the choice — the boot sweep stops leveling the default
-      # sink once a volume has been set on purpose (see normalize_outputs)
+      # record the choice — unmute then returns to this level instead of
+      # re-landing at the defaults (see mixer unmute / normalize_outputs)
       : >"$RUN_DIR/volume-set"
       echo "volume: ${1}%"
     else
