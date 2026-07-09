@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "crt-tv kiosk startup flash fix",
-  "description": "Keeps ws4kp hidden until it applies its kiosk-mode layout, so the CRT never shows the un-scaled page during startup.",
-  "version": "1.0",
+  "name": "crt-tv kiosk fit",
+  "description": "Keeps ws4kp hidden until its kiosk-mode layout is applied (no startup flash), then stretches the 640x480 canvas to fill the full 720x480 composite raster (no pillarbox bars).",
+  "version": "1.1",
   "content_scripts": [
     {
       "matches": ["http://127.0.0.1/*", "http://localhost/*"],
       "css": ["hide.css"],
+      "js": ["fill.js"],
       "run_at": "document_start",
       "all_frames": true
     }
