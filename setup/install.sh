@@ -41,8 +41,12 @@ fi
 apt-get update || true
 apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
   xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
-# Package name differs between Debian (chromium) and some RPi OS builds
-apt-get install -y chromium || apt-get install -y chromium-browser
+# Package name differs between Debian (chromium) and some RPi OS builds.
+# Install once and leave it alone: re-runs must not upgrade the browser (a
+# working kiosk beats a fresh Chromium, and upgrades mid-run risk the SD card)
+if ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+  apt-get install -y chromium || apt-get install -y chromium-browser
+fi
 
 # Let the crt service user start X on tty1 without being root
 printf 'allowed_users=anybody\nneeds_root_rights=yes\n' > /etc/X11/Xwrapper.config
