@@ -216,7 +216,7 @@ install -m 644 "$REPO_DIR/scripts/metadata.lua" /usr/local/lib/crt-tv/metadata.l
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
 install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh
-install -m 644 "$REPO_DIR/setup/splash.txt" /usr/local/lib/crt-tv/splash.txt
+rm -f /usr/local/lib/crt-tv/splash.txt
 install -d /usr/local/lib/crt-tv/kiosk-ext
 install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
