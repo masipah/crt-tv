@@ -120,6 +120,10 @@ const wpExec = (args) => new Promise((resolve) => {
 // nothing can un-mute the TV behind the user's back.
 const MUTED_FLAG = '/run/crt-tv/muted';
 
+// The user's volume choice of record — once it exists, tv autostart's boot
+// sweep stops re-leveling the default sink (see normalize_outputs in tv)
+const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
+
 const hwMixer = (arg) => new Promise((resolve) => {
   execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
     if (!e1) return resolve();
@@ -632,6 +636,7 @@ const server = http.createServer(async (req, res) => {
           });
         });
       }
+      await fs.writeFile(VOLUME_SET_FLAG, '').catch(() => {});
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN

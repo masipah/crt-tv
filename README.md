@@ -69,7 +69,7 @@ tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
 tv airplay          # toggle audio output: AirPlay speakers <-> TV jack
 tv volume [0-100]   # show or set the volume of the active output
-tv normalize        # set every output (jack and AirPlay) to 100%
+tv normalize        # reset output levels (jack 50%, AirPlay 10%)
 tv shuffle          # toggle shuffled playback — videos only (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
@@ -145,7 +145,7 @@ Boot always lands on the TV jack: AirPlay needs the receiver awake and a
 fresh handshake, so after a reboot or power cycle the TV never sits waiting
 on one — re-pick the AirPlay output when you want it. Every time an AirPlay
 device is engaged it starts at **10% volume** (they usually feed amplified
-speakers); raise the slider from there. The jack levels at 100%.
+speakers); raise the slider from there. The jack starts at 50%.
 
 **Track titles on the receiver**: each device also appears as a
 "(with titles)" variant, which routes through an OwnTone bridge instead of
@@ -157,9 +157,12 @@ player pushes metadata alongside. Slightly different plumbing, same
 controls (volume slider, mute, 10% engage) — pick whichever variant of
 your speaker you prefer.
 
-Volume is normalized: every stage in the chain (mpv, the weather music,
-each output device) is pinned to 100% at boot, so switching outputs never
-jumps loudness and the slider is the one volume control that matters.
+Volume is normalized: the software stages (mpv, the weather music, the
+hardware mixer) are pinned to 100% at boot and each output starts at its
+default level (jack 50%, AirPlay 10%), so switching outputs never jumps
+loudness and the slider is the one volume control that matters. Once you
+move the slider (or run `tv volume`), your level sticks — the boot sweep
+stops re-leveling the active output. `tv normalize` resets to the defaults.
 
 Widescreen handling: 16:9 videos zoom to fill the 4:3 screen (center-cut,
 sides cropped — the broadcast way). Set `CRT_PANSCAN=0` in
