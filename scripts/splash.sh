@@ -18,6 +18,11 @@ fi
 # the console — the CRT's overscan then crops blank margin, not content
 VOFF=$(( (ROWS - 24) / 2 ))
 (( VOFF < 0 )) && VOFF=0
+# Same idea horizontally: edge-anchored text (header, clock, footer labels)
+# stays HM columns clear of the sides. ~7% per side, in line with typical
+# overscan; centred content is already well inside. Colour strips and bar
+# fills still bleed edge-to-edge on purpose — cropped colour looks right.
+HM=$(( COLS * 7 / 100 ))
 
 E=$'\033' RS=$'\033[0m'
 # Teletext palette: the classic 8, bold foregrounds on plain backgrounds
@@ -41,16 +46,16 @@ header() { # $1 page number, $2 title
   read -r w d t < <(date '+%w %d.%m.%y %H:%M') || true
   right="${wd[${w:-0}]} $d $t"
   fill 1 "$bK"
-  put 1 4 "${bK}${fW}${1} ${fM}${2}"
-  put 1 $(( COLS - ${#right} - 3 )) "${bK}${fY}${right}"
+  put 1 $(( HM + 1 )) "${bK}${fW}${1} ${fM}${2}"
+  put 1 $(( COLS - ${#right} - HM + 1 )) "${bK}${fY}${right}"
 }
 
 footer() { # fastext row: coloured labels spread across the bottom
   local names=(Flirt Astro Dates 'AB 18') colors=("$fR" "$fG" "$fY" "$fC")
-  local q=$(( COLS / 4 )) i c
+  local q=$(( (COLS - 2 * HM) / 4 )) i c
   fill 24 "$bK"
   for i in 0 1 2 3; do
-    c=$(( i * q + (q - ${#names[i]}) / 2 + 1 ))
+    c=$(( HM + i * q + (q - ${#names[i]}) / 2 + 1 ))
     put 24 "$c" "${bK}${colors[i]}${names[i]}"
   done
 }
