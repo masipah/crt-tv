@@ -14,6 +14,11 @@ if size=$(stty size <"$TTY" 2>/dev/null); then
   ROWS=${size% *} COLS=${size#* }
 fi
 
+# Pages are laid out on a virtual 24-row teletext page, vertically centred on
+# the console — the CRT's overscan then crops blank margin, not content
+VOFF=$(( (ROWS - 24) / 2 ))
+(( VOFF < 0 )) && VOFF=0
+
 E=$'\033' RS=$'\033[0m'
 # Teletext palette: the classic 8, bold foregrounds on plain backgrounds
 fR="${E}[1;31m" fG="${E}[1;32m" fY="${E}[1;33m"
@@ -23,7 +28,7 @@ bB="${E}[44m" bM="${E}[45m" bC="${E}[46m" bW="${E}[47m"
 
 BUF="${E}[?25l"
 
-at()   { BUF+="${E}[${1};${2}H"; }
+at()   { BUF+="${E}[$(( $1 + VOFF ));${2}H"; }
 put()  { at "$1" "$2"; BUF+="$3"; }
 # ctr row visible-width content — passed explicitly because ${#} counts bytes,
 # not columns, once the mosaic glyphs (multi-byte UTF-8) are involved
@@ -35,18 +40,18 @@ header() { # $1 page number, $2 title
   local wd=(So Mo Di Mi Do Fr Sa) w d t right
   read -r w d t < <(date '+%w %d.%m.%y %H:%M') || true
   right="${wd[${w:-0}]} $d $t"
-  fill 2 "$bK"
-  put 2 2 "${bK}${fW}${1} ${fM}${2}"
-  put 2 $(( COLS - ${#right} - 1 )) "${bK}${fY}${right}"
+  fill 1 "$bK"
+  put 1 4 "${bK}${fW}${1} ${fM}${2}"
+  put 1 $(( COLS - ${#right} - 3 )) "${bK}${fY}${right}"
 }
 
 footer() { # fastext row: coloured labels spread across the bottom
   local names=(Flirt Astro Dates 'AB 18') colors=("$fR" "$fG" "$fY" "$fC")
   local q=$(( COLS / 4 )) i c
-  fill $(( ROWS - 1 )) "$bK"
+  fill 24 "$bK"
   for i in 0 1 2 3; do
     c=$(( i * q + (q - ${#names[i]}) / 2 + 1 ))
-    put $(( ROWS - 1 )) "$c" "${bK}${colors[i]}${names[i]}"
+    put 24 "$c" "${bK}${colors[i]}${names[i]}"
   done
 }
 
@@ -90,35 +95,34 @@ draw_heart() { # $1 top row, $2 left col, $3 attrs
 heisse_linie() { # the main ad page: hearts and a huge 0190 number
   BUF+="${RS}${bK}${E}[2J"
   header 666 "DIE HEISSE LINIE * AB 18"
-  ctr 4 23 "${bK}${fM}H E I S S E   L I N I E"
-  draw_heart 6 $(( COLS / 2 - 15 )) "${bK}${fR}"
-  draw_heart 6 $(( COLS / 2 + 5 ))  "${bK}${fM}"
-  ctr 13 23 "${bK}${fW}LIVE + PRIVAT + TABULOS"
-  bignum 15 "${bK}${fY}" '0190-696969'
-  ctr 21 14 "${bK}${fR}(1,86 DM/MIN.)"
-  ctr 23 13 "${bK}${fC}RUF JETZT AN!"
-  strip $(( ROWS - 3 ))
+  ctr 3 23 "${bK}${fM}H E I S S E   L I N I E"
+  draw_heart 5 $(( COLS / 2 - 15 )) "${bK}${fR}"
+  draw_heart 5 $(( COLS / 2 + 5 ))  "${bK}${fM}"
+  ctr 12 23 "${bK}${fW}LIVE + PRIVAT + TABULOS"
+  bignum 14 "${bK}${fY}" '0190-696969'
+  ctr 20 30 "${bK}${fR}(1,86 DM/MIN.) ${fC}* RUF JETZT AN!"
+  strip 22
   footer
 }
 
 kuss_hotline() { # big mosaic lips
   BUF+="${RS}${bK}${E}[2J"
   header 616 "KUSS-HOTLINE * AB 18"
-  ctr 4 26 "${bK}${fY}DER HEISSE DRAHT ZU NICOLE"
+  ctr 3 26 "${bK}${fY}DER HEISSE DRAHT ZU NICOLE"
   local lips=('  ▄▄██▄▄ ▄▄██▄▄  ' '█████████████████' '▀▀█████████████▀▀' '   ▀▀███████▀▀   ') i
-  for i in 0 1 2 3; do ctr $(( 6 + i )) 17 "${bK}${fR}${lips[i]}"; done
-  ctr 11 27 "${bK}${fM}SIE WARTET AUF DEINEN ANRUF"
-  bignum 13 "${bK}${fY}" '0190-616161'
-  ctr 19 25 "${bK}${fW}DISKRET + PRIVAT + SOFORT"
-  ctr 21 20 "${bK}${fG}1,86 DM/MIN. * AB 18"
-  strip $(( ROWS - 3 ))
+  for i in 0 1 2 3; do ctr $(( 5 + i )) 17 "${bK}${fR}${lips[i]}"; done
+  ctr 10 27 "${bK}${fM}SIE WARTET AUF DEINEN ANRUF"
+  bignum 12 "${bK}${fY}" '0190-616161'
+  ctr 18 25 "${bK}${fW}DISKRET + PRIVAT + SOFORT"
+  ctr 20 20 "${bK}${fG}1,86 DM/MIN. * AB 18"
+  strip 22
   footer
 }
 
 traumfrauen() { # the listing page: who is waiting by which phone
   BUF+="${RS}${bK}${E}[2J"
   header 677 "TRAUMFRAUEN PRIVAT"
-  ctr 4 30 "${bK}${fM}HEISSE DRAEHTE IN DEINER STADT"
+  ctr 3 30 "${bK}${fM}HEISSE DRAEHTE IN DEINER STADT"
   local i color line name age city nr
   local ads=(
     'NICOLE|21|KOELN|0190-661166'
@@ -132,32 +136,32 @@ traumfrauen() { # the listing page: who is waiting by which phone
     IFS='|' read -r name age city nr <<<"${ads[i]}"
     printf -v line '%-12s%-4s%-11s%s' "$name" "$age" "$city" "$nr"
     (( i % 2 )) && color=$fM || color=$fW
-    ctr $(( 6 + i * 2 )) 38 "${bK}${color}${line}"
+    ctr $(( 5 + i * 2 )) 38 "${bK}${color}${line}"
   done
-  ctr 18 21 "${bK}${fG}DISKRETION GARANTIERT"
-  ctr 20 20 "${bK}${fR}1,86 DM/MIN. * AB 18"
-  strip $(( ROWS - 3 ))
+  ctr 17 21 "${bK}${fG}DISKRETION GARANTIERT"
+  ctr 19 20 "${bK}${fR}1,86 DM/MIN. * AB 18"
+  strip 22
   footer
 }
 
 astro_linie() { # the other late-night staple: fate by the minute
   BUF+="${RS}${bK}${E}[2J"
   header 680 "ASTRO-LINIE"
-  ctr 4 23 "${bK}${fY}MADAME ZORA WEISS ALLES"
+  ctr 3 23 "${bK}${fY}MADAME ZORA WEISS ALLES"
   local ball=('  ▄█████▄  ' ' █████████ ' '███████████' ' █████████ ' '  ▀█████▀  ') i
-  for i in 0 1 2 3 4; do ctr $(( 6 + i )) 11 "${bK}${fC}${ball[i]}"; done
-  ctr 11 11 "${bK}${fY}▄▄▄▄▄▄▄▄▄▄▄"
-  ctr 13 24 "${bK}${fW}LIEBE * GELD * SCHICKSAL"
-  bignum 15 "${bK}${fM}" '0190-808080'
-  ctr 21 19 "${bK}${fC}TAROT LIVE 0-24 UHR"
-  strip $(( ROWS - 3 ))
+  for i in 0 1 2 3 4; do ctr $(( 5 + i )) 11 "${bK}${fC}${ball[i]}"; done
+  ctr 10 11 "${bK}${fY}▄▄▄▄▄▄▄▄▄▄▄"
+  ctr 12 24 "${bK}${fW}LIEBE * GELD * SCHICKSAL"
+  bignum 14 "${bK}${fM}" '0190-808080'
+  ctr 20 19 "${bK}${fC}TAROT LIVE 0-24 UHR"
+  strip 22
   footer
 }
 
 nachtprogramm() { # tonight after dark on CRT-TV
   BUF+="${RS}${bK}${E}[2J"
   header 615 "PROGRAMM HEUTE NACHT"
-  ctr 4 26 "${bK}${fM}CRT-TV * DAS NACHTPROGRAMM"
+  ctr 3 26 "${bK}${fM}CRT-TV * DAS NACHTPROGRAMM"
   local i color t title
   local shows=(
     '22.00|WETTER FUER VERLIEBTE'
@@ -170,10 +174,10 @@ nachtprogramm() { # tonight after dark on CRT-TV
   for i in "${!shows[@]}"; do
     IFS='|' read -r t title <<<"${shows[i]}"
     [[ $t == 23.30 ]] && color=$fY || color=$fW
-    ctr $(( 6 + i * 2 )) 28 "${bK}${fC}${t}  ${color}${title}"
+    ctr $(( 5 + i * 2 )) 28 "${bK}${fC}${t}  ${color}${title}"
   done
   ctr 18 20 "${bK}${fR}ALLE SENDUNGEN AB 18"
-  strip $(( ROWS - 3 ))
+  strip 22
   footer
 }
 
@@ -181,12 +185,11 @@ gute_nacht() { # closedown card, but the hotline never sleeps
   BUF+="${RS}${bK}${E}[2J"
   header 000 "SENDESCHLUSS"
   local mini=('▄█▄ ▄█▄' '███████' ' ▀███▀ ' '   ▀   ') i
-  local y=$(( ROWS / 2 - 6 ))
-  for i in 0 1 2 3; do ctr $(( y + i )) 7 "${bK}${fM}${mini[i]}"; done
-  ctr $(( y + 5 )) 35 "${bK}${fW}T R A E U M   W A S   S U E S S E S"
-  ctr $(( y + 7 )) 26 "${bK}${fC}BIS MORGEN NACHT AB 23 UHR"
-  ctr $(( y + 9 )) 32 "${bK}${fM}0190-696969 * IMMER FUER DICH DA"
-  strip $(( ROWS - 3 ))
+  for i in 0 1 2 3; do ctr $(( 6 + i )) 7 "${bK}${fM}${mini[i]}"; done
+  ctr 12 35 "${bK}${fW}T R A E U M   W A S   S U E S S E S"
+  ctr 14 26 "${bK}${fC}BIS MORGEN NACHT AB 23 UHR"
+  ctr 16 32 "${bK}${fM}0190-696969 * IMMER FUER DICH DA"
+  strip 22
   footer
 }
 
