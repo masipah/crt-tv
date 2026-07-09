@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# crt-tv installer — run once on the Pi with sudo. Either from a checkout:
-#   sudo setup/install.sh
-# or straight from GitHub (clones itself to /opt/crt-tv):
+# crt-tv installer — install AND update, always via the same one-liner:
 #   curl -fsSL https://raw.githubusercontent.com/masipah/crt-tv/main/setup/install.sh | sudo bash
-# Idempotent: safe to re-run after a git pull to pick up changes.
+# It syncs /opt/crt-tv to the latest main and installs from there.
+# Developers with their own checkout elsewhere: sudo setup/install.sh installs
+# from that checkout as-is (no sync).
 set -euo pipefail
 
 CRT_TV_REPO=https://github.com/masipah/crt-tv
@@ -13,22 +13,28 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-REPO_DIR=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || echo /nonexistent)
+# Where am I running from? Piped from curl there is no script file at all —
+# never guess from the working directory (that's how a stale /opt/crt-tv once
+# masqueraded as the source and the self-update silently skipped).
+SELF=${BASH_SOURCE[0]:-}
+REPO_DIR=''
+[[ -f $SELF ]] && REPO_DIR=$(cd "$(dirname "$SELF")/.." && pwd)
 
-# Piped from curl (or run outside a checkout): fetch the repo and re-exec.
-# fetch+reset rather than pull so a rewritten upstream history can't break
-# the appliance's self-update (no local edits are expected in /opt/crt-tv).
-if [[ ! -f $REPO_DIR/systemd/ws4kp.service ]]; then
-  echo "==> Not running from a checkout — cloning to /opt/crt-tv"
-  apt-get update
-  apt-get install -y git
+# Piped from curl, or running from the appliance's managed clone: sync
+# /opt/crt-tv to the latest main first and re-exec from it. fetch+reset
+# rather than pull so a rewritten upstream history can't break the
+# self-update (no local edits are expected in /opt/crt-tv). The env guard
+# keeps the re-exec from syncing forever.
+if [[ -z ${CRT_TV_SYNCED:-} ]] && [[ -z $REPO_DIR || $REPO_DIR == /opt/crt-tv ]]; then
+  echo "==> Syncing /opt/crt-tv to latest main"
+  command -v git >/dev/null 2>&1 || { apt-get update; apt-get install -y git; }
   if [[ -d /opt/crt-tv/.git ]]; then
     git -C /opt/crt-tv fetch origin
     git -C /opt/crt-tv reset --hard origin/main
   else
     git clone "$CRT_TV_REPO" /opt/crt-tv
   fi
-  exec /opt/crt-tv/setup/install.sh
+  CRT_TV_SYNCED=1 exec /opt/crt-tv/setup/install.sh
 fi
 
 echo "==> Installing packages"
