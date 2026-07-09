@@ -124,7 +124,7 @@ const MUTED_FLAG = '/run/crt-tv/muted';
 // sweep stops re-leveling the default sink (see normalize_outputs in tv)
 const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 
-// Someone is driving — tv autostart's boot rotation (weather 2 min, then
+// Someone is driving — tv autostart's boot rotation (weather 5 min, then
 // the videos channel) stands down once any remote control is tapped
 const USER_CONTROL_FLAG = '/run/crt-tv/user-control';
 
