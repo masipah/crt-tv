@@ -1,9 +1,7 @@
 [Unit]
-Description=CRT-TV teletext boot splash
+Description=CRT-TV ASCII boot splash
 DefaultDependencies=no
-# console-setup: draw only after the final console font is loaded — a later
-# setfont would remap the mosaic block glyphs already on screen
-After=local-fs.target console-setup.service
+After=local-fs.target
 Before=getty.target
 
 [Service]

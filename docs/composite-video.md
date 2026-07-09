@@ -26,11 +26,10 @@ under full KMS** — don't bother with them.
 
 ## cmdline.txt
 
-Arguments appended to the single kernel command line:
+Two arguments appended to the single kernel command line:
 
 ```text
-vc4.tv_norm=NTSC video=Composite-1:720x480@60i quiet loglevel=3
-vt.global_cursor_default=0 logo.nologo systemd.show_status=false console=tty3
+vc4.tv_norm=NTSC video=Composite-1:720x480@60i
 ```
 
 - **`vc4.tv_norm=NTSC`** — selects the TV standard. The PVM-9045Q is an NTSC
@@ -39,16 +38,6 @@ vt.global_cursor_default=0 logo.nologo systemd.show_status=false console=tty3
 - **`video=Composite-1:720x480@60i`** — forces the 480 interlaced mode on the
   composite connector at boot, so the console and everything after it comes up
   in 480i without waiting for userspace to set a mode.
-- **`quiet loglevel=3 systemd.show_status=false logo.nologo`** — no kernel log
-  scroll, no systemd unit status lines, no Tux logo during boot.
-- **`vt.global_cursor_default=0`** — no blinking cursor on the splash.
-- **`console=tty3`** — whatever still insists on printing to the console
-  (kernel errors, fsck, systemd emergencies) lands on tty3, not on top of the
-  teletext splash on tty1. Switch VTs or use `journalctl` to read it.
-
-The install script also disables `getty@tty1` — the boot sequence on tty1 is
-splash → weather kiosk, with no login prompt in between. Console logins remain
-available on tty2+ (Ctrl+Alt+F2) and over SSH.
 
 ## Verifying after reboot
 

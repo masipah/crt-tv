@@ -52,14 +52,5 @@ for arg in 'vc4.tv_norm=NTSC' 'video=Composite-1:720x480@60i' \
   fi
 done
 
-# Even at loglevel=3 the occasional kernel/systemd line lands on the console.
-# Point the console VT at tty3 so tty1 belongs to the teletext splash alone
-# from early boot until the kiosk takes the screen (logs: tty3 / journalctl).
-if grep -Eq '(^| )console=tty1( |$)' "$CMD"; then
-  sed -i -E 's/(^| )console=tty1( |$)/\1console=tty3\2/' "$CMD"
-elif ! grep -Eq '(^| )console=tty[0-9]+( |$)' "$CMD"; then
-  sed -i "1s|\$| console=tty3|" "$CMD"
-fi
-
 echo "Composite 480i NTSC configured. Backups: $CFG.bak-$ts, $CMD.bak-$ts"
 echo "Takes effect on next reboot. HDMI will be OFF while composite is enabled."
