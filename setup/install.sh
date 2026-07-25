@@ -243,9 +243,13 @@ install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
-install -d /usr/local/lib/crt-tv/remote/public
+install -d /usr/local/lib/crt-tv/remote/public/icons
 install -m 644 "$REPO_DIR/remote/server.mjs" /usr/local/lib/crt-tv/remote/server.mjs
-install -m 644 "$REPO_DIR/remote/public/index.html" /usr/local/lib/crt-tv/remote/public/index.html
+# the whole public tree: the remote itself, the oscilloscope channel page,
+# and the web-app manifest/icons
+install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webmanifest \
+  /usr/local/lib/crt-tv/remote/public/
+install -m 644 "$REPO_DIR"/remote/public/icons/* /usr/local/lib/crt-tv/remote/public/icons/
 
 # The remote runs unprivileged as 'crt'; this lets it (and the crt user
 # generally) run the tv command without a password.
