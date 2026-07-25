@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oscilloscope</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #050f08; overflow: hidden; }
+  canvas { position: fixed; inset: 0; display: block; }
+</style>
+</head>
+<body>
+<canvas id="scope"></canvas>
+<script>
+// The oscilloscope channel — shown fullscreen on the PVM by the same
+// Chromium kiosk that runs the weather (`tv scope`), and viewable in any
+// browser at http://<pi>:8090/oscilloscope.html.
+//
+// Ported from the scope backdrop on masipah.com (masipah/masipah,
+// src/components/Oscilloscope.tsx): same beam physics and readouts, minus
+// the React wrapper and that site's ⌘D disc-manager easter egg.
+//
+// HP 54600B-style digital scope, Canvas 2D only. The figure cycles through
+// five shapes, crossfading the beam path from one into the next the way
+// oscilloscope music morphs figures (Jerobeam Fenderson via Techmoan's
+// "Pictures from Sound"):
+//
+//   wave sweep -> harmonic flower -> wireframe globe -> butterfly garden
+//   -> wireframe cube -> back to the wave
+//
+// The look is a digital raster CRT, not an analog tube: flat two-tone, no
+// glow, no afterglow, no gradients — an almost-black phosphor field, one
+// bright mint trace, and the 54600B's on-screen readouts. The measurement
+// row is live: Vp-p / Vrms / Freq are computed from the trace being drawn.
+(() => {
+  'use strict';
+
+  // flat two-tone palette
+  const BG = '#050f08';
+  const INK = '#d6ffe6'; // trace and readout text
+  const GRID = 'rgba(150, 255, 190, 0.5)';
+  const GRID_DIM = 'rgba(150, 255, 190, 0.36)';
+  // DejaVu Sans Mono is named explicitly because RPi OS Lite has no font
+  // aliases to speak of — ui-monospace resolves to nothing there.
+  const font = (px) => `600 ${px}px ui-monospace, 'DejaVu Sans Mono', Menlo, monospace`;
+
+  // The PVM crops roughly 5% of every edge (overscan), so the screen
+  // furniture is inset from the raster instead of hugging it the way it can
+  // on a desktop tube — same margin idea as the teletext splash.
+  const OVERSCAN = 0.05;
+
+  // the fixed front-panel settings the readouts claim
+  const VOLTS_PER_DIV = 5;
+  const SECS_PER_DIV = 50e-6; // 50.0µs/ keeps Freq in the kHz like the real thing
+
+  // beam physics (the oscilloscope-music look): a segment's brightness is the
+  // dwell time per screen pixel, so slow dense curves burn hot while fast
+  // excursions and slews fade toward nothing
+  const BRIGHTNESS = 10;
+  const BUCKETS = 10; // alpha quantization so segments batch into few strokes
+
+  // ---- XY-mode figures ----
+  const HOLD_MIN = 6; // seconds a figure holds before morphing on
+  const MORPH_TIME = 2.4; // seconds spent crossfading to the next figure
+
+  const FOCAL = 3.5; // perspective focal length for the 3D figures
+
+  // unit cube, so projected z stays in [-1, 1]
+  const S3 = 1 / Math.sqrt(3);
+  const VERTS = [
+    [-S3, -S3, -S3], [S3, -S3, -S3], [S3, S3, -S3], [-S3, S3, -S3],
+    [-S3, -S3, S3], [S3, -S3, S3], [S3, S3, S3], [-S3, S3, S3],
+  ];
+  // One continuous beam path covering all 12 edges. A cube has 8 odd-degree
+  // vertices so no Eulerian trail exists — the beam jumps 4 times; the pen
+  // lifts across those jumps so only the edges draw.
+  const SEQ = [0, 1, 2, 3, 0, 4, 5, 6, 7, 4, 1, 5, 2, 6, 3, 7, 0];
+  const IS_EDGE = [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0];
+  const CUBE_EDGE_SAMPLES = 49;
+  const CUBE_JUMP_SAMPLES = 3;
+  // every figure fills exactly N samples so their beam paths can be blended
+  const N = 12 * CUBE_EDGE_SAMPLES + 4 * CUBE_JUMP_SAMPLES; // 600
+
+  // globe wireframe: meridian great circles plus flat parallels
+  const MERIDIANS = 4;
+  const PARALLELS = [-0.96, -0.48, 0, 0.48, 0.96]; // latitudes, radians
+  const GLOBE_RINGS = MERIDIANS + PARALLELS.length;
+
+  // the garden: each butterfly is Temple Fay's butterfly curve, drawn as one
+  // closed beam loop, flapping by folding its wings toward the body axis
+  const BUTTERFLIES = 3;
+  const FLAP_SPEEDS = [5.3, 4.2, 6.1]; // wingbeats, rad/s
+  const WING_SIZES = [0.5, 0.38, 0.44]; // relative to the figure radius
+
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  // static layer: flat background, graticule, and the fixed readouts
+  const base = document.createElement('canvas');
+  const baseCtx = base.getContext('2d', { alpha: false });
+
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+  let rafId = 0;
+  let last = 0;
+  let t = 0; // simulation clock, seconds
+
+  // graticule frame and text size, shared by the base layer and the live
+  // readout row
+  let gx0 = 0;
+  let gx1 = 0;
+  let gy0 = 0;
+  let gy1 = 0;
+  let fontPx = 13;
+
+  // the erratic part: surges, trigger slips, and wandering frequencies
+  let energy = 0; // amplitude surge, decays after each random hit
+  let trig = 0; // trigger phase, slips in random jolts
+  let freqWalk = 0; // fundamental frequency random walk
+  let lobes = 3; // flower figure: current harmonic lobe count, hops around
+
+  // XY-mode morph state: which figure is showing and where the cycle is
+  let fig = 0;
+  let nextFig = 1;
+  let phase = 0;
+  let hold = HOLD_MIN + Math.random() * 4;
+  let morphing = false;
+  let cubeAng = 0; // integrated so surges can spin the cube up smoothly
+  let globeSpin = 0;
+  const flaps = [0, 2.1, 4.4]; // integrated so surges quicken the wingbeats
+  const bufA = new Float32Array(N * 2);
+  const bufB = new Float32Array(N * 2);
+  const proj = new Float32Array(8 * 2); // the cube's projected vertices
+
+  const paths = new Array(BUCKETS).fill(null);
+
+  // live measurement readouts, refreshed a few times a second like the
+  // scope's own Meas row (60Hz updates would be an unreadable blur)
+  let measPP = '';
+  let measRMS = '';
+  let measFreq = '';
+  let measTimer = 1; // start past the refresh period so frame one fills them
+
+  // inverse-video label (the highlighted softkey / RUN box)
+  function invText(g, text, cx, baseline) {
+    const w = g.measureText(text).width;
+    g.fillStyle = INK;
+    g.fillRect(cx - w / 2 - 3, baseline - fontPx + 2, w + 6, fontPx + 1);
+    g.fillStyle = BG;
+    g.fillText(text, cx, baseline);
+    g.fillStyle = INK;
+  }
+
+  function drawBase() {
+    const g = baseCtx;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = BG;
+    g.fillRect(0, 0, width, height);
+
+    // Screen furniture rows: status above the graticule, measurements and the
+    // softkey menu below it — all laid out inside the overscan-safe box, and
+    // spaced off the text size so 480i and a laptop both stay readable.
+    const mx = Math.round(width * OVERSCAN);
+    const my = Math.round(height * OVERSCAN);
+    fontPx = Math.max(11, Math.min(18, Math.round(height / 34)));
+    const row = fontPx + 1; // baseline-to-baseline in the two softkey rows
+    const statusY = my + fontPx;
+    const keyRow2 = height - my;
+    const keyRow1 = keyRow2 - row;
+    const measY = keyRow1 - row;
+    gx0 = mx;
+    gx1 = width - mx;
+    gy0 = statusY + 8;
+    gy1 = measY - fontPx - 3;
+    const divX = (gx1 - gx0) / 10;
+    const divY = (gy1 - gy0) / 8;
+
+    // HP 54600-style graticule: a bordered 10x8 grid of dashed lines
+    g.lineWidth = 1;
+    g.strokeStyle = GRID;
+    g.strokeRect(gx0 + 0.5, gy0 + 0.5, gx1 - gx0 - 1, gy1 - gy0 - 1);
+
+    g.setLineDash([2, 4]);
+    g.strokeStyle = GRID_DIM;
+    g.beginPath();
+    for (let i = 1; i < 10; i++) {
+      const x = Math.round(gx0 + i * divX) + 0.5;
+      g.moveTo(x, gy0);
+      g.lineTo(x, gy1);
+    }
+    for (let j = 1; j < 8; j++) {
+      const y = Math.round(gy0 + j * divY) + 0.5;
+      g.moveTo(gx0, y);
+      g.lineTo(gx1, y);
+    }
+    g.stroke();
+    g.setLineDash([]);
+
+    // center axes carry fine tick marks every 1/5 division
+    const axx = Math.round(gx0 + 5 * divX) + 0.5;
+    const axy = Math.round(gy0 + 4 * divY) + 0.5;
+    g.strokeStyle = GRID;
+    g.beginPath();
+    for (let x = gx0; x < gx1; x += divX / 5) {
+      g.moveTo(x, axy - 3);
+      g.lineTo(x, axy + 3);
+    }
+    for (let y = gy0; y < gy1; y += divY / 5) {
+      g.moveTo(axx - 3, y);
+      g.lineTo(axx + 3, y);
+    }
+    g.stroke();
+
+    // ---- fixed readouts ----
+    g.font = font(fontPx);
+    g.textBaseline = 'alphabetic';
+    g.fillStyle = INK;
+
+    // status row: channel sensitivities, delay and timebase, trigger + RUN
+    g.textAlign = 'left';
+    g.fillText('1 5.00V', gx0, statusY);
+    g.fillText('2 5.00V', gx0 + g.measureText('1 5.00V  ').width, statusY);
+    g.textAlign = 'center';
+    g.fillText('-0.00s  50.0µs/', (gx0 + gx1) / 2, statusY);
+
+    g.textAlign = 'right';
+    const runW = g.measureText('RUN').width;
+    g.fillRect(gx1 - runW - 6, statusY - fontPx - 1, runW + 6, fontPx + 2);
+    g.fillStyle = BG;
+    g.fillText('RUN', gx1 - 3, statusY - 1);
+    g.fillStyle = INK;
+    const trigX = gx1 - runW - 14;
+    g.fillText('2', trigX, statusY);
+    // rising-edge trigger glyph ahead of the source channel digit
+    g.strokeStyle = INK;
+    g.beginPath();
+    g.moveTo(trigX - 26, statusY - 1.5);
+    g.lineTo(trigX - 19.5, statusY - 1.5);
+    g.lineTo(trigX - 19.5, statusY - fontPx + 2.5);
+    g.lineTo(trigX - 13, statusY - fontPx + 2.5);
+    g.stroke();
+
+    // softkey menu rows, one label column per front-panel button
+    const key = (i) => gx0 + (gx1 - gx0) * ((i + 0.5) / 6);
+    g.textAlign = 'center';
+    g.fillText('Source', key(0), keyRow1);
+    g.fillText('── Voltage Measurements ──', key(2), keyRow1);
+    g.fillText('Clear', key(4), keyRow1);
+    g.fillText('Next', key(5), keyRow1);
+    invText(g, '1', key(0) - 8, keyRow2);
+    g.fillText('2', key(0) + 10, keyRow2);
+    g.fillText('V p-p', key(1), keyRow2);
+    g.fillText('V avg', key(2), keyRow2);
+    g.fillText('V rms', key(3), keyRow2);
+    g.fillText('Meas', key(4), keyRow2);
+    g.fillText('Menu', key(5), keyRow2);
+    g.textAlign = 'left';
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    for (const c of [canvas, base]) {
+      c.width = width * dpr;
+      c.height = height * dpr;
+    }
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawBase();
+  }
+
+  function step(dt) {
+    t += dt;
+
+    // random hits drive the chaos: amplitude surges, trigger slips, and
+    // frequency jolts
+    if (Math.random() < dt * 3) energy = 1 + Math.random() * 1.5;
+    energy *= Math.exp(-dt * 2.5);
+    if (Math.random() < dt * 4) trig += (Math.random() - 0.5) * 24;
+    freqWalk += (Math.random() - 0.5) * dt * 40;
+    freqWalk *= Math.exp(-dt * 1.5);
+    if (Math.random() < dt * 1.5) lobes = 2 + ((Math.random() * 5) | 0);
+
+    const hum = Math.sin(t * 7) * 0.6; // trace of mains hum
+    const cx = width / 2 + Math.sin(t * 1.3) * 6;
+    const cy = height / 2 + hum * 4 + Math.cos(t * 1.7) * 6;
+    const R = Math.min(width, height) * 0.3;
+    cubeAng += dt * (1 + energy * 1.2); // surges spin the 3D figures up
+    globeSpin += dt * (1 + energy * 2);
+    for (let b = 0; b < BUTTERFLIES; b++) flaps[b] += dt * FLAP_SPEEDS[b] * (1 + energy * 1.5);
+
+    // the wave sweep: a clean, nearly pure sine — slow breathing amplitude,
+    // gently drifting frequency, and only a whisper of higher harmonics
+    function genWave(out) {
+      const y1 = height * 0.5 + hum + Math.sin(t * 0.8) * 6;
+      const a1 =
+        Math.min(height * 0.16, width * 0.2) *
+        (0.82 + 0.12 * Math.sin(t * 0.9) + energy * 0.2);
+      const f1 = Math.min(7, Math.max(2.5, 4.5 + 1.2 * Math.sin(t * 0.5) + freqWalk * 0.25));
+      const k1 = (Math.PI * 2 * f1) / width;
+      const p2 = t * 1.7;
+      const p3 = -t * 1.1;
+      for (let i = 0; i < N; i++) {
+        const x = (i / (N - 1)) * width;
+        const th = x * k1 + trig * 0.3;
+        out[i * 2] = x;
+        out[i * 2 + 1] =
+          y1 + a1 * (Math.sin(th) + 0.08 * Math.sin(2 * th + p2) + 0.04 * Math.sin(3 * th + p3));
+      }
+    }
+
+    // the harmonic flower: a circle warbling under racing radial harmonics
+    function genFlower(out) {
+      const m1 = 0.14 + 0.1 * Math.sin(t * 5.1) + energy * 0.16;
+      const m2 = 0.07 * Math.sin(t * 8.7 + 1);
+      const m3 = 0.045 * Math.sin(t * 13 + 2);
+      const s1 = t * 4.2 + trig * 0.05;
+      const s2 = -t * 6.8;
+      const s3 = t * 11;
+      for (let i = 0; i < N; i++) {
+        const th = (i / N) * Math.PI * 2;
+        const r =
+          R *
+          (1 +
+            m1 * Math.sin(lobes * th + s1) +
+            m2 * Math.sin((lobes + 1) * th + s2) +
+            m3 * Math.sin((2 * lobes + 1) * th + s3));
+        out[i * 2] = cx + r * Math.cos(th);
+        out[i * 2 + 1] = cy + r * Math.sin(th);
+      }
+    }
+
+    // spinning wireframe globe: meridians carry the spin, parallels hold
+    const globeR = R * 0.95;
+    function genGlobe(out) {
+      const tilt = 0.45 + 0.12 * Math.sin(t * 0.4);
+      const ct = Math.cos(tilt);
+      const st = Math.sin(tilt);
+      const perRing = Math.floor(N / GLOBE_RINGS);
+      let i = 0;
+      for (let ring = 0; ring < GLOBE_RINGS; ring++) {
+        const count = ring === GLOBE_RINGS - 1 ? N - i : perRing;
+        const meridian = ring < MERIDIANS;
+        const lam = globeSpin * 0.9 + (ring * Math.PI) / MERIDIANS;
+        const cl = Math.cos(lam);
+        const sl = Math.sin(lam);
+        const lat = meridian ? 0 : PARALLELS[ring - MERIDIANS];
+        const cphi = Math.cos(lat);
+        const sphi = Math.sin(lat);
+        for (let k = 0; k < count; k++, i++) {
+          const th = (k / count) * Math.PI * 2;
+          let x, y, z;
+          if (meridian) {
+            // great circle through the poles at longitude lam
+            x = Math.sin(th) * cl;
+            y = Math.sin(th) * sl;
+            z = Math.cos(th);
+          } else {
+            // flat circle at latitude lat
+            x = cphi * Math.cos(th);
+            y = cphi * Math.sin(th);
+            z = sphi;
+          }
+          const y1 = y * ct - z * st; // tilt the polar axis toward the viewer
+          const z1 = y * st + z * ct;
+          const p = FOCAL / (FOCAL - z1);
+          out[i * 2] = cx + x * p * globeR;
+          out[i * 2 + 1] = cy + y1 * p * globeR;
+        }
+      }
+    }
+
+    // the tumbling wireframe cube from the 3d-oscilloscope-renderer look
+    function genCube(out) {
+      const rx = cubeAng * 0.51;
+      const ry = cubeAng * 0.77;
+      const rz = cubeAng * 0.18;
+      const cxr = Math.cos(rx), sxr = Math.sin(rx);
+      const cyr = Math.cos(ry), syr = Math.sin(ry);
+      const czr = Math.cos(rz), szr = Math.sin(rz);
+      for (let v = 0; v < 8; v++) {
+        const [x, y, z] = VERTS[v];
+        let y1 = y * cxr - z * sxr;
+        let z1 = y * sxr + z * cxr;
+        const x1 = x * cyr + z1 * syr;
+        z1 = -x * syr + z1 * cyr;
+        const x2 = x1 * czr - y1 * szr;
+        y1 = x1 * szr + y1 * czr;
+        const p = FOCAL / (FOCAL - z1);
+        proj[v * 2] = cx + x2 * p * R;
+        proj[v * 2 + 1] = cy + y1 * p * R;
+      }
+      let i = 0;
+      for (let s = 0; s < SEQ.length - 1; s++) {
+        const a = SEQ[s] * 2;
+        const b = SEQ[s + 1] * 2;
+        const count = IS_EDGE[s] === 1 ? CUBE_EDGE_SAMPLES : CUBE_JUMP_SAMPLES;
+        for (let k = 1; k <= count; k++, i++) {
+          const f = k / count;
+          out[i * 2] = proj[a] + (proj[b] - proj[a]) * f;
+          out[i * 2 + 1] = proj[a + 1] + (proj[b + 1] - proj[a + 1]) * f;
+        }
+      }
+    }
+
+    // butterflies fluttering around the tube on wandering paths
+    function genButterflies(out) {
+      const per = Math.floor(N / BUTTERFLIES);
+      let i = 0;
+      for (let b = 0; b < BUTTERFLIES; b++) {
+        const count = b === BUTTERFLIES - 1 ? N - i : per;
+        const bx = cx + width * 0.2 * Math.sin(t * (0.23 + b * 0.07) + b * 2.1);
+        const by = cy + height * 0.16 * Math.sin(t * (0.31 + b * 0.05) + b * 1.4);
+        const size = R * WING_SIZES[b];
+        const fold = 0.3 + 0.7 * Math.abs(Math.cos(flaps[b])); // wingbeat
+        const bank = 0.35 * Math.sin(t * 0.9 + b * 2); // lean into the turn
+        const cb = Math.cos(bank);
+        const sb = Math.sin(bank);
+        for (let k = 0; k < count; k++, i++) {
+          const th = (k / count) * Math.PI * 2;
+          // butterfly curve, plus a slow ripple along the wing edges
+          const r =
+            (Math.exp(Math.sin(th)) -
+              2 * Math.cos(4 * th) +
+              0.35 * Math.sin(2 * th + t * 1.7 + b)) /
+            4;
+          const x = r * Math.sin(th) * fold * size;
+          const y = -r * Math.cos(th) * size;
+          out[i * 2] = bx + x * cb - y * sb;
+          out[i * 2 + 1] = by + x * sb + y * cb;
+        }
+      }
+    }
+
+    const gens = [genWave, genFlower, genGlobe, genButterflies, genCube];
+
+    // figure scheduler: hold, then crossfade the beam path to the next one
+    phase += dt;
+    if (!morphing && phase > hold) {
+      morphing = true;
+      phase = 0;
+      nextFig = (fig + 1) % gens.length;
+    } else if (morphing && phase > MORPH_TIME) {
+      fig = nextFig;
+      morphing = false;
+      phase = 0;
+      hold = HOLD_MIN + Math.random() * 5;
+    }
+
+    gens[fig](bufA);
+    if (morphing) {
+      gens[nextFig](bufB);
+      const q = Math.min(1, phase / MORPH_TIME);
+      const m = q * q * (3 - 2 * q); // smoothstep
+      for (let i = 0; i < N * 2; i++) bufA[i] += (bufB[i] - bufA[i]) * m;
+    }
+
+    // dwell-time brightness, bucketed so segments batch into few strokes:
+    // slow dense curves burn hot, slews and retraces fade out on their own
+    paths.fill(null);
+    let px = bufA[0];
+    let py = bufA[1];
+    for (let i = 1; i < N; i++) {
+      const x = bufA[i * 2];
+      const y = bufA[i * 2 + 1];
+      const len = Math.hypot(x - px, y - py);
+      const alpha = Math.min(1, BRIGHTNESS / (len + 0.5));
+      if (alpha > 0.02) {
+        const bucket = Math.min(BUCKETS - 1, (alpha * BUCKETS) | 0);
+        const path = (paths[bucket] ??= new Path2D());
+        path.moveTo(px, py);
+        path.lineTo(x, y);
+      }
+      px = x;
+      py = y;
+    }
+
+    // live measurements over the on-screen samples, in the scope's units:
+    // pixels -> divisions -> volts, screen width -> the 10-division sweep
+    measTimer += dt;
+    if (measTimer > 0.35) {
+      measTimer = 0;
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      for (let i = 0; i < N; i++) {
+        const y = bufA[i * 2 + 1];
+        if (y < min) min = y;
+        if (y > max) max = y;
+        sum += y;
+      }
+      const meanY = sum / N;
+      let sq = 0;
+      let crossings = 0;
+      for (let i = 0; i < N; i++) {
+        const d = bufA[i * 2 + 1] - meanY;
+        sq += d * d;
+        if (i > 0 && d * (bufA[i * 2 - 1] - meanY) < 0) crossings++;
+      }
+      const divY = (gy1 - gy0) / 8;
+      const vpp = ((max - min) / divY) * VOLTS_PER_DIV;
+      const vrms = (Math.sqrt(sq / N) / divY) * VOLTS_PER_DIV;
+      const freq = crossings / 2 / (10 * SECS_PER_DIV);
+      measPP = `Vp-p(1)=${vpp.toFixed(2)} V`;
+      measRMS = `Vrms(1)=${vrms.toFixed(3)} V`;
+      measFreq = `Freq(1)=${(freq / 1000).toFixed(3)}kHz`;
+    }
+  }
+
+  function draw() {
+    // a zero-size viewport makes drawImage throw InvalidStateError on the
+    // 0×0 base canvas; the resize listener redraws once the window has real
+    // dimensions
+    if (width === 0 || height === 0) return;
+    const g = ctx;
+    g.drawImage(base, 0, 0, width, height);
+    // beam passes: wide glow, inner glow, then the hot core — luminous like
+    // an XY tube, over the flat raster screen furniture
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    for (let bk = 0; bk < BUCKETS; bk++) {
+      const path = paths[bk];
+      if (!path) continue;
+      const a = (bk + 0.5) / BUCKETS;
+      g.lineWidth = 10;
+      g.strokeStyle = `rgba(60, 220, 130, ${(a * 0.1).toFixed(3)})`;
+      g.stroke(path);
+      g.lineWidth = 3.5;
+      g.strokeStyle = `rgba(140, 255, 190, ${(a * 0.22).toFixed(3)})`;
+      g.stroke(path);
+      g.lineWidth = 1.6;
+      g.strokeStyle = `rgba(235, 255, 244, ${(a * 0.9).toFixed(3)})`;
+      g.stroke(path);
+    }
+    g.globalCompositeOperation = 'source-over';
+    // live measurement row between the graticule and the softkey menu
+    g.font = font(fontPx);
+    g.textBaseline = 'alphabetic';
+    g.textAlign = 'left';
+    g.fillStyle = INK;
+    const y = gy1 + fontPx + 3;
+    const safeW = gx1 - gx0;
+    g.fillText(measPP, gx0 + 2, y);
+    g.fillText(measRMS, gx0 + safeW * 0.36, y);
+    g.fillText(measFreq, gx0 + safeW * 0.66, y);
+  }
+
+  function frame(now) {
+    const dt = Math.min(now - last, 100) / 1000;
+    last = now;
+    step(dt);
+    draw();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+
+  resize();
+  // one step so the reduced-motion still frame has a trace and readouts
+  step(1 / 60);
+  draw();
+
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    last = performance.now();
+    rafId = requestAnimationFrame(frame);
+  }
+})();
+</script>
+</body>
+</html>
