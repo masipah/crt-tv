@@ -75,7 +75,13 @@ echo "==> Installing WeatherStar 4000+ to /opt/ws4kp"
 # ("dubious ownership"), and the service runs as crt anyway.
 if [[ -d /opt/ws4kp/.git ]]; then
   chown -R crt:crt /opt/ws4kp
-  sudo -u crt git -C /opt/ws4kp pull --ff-only
+  # fetch + hard reset, same as the /opt/crt-tv self-update: npm install
+  # rewrites package-lock.json in place, which made a plain `git pull` refuse
+  # to merge and abort the whole installer on re-runs. A managed clone has no
+  # local edits worth keeping.
+  sudo -u crt git -C /opt/ws4kp fetch origin
+  sudo -u crt git -C /opt/ws4kp remote set-head origin --auto
+  sudo -u crt git -C /opt/ws4kp reset --hard origin/HEAD
 else
   install -d -o crt -g crt /opt/ws4kp
   sudo -u crt git clone https://github.com/netbymatt/ws4kp /opt/ws4kp
