@@ -72,13 +72,26 @@ put it in `/etc/crt-tv/crt-tv.env` as `KIOSK_URL` (change the host to
 
 ### Overscan
 
-The CRT throws away the outer few percent of the raster, which eats the
+The CRT throws away the outer edge of the raster, which eats the
 WeatherStar's bottom scroll. Rather than reach for the monitor's UNDERSCAN
-button (which leaves black borders in view), the kiosk scales its page to
-`KIOSK_FIT` — 0.90 by default — and keeps it centred, so the black remainder
-lands in the margin the tube crops and the whole picture stays visible. Lower
-it if the edges are still clipped, or set `KIOSK_FIT=1` to switch it off. It
-covers both browser channels; video keeps its own `CRT_PANSCAN` fit.
+button (which shrinks the raster ~3% and leaves black borders in view), the
+kiosk scales its page down and keeps it centred, so the black remainder lands
+in the margin the tube crops and the whole picture stays visible.
+
+The default is the PVM-9045Q's own datasheet number: normal scan is **6%
+overscan of the effective screen area** (the Q/QM family manual), so the tube
+shows 1/1.06 ≈ 94.3% of the raster per axis — `KIOSK_FIT=0.943`. Individual
+tubes drift from spec and rarely crop both axes alike, so it's tunable in
+`/etc/crt-tv/crt-tv.env`: `KIOSK_FIT_X`/`KIOSK_FIT_Y` (fractions), and
+`KIOSK_SHIFT_X`/`KIOSK_SHIFT_Y` (raster pixels) for an off-centre scan.
+
+To dial it in, run `tv pattern`: a calibration grid with percent rulers on
+all four edges and a green box drawn exactly where the current settings put
+the picture. The smallest ruler number readable on the tube is that edge's
+crop; tune the env values until the green box just kisses all four visible
+edges, re-running `tv pattern` after each change, then `tv weather`. Set
+`KIOSK_FIT=1` to switch compensation off. It covers both browser channels;
+video keeps its own `CRT_PANSCAN` fit.
 
 ## Usage
 
@@ -87,6 +100,7 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 ```text
 tv weather          # WeatherStar 4000+
 tv scope            # oscilloscope channel
+tv pattern          # overscan calibration grid (see "Overscan")
 tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
 tv pause            # toggle pause

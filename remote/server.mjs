@@ -129,10 +129,12 @@ const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 // no file (fresh boot) means the unit's own default, the weather.
 const KIOSK_ENV = '/run/crt-tv/kiosk.env';
 
-const kioskPage = async () => (
-  /oscilloscope/.test(await fs.readFile(KIOSK_ENV, 'utf8').catch(() => ''))
-    ? 'scope'
-    : 'weather');
+const kioskPage = async () => {
+  const env = await fs.readFile(KIOSK_ENV, 'utf8').catch(() => '');
+  if (/oscilloscope/.test(env)) return 'scope';
+  if (/fit\.html/.test(env)) return 'pattern';
+  return 'weather';
+};
 
 const hwMixer = (arg) => new Promise((resolve) => {
   execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
