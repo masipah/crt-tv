@@ -9,12 +9,26 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
-# Default weather location: San Francisco, 94102. ws4kp's own permalink
-# parameters, percent-encoded — latLon carries JSON, whose quotes wouldn't
-# survive being read out of the env file. URL parameters beat the location
-# cached in the kiosk's Chromium profile, so this is what decides where the
-# weather is unless a permalink says otherwise.
-WS4KP_LOCATION='latLonQuery=94102&latLon=%7B%22lat%22%3A37.7815%2C%22lon%22%3A-122.4167%7D'
+# Where the weather is: a ws4kp search string (ZIP code, or "City, ST"),
+# default San Francisco 94102. Forced on every launch — the location belongs
+# to the appliance, not to whatever a browser profile remembers or an old
+# permalink still carries, so the TV can't drift to another city behind our
+# backs. Override with KIOSK_LOCATION in /etc/crt-tv/crt-tv.env.
+WS4KP_LOCATION=${KIOSK_LOCATION:-94102}
+# Coordinates for the default, so the usual case needs no geocoder round-trip
+# at startup; any other location is geocoded by ws4kp itself. Percent-encoded
+# because latLon carries JSON, whose quotes wouldn't survive the env file.
+WS4KP_LATLON=${KIOSK_LATLON:-}
+if [[ -z $WS4KP_LATLON && $WS4KP_LOCATION == 94102 ]]; then
+  WS4KP_LATLON='%7B%22lat%22%3A37.7815%2C%22lon%22%3A-122.4167%7D'
+fi
+
+# How much of the raster the CRT actually shows. Composite overscan crops the
+# outer few percent, which eats the WeatherStar's bottom scroll; the PVM's
+# UNDERSCAN button is the manual fix (and leaves black borders), this is the
+# automatic one — the page is scaled to this fraction and stays centred, so
+# the whole picture lands inside the visible area. 1 = no compensation.
+KIOSK_FIT=${KIOSK_FIT:-0.90}
 
 # ws4kp-only URL surgery. Other pages the kiosk shows (the oscilloscope)
 # take no parameters and are launched exactly as given; ws4kp lives on
@@ -38,9 +52,21 @@ if [[ $URL == *:8080* ]]; then
     URL="$URL&mediaPlaying=true&mediaVolume=1"
   fi
 
-  # A permalink brings its own latLon; anything else gets the default
-  [[ $URL == *latLon* ]] || URL="$URL&$WS4KP_LOCATION"
+  # Location last, and forced: strip whatever the URL carries (a permalink
+  # serializes the location it was made at) and append ours. A search string
+  # alone is enough — ws4kp geocodes it in place, no redirect — and the
+  # coordinates, when we have them, skip that lookup entirely.
+  URL=$(printf '%s' "$URL" | sed -E 's/([?&])latLonQuery=[^&]*&?/\1/g; s/([?&])latLon=[^&]*&?/\1/g; s/[?&]$//')
+  # a city-style location needs its spaces and commas encoded
+  URL="$URL&latLonQuery=$(printf '%s' "$WS4KP_LOCATION" | sed 's/ /%20/g; s/,/%2C/g')"
+  if [[ -n $WS4KP_LATLON ]]; then
+    URL="$URL&latLon=$WS4KP_LATLON"
+  fi
 fi
+
+# Overscan compensation, read by the kiosk-fit extension on ws4kp pages and by
+# the oscilloscope page. Our own parameter; anything else ignores it.
+[[ $URL == *\?* ]] && URL="$URL&crtFit=$KIOSK_FIT" || URL="$URL?crtFit=$KIOSK_FIT"
 
 # Wait briefly for the audio graph so Chromium binds to PipeWire instead of
 # falling back to raw ALSA (which AirPlay routing can't touch). Non-fatal —
