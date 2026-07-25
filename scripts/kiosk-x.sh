@@ -17,6 +17,14 @@ export LANGUAGE=en_US:en LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 export XDG_CACHE_HOME=/run/crt-tv/cache
 mkdir -p "$XDG_CACHE_HOME"
 
+# Chromium records hostname-pid in a profile singleton lock. After a hostname
+# change (or an unclean stop that leaves a pid Chromium can't identify) it
+# decides "another computer" owns the profile, pops an invisible dialog and
+# exits — wedging the service in a restart loop. This service is the only
+# thing that ever runs Chromium here, and systemd has already killed any
+# previous instance, so the lock is always safe to clear.
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}"/chromium/Singleton{Lock,Cookie,Socket}
+
 # The kiosk-ext content script hides ws4kp until its kiosk layout is applied,
 # killing the startup flash of the un-scaled page; default-background-color
 # kills Chromium's own white flash. DisableLoadExtensionCommandLineSwitch must
