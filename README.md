@@ -186,7 +186,7 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ### HTTPS for the web remote
 
-The remote can be served as `https://tv.example.com/` with a real
+The remote can be served as `https://tv.masipah.com/` with a real
 Let's Encrypt certificate — no browser warnings — even though the Pi is
 LAN-only. Ownership is proven with the **DNS-01 challenge**: certbot
 places a TXT record in the domain's public zone through the Cloudflare
@@ -201,7 +201,7 @@ blocks public names resolving to LAN addresses.)
    one permission: **Zone → DNS → Edit**, scoped to your domain's zone.
 2. On the Pi, copy [setup/cloudflare.ini.example](setup/cloudflare.ini.example)
    to `/etc/crt-tv/cloudflare.ini` and paste the token in.
-3. Set `HTTPS_DOMAIN=tv.example.com` in `/etc/crt-tv/crt-tv.env`
+3. Set `HTTPS_DOMAIN=tv.masipah.com` in `/etc/crt-tv/crt-tv.env`
    (optionally `LETSENCRYPT_EMAIL=` for expiry notices).
 4. Re-run the installer one-liner.
 
