@@ -47,23 +47,38 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
 
 ### Setting your location
 
-The weather comes up at **San Francisco (94102)**: the kiosk appends ws4kp's
-own `latLonQuery`/`latLon` parameters (the default lives in
-`scripts/kiosk.sh`), and URL parameters beat whatever location is cached in
-the browser — so every boot lands in the same place.
+The weather is at **San Francisco (94102)**. Set `KIOSK_LOCATION` in
+`/etc/crt-tv/crt-tv.env` to move it — a ZIP code or `City, ST`, whatever
+ws4kp's search box accepts — then `tv weather`:
 
-To put it somewhere else, use a **permalink**: open `http://<pi-address>:8080/`
-from your laptop, set the location and display options, copy the
-permalink/share URL, then put it in `/etc/crt-tv/crt-tv.env` as `KIOSK_URL`
-(change the host to `127.0.0.1:8080`) and run `tv weather`. A permalink brings
-its own location, so the built-in default steps aside.
+```sh
+KIOSK_LOCATION=11201
+```
 
-Configuring ws4kp with a keyboard on the Pi works too, but only until the
-kiosk restarts — the URL's location wins from then on.
+The kiosk appends it to the URL as ws4kp's own `latLonQuery`, **forcing** it
+past anything else: a location cached in the kiosk's Chromium profile, or one
+baked into a permalink. The location belongs to the appliance, so every boot
+lands in the same city — which also means configuring ws4kp with a keyboard on
+the Pi only holds until the kiosk restarts. `KIOSK_LATLON` optionally supplies
+the coordinates, skipping ws4kp's geocoder lookup at startup (the default
+94102 has them built in).
 
-The kiosk always forces fullscreen (`kiosk=true`) and background music
-(`mediaPlaying=true`) regardless of what the permalink says; set
-`KIOSK_MUSIC=off` in `/etc/crt-tv/crt-tv.env` to silence the weather channel.
+A **permalink** still carries display settings: open `http://<pi-address>:8080/`
+from your laptop, set the options you want, copy the permalink/share URL, and
+put it in `/etc/crt-tv/crt-tv.env` as `KIOSK_URL` (change the host to
+`127.0.0.1:8080`). Fullscreen (`kiosk=true`) and background music
+(`mediaPlaying=true`) are forced regardless of what it says; set
+`KIOSK_MUSIC=off` to silence the weather channel.
+
+### Overscan
+
+The CRT throws away the outer few percent of the raster, which eats the
+WeatherStar's bottom scroll. Rather than reach for the monitor's UNDERSCAN
+button (which leaves black borders in view), the kiosk scales its page to
+`KIOSK_FIT` — 0.90 by default — and keeps it centred, so the black remainder
+lands in the margin the tube crops and the whole picture stays visible. Lower
+it if the edges are still clipped, or set `KIOSK_FIT=1` to switch it off. It
+covers both browser channels; video keeps its own `CRT_PANSCAN` fit.
 
 ## Usage
 
