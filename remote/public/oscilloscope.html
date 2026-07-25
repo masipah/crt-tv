@@ -48,13 +48,20 @@
   // 54600B leaves a bezel margin
   const OVERSCAN = 0.02;
 
-  // Overscan compensation, from kiosk.sh's crtFit (KIOSK_FIT): the CRT crops
-  // the outer few percent of the raster, so the whole scope screen is scaled
-  // to this fraction of the window and centred, leaving the black remainder
-  // in the margin the tube throws away. Absent (any other browser) = 1, and
-  // the scope fills its window exactly.
-  const FIT = Math.min(1, Math.max(0.5,
-    parseFloat(new URLSearchParams(window.location.search).get('crtFit')) || 1));
+  // Overscan compensation, from kiosk.sh's crtFit/crtShift (KIOSK_FIT*): the
+  // CRT crops the outer few percent of the raster, so the whole scope screen
+  // is scaled to this fraction of the window ("0.94x0.95" per axis, a bare
+  // "0.94" covers both) and centred, plus a raster-pixel nudge for
+  // off-centre scans — the black remainder lands in the margin the tube
+  // throws away. Absent (any other browser) = 1: the scope fills its window.
+  const q = new URLSearchParams(window.location.search);
+  const clampFit = (v) => Math.min(1, Math.max(0.5, v || 1));
+  const [rawFx, rawFy] = (q.get('crtFit') || '1').split('x').map(parseFloat);
+  const FIT_X = clampFit(rawFx);
+  const FIT_Y = clampFit(rawFy ?? rawFx);
+  const clampShift = (v) => Math.min(100, Math.max(-100, v || 0));
+  const [SHIFT_X, SHIFT_Y] = (q.get('crtShift') || '0,0').split(',')
+    .map((v) => clampShift(parseFloat(v)));
 
   // the fixed front-panel settings the readouts claim
   const VOLTS_PER_DIV = 5;
@@ -160,11 +167,12 @@
   }
 
   // Everything is drawn in full-window coordinates and squeezed into the
-  // visible area by FIT, centred — one transform for the graticule, the
-  // readouts and the beam alike.
+  // visible area by the fit, centred and nudged — one transform for the
+  // graticule, the readouts and the beam alike.
   function fitTransform(g) {
-    g.setTransform(dpr * FIT, 0, 0, dpr * FIT,
-      (dpr * width * (1 - FIT)) / 2, (dpr * height * (1 - FIT)) / 2);
+    g.setTransform(dpr * FIT_X, 0, 0, dpr * FIT_Y,
+      dpr * ((width * (1 - FIT_X)) / 2 + SHIFT_X),
+      dpr * ((height * (1 - FIT_Y)) / 2 + SHIFT_Y));
   }
 
   function drawBase() {

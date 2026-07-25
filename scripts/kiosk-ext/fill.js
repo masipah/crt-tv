@@ -13,13 +13,22 @@
   const BASE_H = 480;
   let expected = null;
 
-  // Overscan compensation (kiosk.sh's crtFit, from KIOSK_FIT): the CRT crops
-  // the outer few percent of the raster, so fill a fraction of the screen and
-  // let the black remainder fall into the cropped margin — the whole picture,
-  // bottom scroll included, then lands inside the visible area. #divTwcMain
-  // keeps the default centre transform-origin, so scaling down stays centred.
-  const fit = Math.min(1, Math.max(0.5,
-    parseFloat(new URLSearchParams(window.location.search).get('crtFit')) || 1));
+  // Overscan compensation (kiosk.sh's crtFit/crtShift, from KIOSK_FIT*):
+  // the CRT crops the outer few percent of the raster, so fill a fraction of
+  // the screen and let the black remainder fall into the cropped margin —
+  // the whole picture, bottom scroll included, then lands inside the visible
+  // area. Per-axis ("0.94x0.95", a bare "0.94" covers both), because real
+  // tubes never crop the two axes alike, plus a raster-pixel nudge for
+  // off-centre scans. #divTwcMain keeps the default centre transform-origin,
+  // so scaling down stays centred and the shift rides on top.
+  const q = new URLSearchParams(window.location.search);
+  const clampFit = (v) => Math.min(1, Math.max(0.5, v || 1));
+  const [rawFx, rawFy] = (q.get('crtFit') || '1').split('x').map(parseFloat);
+  const fitX = clampFit(rawFx);
+  const fitY = clampFit(rawFy ?? rawFx);
+  const clampShift = (v) => Math.min(100, Math.max(-100, v || 0));
+  const [shiftX, shiftY] = (q.get('crtShift') || '0,0').split(',')
+    .map((v) => clampShift(parseFloat(v)));
 
   const apply = () => {
     if (!document.body || !document.body.classList.contains('kiosk')) return;
@@ -27,9 +36,11 @@
     if (!el) return;
     const cur = el.style.getPropertyValue('transform');
     if (expected !== null && cur === expected) return; // already ours
-    const sx = (window.innerWidth * fit) / BASE_W;
-    const sy = (window.innerHeight * fit) / BASE_H;
-    el.style.setProperty('transform', `scale(${sx}, ${sy})`, 'important');
+    const sx = (window.innerWidth * fitX) / BASE_W;
+    const sy = (window.innerHeight * fitY) / BASE_H;
+    // translate is outermost, so the shift is in raster pixels, not scaled
+    el.style.setProperty('transform',
+      `translate(${shiftX}px, ${shiftY}px) scale(${sx}, ${sy})`, 'important');
     // remember the browser's serialization so the observer can tell our
     // transform from ws4kp's without re-writing (and re-triggering) forever
     expected = el.style.getPropertyValue('transform');
