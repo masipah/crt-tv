@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRT fit pattern</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { position: fixed; inset: 0; display: block; }
+</style>
+</head>
+<body>
+<canvas id="pattern"></canvas>
+<script>
+// Overscan calibration pattern (`tv pattern`). Two things on screen:
+//
+//  - Rulers, drawn on the FULL raster: ticks every 0.5% in from each edge,
+//    numbered at whole percents. The smallest number you can read on the
+//    tube is how much that edge crops — e.g. "3" barely visible on the left
+//    means the left edge eats ~2.5-3% of the raster.
+//  - The green box: the picture area the current KIOSK_FIT_X/Y and
+//    KIOSK_SHIFT_X/Y would use (passed in by kiosk.sh as crtFit/crtShift,
+//    exactly like the real channels). Dial the numbers in
+//    /etc/crt-tv/crt-tv.env until the box just kisses all four visible
+//    edges, re-running `tv pattern` to see each change.
+//
+// First guess from the rulers, per axis (L/R = cropped % left/right):
+//   KIOSK_FIT_X   = 1 - (L+R)/100
+//   KIOSK_SHIFT_X = (L-R)/2 * width/100   (raster px; positive moves right)
+(() => {
+  'use strict';
+
+  const q = new URLSearchParams(window.location.search);
+  const clampFit = (v) => Math.min(1, Math.max(0.5, v || 1));
+  const [rawFx, rawFy] = (q.get('crtFit') || '1').split('x').map(parseFloat);
+  const FIT_X = clampFit(rawFx);
+  const FIT_Y = clampFit(rawFy ?? rawFx);
+  const clampShift = (v) => Math.min(100, Math.max(-100, v || 0));
+  const [SHIFT_X, SHIFT_Y] = (q.get('crtShift') || '0,0').split(',')
+    .map((v) => clampShift(parseFloat(v)));
+
+  const canvas = document.getElementById('pattern');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  function draw() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    if (W === 0 || H === 0) return;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = `${W}px`;
+    canvas.style.height = `${H}px`;
+    const g = ctx;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+
+    // faint 10% grid over the whole raster, for eyeballing linearity
+    g.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let i = 1; i < 10; i++) {
+      const x = Math.round((i / 10) * W) + 0.5;
+      const y = Math.round((i / 10) * H) + 0.5;
+      g.moveTo(x, 0); g.lineTo(x, H);
+      g.moveTo(0, y); g.lineTo(W, y);
+    }
+    g.stroke();
+
+    // raster border: only ever visible with UNDERSCAN pressed (or a fit
+    // smaller than the tube's crop)
+    g.strokeStyle = '#fff';
+    g.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+    // rulers: ticks every 0.5% in from each edge, numbered whole percents
+    const fontPx = Math.max(10, Math.round(H / 40));
+    g.font = `${fontPx}px ui-monospace, 'DejaVu Sans Mono', Menlo, monospace`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let p = 0.5; p <= 8; p += 0.5) {
+      const whole = Number.isInteger(p);
+      const len = whole ? 22 : 10;
+      g.strokeStyle = whole ? '#fff' : 'rgba(255,255,255,0.5)';
+      g.fillStyle = '#fff';
+      const lx = (p / 100) * W;
+      const rx = W - lx;
+      const ty = (p / 100) * H;
+      const by = H - ty;
+      g.beginPath();
+      // left + right rulers ride the vertical centreline
+      g.moveTo(lx, H / 2 - len); g.lineTo(lx, H / 2 + len);
+      g.moveTo(rx, H / 2 - len); g.lineTo(rx, H / 2 + len);
+      // top + bottom rulers ride the horizontal centreline
+      g.moveTo(W / 2 - len, ty); g.lineTo(W / 2 + len, ty);
+      g.moveTo(W / 2 - len, by); g.lineTo(W / 2 + len, by);
+      g.stroke();
+      if (whole) {
+        g.fillText(p, lx, H / 2 - len - fontPx * 0.8);
+        g.fillText(p, rx, H / 2 - len - fontPx * 0.8);
+        g.fillText(p, W / 2 - len - fontPx * 1.2, ty);
+        g.fillText(p, W / 2 - len - fontPx * 1.2, by);
+      }
+    }
+
+    // the configured picture box, exactly as the channels would place it
+    const bx = (W * (1 - FIT_X)) / 2 + SHIFT_X;
+    const by2 = (H * (1 - FIT_Y)) / 2 + SHIFT_Y;
+    const bw = W * FIT_X;
+    const bh = H * FIT_Y;
+    g.strokeStyle = '#3fd68f';
+    g.lineWidth = 2;
+    g.strokeRect(bx + 1, by2 + 1, bw - 2, bh - 2);
+    // corner wedges, easier to spot at the edge than a thin line
+    g.beginPath();
+    const c = Math.min(W, H) * 0.06;
+    g.moveTo(bx + c, by2 + 1); g.lineTo(bx + 1, by2 + 1); g.lineTo(bx + 1, by2 + c);
+    g.moveTo(bx + bw - c, by2 + 1); g.lineTo(bx + bw - 1, by2 + 1); g.lineTo(bx + bw - 1, by2 + c);
+    g.moveTo(bx + c, by2 + bh - 1); g.lineTo(bx + 1, by2 + bh - 1); g.lineTo(bx + 1, by2 + bh - c);
+    g.moveTo(bx + bw - c, by2 + bh - 1); g.lineTo(bx + bw - 1, by2 + bh - 1); g.lineTo(bx + bw - 1, by2 + bh - c);
+    g.lineWidth = 4;
+    g.stroke();
+    g.lineWidth = 1;
+
+    // current settings, dead centre
+    g.fillStyle = '#3fd68f';
+    g.textAlign = 'center';
+    g.fillText(`KIOSK_FIT ${FIT_X.toFixed(3)} x ${FIT_Y.toFixed(3)}`, W / 2, H / 2 - fontPx * 2.2);
+    g.fillText(`KIOSK_SHIFT ${SHIFT_X},${SHIFT_Y}`, W / 2, H / 2 - fontPx * 0.9);
+    g.fillStyle = '#fff';
+    g.fillText('green box should kiss all four edges', W / 2, H / 2 + fontPx * 0.9);
+    g.fillText('smallest readable number = that edge’s crop %', W / 2, H / 2 + fontPx * 2.2);
+  }
+
+  window.addEventListener('resize', draw);
+  draw();
+})();
+</script>
+</body>
+</html>

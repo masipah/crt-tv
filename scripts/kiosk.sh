@@ -23,12 +23,20 @@ if [[ -z $WS4KP_LATLON && $WS4KP_LOCATION == 94102 ]]; then
   WS4KP_LATLON='%7B%22lat%22%3A37.7815%2C%22lon%22%3A-122.4167%7D'
 fi
 
-# How much of the raster the CRT actually shows. Composite overscan crops the
-# outer few percent, which eats the WeatherStar's bottom scroll; the PVM's
-# UNDERSCAN button is the manual fix (and leaves black borders), this is the
-# automatic one — the page is scaled to this fraction and stays centred, so
-# the whole picture lands inside the visible area. 1 = no compensation.
-KIOSK_FIT=${KIOSK_FIT:-0.90}
+# How much of the raster the CRT actually shows. The PVM-9045Q's spec says
+# normal scan is 6% overscan of the effective screen area (underscan mode is
+# 3% under), so the visible fraction of the raster is 1/1.06 ≈ 0.943 per
+# axis — the default. The page is scaled to that fraction and centred: the
+# whole picture lands inside the visible area, the black remainder falls in
+# the margin the tube throws away, and the UNDERSCAN button stays off.
+# Real tubes drift from spec, so the fit is per-axis and the picture can be
+# nudged: set KIOSK_FIT (both axes), or KIOSK_FIT_X/KIOSK_FIT_Y, and
+# KIOSK_SHIFT_X/KIOSK_SHIFT_Y in raster pixels. `tv pattern` shows a
+# calibration grid to dial them in. 1 = no compensation.
+KIOSK_FIT_X=${KIOSK_FIT_X:-${KIOSK_FIT:-0.943}}
+KIOSK_FIT_Y=${KIOSK_FIT_Y:-${KIOSK_FIT:-0.943}}
+KIOSK_SHIFT_X=${KIOSK_SHIFT_X:-0}
+KIOSK_SHIFT_Y=${KIOSK_SHIFT_Y:-0}
 
 # ws4kp-only URL surgery. Other pages the kiosk shows (the oscilloscope)
 # take no parameters and are launched exactly as given; ws4kp lives on
@@ -64,9 +72,11 @@ if [[ $URL == *:8080* ]]; then
   fi
 fi
 
-# Overscan compensation, read by the kiosk-fit extension on ws4kp pages and by
-# the oscilloscope page. Our own parameter; anything else ignores it.
-[[ $URL == *\?* ]] && URL="$URL&crtFit=$KIOSK_FIT" || URL="$URL?crtFit=$KIOSK_FIT"
+# Overscan compensation, read by the kiosk-fit extension on ws4kp pages and
+# by the oscilloscope/pattern pages. Our own parameters; anything else
+# ignores them.
+CRT_PARAMS="crtFit=${KIOSK_FIT_X}x${KIOSK_FIT_Y}&crtShift=${KIOSK_SHIFT_X},${KIOSK_SHIFT_Y}"
+[[ $URL == *\?* ]] && URL="$URL&$CRT_PARAMS" || URL="$URL?$CRT_PARAMS"
 
 # Wait briefly for the audio graph so Chromium binds to PipeWire instead of
 # falling back to raw ALSA (which AirPlay routing can't touch). Non-fatal —
