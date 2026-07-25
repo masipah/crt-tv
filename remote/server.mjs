@@ -17,7 +17,7 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'stop', 'pause', 'next', 'prev', 'mute', 'airplay',
+  'weather', 'scope', 'stop', 'pause', 'next', 'prev', 'mute', 'airplay',
   'shuffle', 'commercials', 'reboot',
 ]);
 // Fixed upload buckets: the ordered channel and the random interstitials
@@ -124,9 +124,15 @@ const MUTED_FLAG = '/run/crt-tv/muted';
 // the user's level instead of re-landing at the defaults (see tv's mixer)
 const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 
-// Someone is driving — tv autostart's boot rotation (weather 3 min, then
-// the videos channel) stands down once any remote control is tapped
-const USER_CONTROL_FLAG = '/run/crt-tv/user-control';
+// Which page the Chromium kiosk is showing. `tv weather` and `tv scope`
+// write the URL here, so the file — not the unit — is the channel of record;
+// no file (fresh boot) means the unit's own default, the weather.
+const KIOSK_ENV = '/run/crt-tv/kiosk.env';
+
+const kioskPage = async () => (
+  /oscilloscope/.test(await fs.readFile(KIOSK_ENV, 'utf8').catch(() => ''))
+    ? 'scope'
+    : 'weather');
 
 const hwMixer = (arg) => new Promise((resolve) => {
   execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
@@ -244,7 +250,7 @@ async function status() {
   ]);
   let mode = 'off';
   if (player) mode = 'video';
-  else if (kiosk) mode = 'weather';
+  else if (kiosk) mode = await kioskPage(); // 'weather' or 'scope'
 
   let playing = null;
   if (player) {
@@ -532,14 +538,6 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
   try {
-    // Control taps (transport, mode, mute, volume, outputs) cancel the boot
-    // rotation. Library management and status polling deliberately don't —
-    // curating uploads from the couch shouldn't stop the channel starting.
-    if (req.method !== 'GET'
-      && (pathname.startsWith('/api/tv/') || pathname === '/api/play'
-        || pathname.startsWith('/api/audio/') || pathname.startsWith('/api/player/'))) {
-      await fs.writeFile(USER_CONTROL_FLAG, '').catch(() => {});
-    }
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       const html = await fs.readFile(path.join(PUBLIC_DIR, 'index.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

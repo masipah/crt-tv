@@ -7,6 +7,9 @@ Raspberry Pi 4B over composite video (480i NTSC).
   locally, rendered fullscreen by Chromium — scroll effect, background music,
   and all.
 - **Video**: mpv playing straight to the composite output, no desktop involved.
+- **Oscilloscope**: an HP 54600B-style scope screen — one mint beam morphing
+  through wave, flower, globe, butterflies and cube, with live Vp-p/Vrms/Freq
+  readouts. Nothing to fetch or buffer: it's on screen the instant you pick it.
 - **Display**: Sony PVM-9045Q fed from the Pi's 3.5mm TRRS jack (yellow RCA).
 
 ## Hardware
@@ -44,14 +47,19 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
 
 ### Setting your location
 
-ws4kp stores its settings in the browser. Two ways to set them:
+The weather comes up at **San Francisco (94102)**: the kiosk appends ws4kp's
+own `latLonQuery`/`latLon` parameters (the default lives in
+`scripts/kiosk.sh`), and URL parameters beat whatever location is cached in
+the browser — so every boot lands in the same place.
 
-- **Keyboard on the Pi**: plug a keyboard/mouse into the Pi and configure
-  directly on the PVM. Settings persist in the kiosk's Chromium profile.
-- **Permalink** (headless): open `http://<pi-address>:8080/` from your laptop,
-  configure everything, copy the permalink/share URL, then put it in
-  `/etc/crt-tv/crt-tv.env` as `KIOSK_URL` (change the host to `127.0.0.1:8080`)
-  and run `tv weather`.
+To put it somewhere else, use a **permalink**: open `http://<pi-address>:8080/`
+from your laptop, set the location and display options, copy the
+permalink/share URL, then put it in `/etc/crt-tv/crt-tv.env` as `KIOSK_URL`
+(change the host to `127.0.0.1:8080`) and run `tv weather`. A permalink brings
+its own location, so the built-in default steps aside.
+
+Configuring ws4kp with a keyboard on the Pi works too, but only until the
+kiosk restarts — the URL's location wins from then on.
 
 The kiosk always forces fullscreen (`kiosk=true`) and background music
 (`mediaPlaying=true`) regardless of what the permalink says; set
@@ -63,6 +71,7 @@ Everything is driven by the `tv` command (installed to `/usr/local/bin/tv`):
 
 ```text
 tv weather          # WeatherStar 4000+
+tv scope            # oscilloscope channel
 tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
 tv pause            # toggle pause
@@ -92,30 +101,48 @@ a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
 manually and resumes the video where it left off.
 
-**On boot** the TV shows the WeatherStar, muted, for 3 minutes — then
-rolls the videos channel by itself, shuffled, commercials every 4th video
-as always. Tap any control on the web remote before then (mute, volume,
-a mode button…) and the rotation stands down: the TV is yours. Unmute
-when you want sound — one toggle covers the weather music and the videos
-alike, and it comes up at the default level (jack at 50%, AirPlay at 10%)
-with the slider showing it, so there's headroom to raise it (the PVM's
-own volume sits at full). Once you move the slider, your level is the one
-that sticks.
+**On boot** a random teletext page paints tty1 within seconds, then the TV
+settles on the WeatherStar and stays there — no rotation to the videos
+channel (ws4kp takes its time to warm up, and the old 3-minute switch kept
+cutting away before the weather had ever appeared). Videos roll when you ask
+for them, from the web remote or `tv play`.
+
+Boot is **muted**. Unmute when you want sound — one toggle covers the weather
+music and the videos alike, and it comes up at the default level (jack at 50%,
+AirPlay at 10%) with the slider showing it, so there's headroom to raise it
+(the PVM's own volume sits at full). Once you move the slider, your level is
+the one that sticks.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
-set in `/etc/crt-tv/crt-tv.env`). Switching between weather and video is
-seamless — starting one stops the other via systemd `Conflicts=`.
+set in `/etc/crt-tv/crt-tv.env`). Switching between the browser channels
+(weather, oscilloscope) and video is seamless — starting one stops the other
+via systemd `Conflicts=`.
+
+### Oscilloscope channel
+
+`tv scope` (or **Scope** on the web remote) points the same Chromium kiosk at
+`remote/public/oscilloscope.html` instead of ws4kp: an HP 54600B screen with a
+dashed graticule, front-panel readouts and softkey menu, and one mint beam
+that holds a figure for a few seconds before morphing into the next — wave
+sweep, harmonic flower, wireframe globe, butterfly garden, tumbling cube.
+Brightness is dwell time per pixel, so slow curves burn hot and fast slews
+fade out, and the Vp-p/Vrms/Freq row is measured off the trace actually on
+screen. It's served by the web remote, so it also runs in any browser at
+`http://<pi-address>:8090/oscilloscope.html`. Silent, instant, and it never
+needs the network — which is what makes it the good fallback when the weather
+is still loading.
 
 ### Web remote
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
-remote control: switch channels, upload into either bucket (videos or
-commercials) straight from your phone or laptop, drag to reorder the
-channel, and tap any row for actions (play, queue, rename, move between
-buckets, delete) — plus transport, a draggable position bar to skip or
-rewind within the playing video, mute/shuffle/no-commercials toggles,
-and a Pi reboot. Styled like a native iOS app, dark mode included. It's the same `tv` command underneath, so the
-CLI and the web UI never disagree.
+remote control: switch channels (weather, scope, videos, off), upload into
+either bucket (videos or commercials) straight from your phone or laptop,
+drag to reorder the channel, and tap any row for actions (play, queue,
+rename, move between buckets, delete) — plus transport, a draggable position
+bar to skip or rewind within the playing video, mute/shuffle/no-commercials
+toggles, and a Pi reboot. Styled like a native iOS app, dark mode included.
+It's the same `tv` command underneath, so the CLI and the web UI never
+disagree.
 
 The remote is a mobile web app: open it on your phone and use **Add to Home
 Screen** (Safari share menu on iOS, browser menu on Android) to get it as an
@@ -162,6 +189,7 @@ setup/      install.sh (run once with sudo) + boot config for composite 480i
 systemd/    ws4kp, weather-kiosk (chromium kiosk under X), crt-player (mpv), crt-remote
 scripts/    tv control command, kiosk launcher
 remote/     web remote (zero-dependency Node server + single-page UI on :8090)
+            plus oscilloscope.html, the scope channel the kiosk shows
 docs/       hardware wiring, composite video deep-dive & troubleshooting
 ```
 

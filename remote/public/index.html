@@ -87,9 +87,12 @@
   }
   .seg button {
     flex: 1;
-    padding: 9px 6px;
+    min-width: 0;
+    padding: 9px 4px;
     border-radius: 8px;
-    font-size: 0.95rem;
+    /* four channels have to fit across a phone — short labels, no wrapping */
+    font-size: 0.9rem;
+    white-space: nowrap;
     color: var(--text);
   }
   .seg button.active { background: var(--card); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
@@ -347,7 +350,10 @@
       <p id="error"></p>
 
       <div class="seg" id="channels">
-        <button id="btn-weather" onclick="post('/api/tv/weather')">Weather 4000+</button>
+        <button id="btn-weather" onclick="post('/api/tv/weather')"
+                title="WeatherStar 4000+">Weather</button>
+        <button id="btn-scope" onclick="post('/api/tv/scope')"
+                title="Oscilloscope — a beam figure and live readouts, no signal required">Scope</button>
         <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
         <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
       </div>
@@ -452,6 +458,7 @@
 
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
+    scope: 'Now showing: oscilloscope',
     video: 'Now showing: videos',
     off: 'Screen off',
   };
@@ -475,6 +482,7 @@
     }
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');
+    $('btn-scope').classList.toggle('active', st.mode === 'scope');
     $('btn-video').classList.toggle('active', st.mode === 'video');
     $('btn-off').classList.toggle('active', st.mode === 'off');
     for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle', 'btn-nocomm']) {
