@@ -1,28 +1,45 @@
 #!/usr/bin/env bash
-# Launched by weather-kiosk.service: waits for the weather server to answer,
-# then starts a bare X session (no desktop) running Chromium fullscreen.
+# Launched by weather-kiosk.service: waits for the page to answer, then
+# starts a bare X session (no desktop) running Chromium fullscreen. It shows
+# whatever KIOSK_URL names — the WeatherStar, or the oscilloscope channel
+# served by the web remote (`tv scope`).
 # X11 instead of a Wayland compositor on purpose: wlroots/cage refuse the
 # interlaced modes (480i) that composite output offers, and hang trying.
 set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
-# Force ws4kp kiosk mode: no location bar, no toolbar, display scaled to
-# fill the screen (no scrollbars). Permalinks serialize the page's kiosk
-# checkbox — usually kiosk=false — which would put the location bar on the
-# TV, so strip any existing kiosk= parameter and set our own.
-URL=$(printf '%s' "$URL" | sed -E 's/([?&])kiosk=[^&]*&?/\1/g; s/[?&]$//')
-[[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
+# Default weather location: San Francisco, 94102. ws4kp's own permalink
+# parameters, percent-encoded — latLon carries JSON, whose quotes wouldn't
+# survive being read out of the env file. URL parameters beat the location
+# cached in the kiosk's Chromium profile, so this is what decides where the
+# weather is unless a permalink says otherwise.
+WS4KP_LOCATION='latLonQuery=94102&latLon=%7B%22lat%22%3A37.7815%2C%22lon%22%3A-122.4167%7D'
 
-# Background music (ws4kp ships default tracks; audio rides the same TRRS
-# jack as the video). Forced on the same way; KIOSK_MUSIC=off disables.
-# mediaVolume is pinned to 1 (100%) — ws4kp defaults to 0.75, which made
-# the weather quieter than the videos; the remote's slider is the one
-# volume control.
-if [[ ${KIOSK_MUSIC:-on} != off ]]; then
-  URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
-  URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaVolume=[^&]*&?/\1/g; s/[?&]$//')
-  URL="$URL&mediaPlaying=true&mediaVolume=1"
+# ws4kp-only URL surgery. Other pages the kiosk shows (the oscilloscope)
+# take no parameters and are launched exactly as given; ws4kp lives on
+# :8080 here, the same test `tv weather` uses on a configured KIOSK_URL.
+if [[ $URL == *:8080* ]]; then
+  # Force ws4kp kiosk mode: no location bar, no toolbar, display scaled to
+  # fill the screen (no scrollbars). Permalinks serialize the page's kiosk
+  # checkbox — usually kiosk=false — which would put the location bar on the
+  # TV, so strip any existing kiosk= parameter and set our own.
+  URL=$(printf '%s' "$URL" | sed -E 's/([?&])kiosk=[^&]*&?/\1/g; s/[?&]$//')
+  [[ $URL == *\?* ]] && URL="$URL&kiosk=true" || URL="$URL?kiosk=true"
+
+  # Background music (ws4kp ships default tracks; audio rides the same TRRS
+  # jack as the video). Forced on the same way; KIOSK_MUSIC=off disables.
+  # mediaVolume is pinned to 1 (100%) — ws4kp defaults to 0.75, which made
+  # the weather quieter than the videos; the remote's slider is the one
+  # volume control.
+  if [[ ${KIOSK_MUSIC:-on} != off ]]; then
+    URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
+    URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaVolume=[^&]*&?/\1/g; s/[?&]$//')
+    URL="$URL&mediaPlaying=true&mediaVolume=1"
+  fi
+
+  # A permalink brings its own latLon; anything else gets the default
+  [[ $URL == *latLon* ]] || URL="$URL&$WS4KP_LOCATION"
 fi
 
 # Wait briefly for the audio graph so Chromium binds to PipeWire instead of

@@ -1,5 +1,5 @@
 [Unit]
-Description=crt-tv boot rotation (weather 3 min, then the videos channel)
+Description=crt-tv boot leveling (audio silent at default levels; the TV stays on the weather)
 After=weather-kiosk.service network-online.target
 
 [Service]
