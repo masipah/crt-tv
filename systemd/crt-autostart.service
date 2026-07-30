@@ -1,6 +1,6 @@
 [Unit]
 Description=crt-tv boot leveling (audio silent at default levels; the TV stays on the weather)
-After=weather-kiosk.service network-online.target
+After=weather-kiosk.service
 
 [Service]
 Type=oneshot

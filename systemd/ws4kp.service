@@ -1,7 +1,6 @@
 [Unit]
 Description=WeatherStar 4000+ local server
-After=network-online.target
-Wants=network-online.target
+After=network.target
 
 [Service]
 User=crt
