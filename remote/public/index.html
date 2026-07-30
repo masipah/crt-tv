@@ -462,8 +462,6 @@
         </div>
         <div class="chips">
           <button class="chip" id="btn-mute" onclick="post('/api/tv/mute')">Mute</button>
-          <button class="chip" id="btn-airplay" onclick="audioSheet()"
-                  title="Send the TV's audio to AirPlay speakers — lit while casting">AirPlay</button>
           <button class="chip" id="btn-shuffle" onclick="post('/api/tv/shuffle')">Shuffle</button>
           <button class="chip" id="btn-nocomm" onclick="post('/api/tv/commercials')">No commercials</button>
         </div>
@@ -586,7 +584,6 @@
       $(b).disabled = st.mode !== 'video';
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
-    $('btn-airplay').classList.toggle('on', !!st.airplay);
     if (st.volume != null && Date.now() > volHold && document.activeElement !== $('vol')) {
       $('vol').value = st.volume;
     }
@@ -693,48 +690,6 @@
       });
     } catch {}
   });
-
-  // ---- AirPlay picker ---------------------------------------------------
-  // Lists AirPlay receivers only — the TV's own speaker is the home state,
-  // returned to via "Stop AirPlay", not a peer in the device list.
-  async function audioSheet() {
-    err('');
-    let outs = [];
-    try {
-      outs = (await (await fetch('/api/audio/outputs')).json()).outputs ?? [];
-    } catch {}
-    const devices = outs.filter((o) => o.airplay);
-    const jack = outs.find((o) => !o.airplay);
-    const casting = outs.find((o) => o.default)?.airplay;
-    if (!devices.length) {
-      err('No AirPlay speakers found — is the device on and on this network?');
-      return;
-    }
-    const actions = devices.map((o) => ({
-      label: (o.default ? '✓  ' : '') + o.name,
-      fn: () => setOutput(o.id),
-    }));
-    if (casting && jack) {
-      actions.push({ label: 'Stop AirPlay — back to TV speaker', fn: () => setOutput(jack.id) });
-    }
-    openSheet('AirPlay', actions);
-  }
-
-  async function setOutput(id) {
-    err('');
-    try {
-      const res = await fetch('/api/audio/output', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || res.statusText);
-    } catch (e) {
-      err(e.message);
-    }
-    setTimeout(refresh, 400);
-  }
 
   // ---- library ------------------------------------------------------------
   let lib = { videos: [], commercials: [] };

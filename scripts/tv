@@ -30,9 +30,8 @@ usage: tv <command>
   autostart          (run at boot) level the audio; the TV stays on the weather
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
-  airplay            toggle audio output: AirPlay speakers <-> TV jack
-  volume [0-100]     show or set the volume of the active output
-  normalize          reset output levels (jack 50%, AirPlay 10%)
+  volume [0-100]     show or set the TV jack volume
+  normalize          reset the TV jack volume to 50%
   shuffle            toggle shuffled playback (videos only; on at boot)
   commercials        toggle whether commercials play (on by default)
   next | prev        skip within the playlist
@@ -69,69 +68,39 @@ mpv_get() {
     sed -nE 's/.*"data":(true|false|[0-9][0-9.]*).*/\1/p' | head -n1; } || true
 }
 
-# PipeWire control as the crt user (whose session owns the audio graph)
-wp() {
-  local uid
-  uid=$(id -u crt 2>/dev/null) || return 1
-  sudo -u crt XDG_RUNTIME_DIR="/run/user/$uid" wpctl "$@" 2>/dev/null
+# ALSA mixer control for the Pi's local analogue jack. Try the card-addressed
+# Raspberry Pi OS name first, then the generic controls seen across images.
+alsa_mixer() {
+  amixer -q -c Headphones sset PCM "$@" 2>/dev/null ||
+    amixer -q sset Headphone "$@" 2>/dev/null ||
+    amixer -q sset PCM "$@" 2>/dev/null
 }
 
-# Sink ids from wpctl status; inspect each to find the right backend
-wp_sink_ids() {
-  wp status | awk '/Sinks:/ { f = 1; next } /(Sources|Filters|Streams):/ { f = 0 } f' |
-    sed -nE 's/^[^0-9]*([0-9]+)\..*/\1/p'
-}
-
-wp_find_sink() { # <pattern matched against wpctl inspect output>
-  local id
-  for id in $(wp_sink_ids); do
-    if wp inspect "$id" | grep -qi "$1"; then
-      echo "$id"
-      return 0
-    fi
+alsa_mixer_retry() {
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    alsa_mixer "$@" && return 0
+    sleep 1
   done
   return 1
 }
 
-# Level the outputs, volumes only — mute state is left alone. The jack
-# starts at a 50% default (headroom on the slider; the PVM's own knob is
-# the last stage); AirPlay sinks are parked at a safe 10% because they
-# usually feed amplified speakers. One-shot by design: every call site is
-# an event (boot, unmute landing, tv normalize) — never a repeating loop,
-# whose wpctl writes against the live graph caused audible stutter. The
-# call sites also guard the user's own level: unmute skips this entirely
-# once a volume has been chosen ($RUN_DIR/volume-set), and tv normalize
-# clears that flag first because resetting is its whole point.
-normalize_outputs() {
-  local id
-  for id in $(wp_sink_ids); do
-    if wp inspect "$id" | grep -qi raop; then
-      wp set-volume "$id" 0.10 || true
-    else
-      wp set-volume "$id" 0.50 || true
-    fi
-  done
-  # hardware stage pinned at 100%, addressed by card — pipewire-alsa
-  # redirects the default ALSA control, so plain amixer misses the chip.
-  # VOLUME ONLY — no unmute here; that word once snuck in and had every
-  # boot sweep un-muting the speaker right after mixer mute set it.
-  amixer -q -c Headphones sset PCM 100% 2>/dev/null ||
-    amixer -q sset Headphone 100% 2>/dev/null ||
-    amixer -q sset PCM 100% 2>/dev/null || true
+alsa_status() {
+  amixer -c Headphones sget PCM 2>/dev/null ||
+    amixer sget Headphone 2>/dev/null ||
+    amixer sget PCM 2>/dev/null
 }
 
-# One mute for the whole TV, applied to EVERY output at once — a muted TV
-# stays silent no matter which output becomes default later, and unmuting
-# brings back whichever is active. State is read from the default sink.
-# (No amixer here: pipewire-alsa redirects the default ALSA control, so
-# hardware-level mutes stopped being reliable — PipeWire owns the graph.)
+# Level the jack volume only; mute state is left alone. One-shot by design:
+# boot, unmute landing, and `tv normalize` are events, not repeating loops.
+normalize_outputs() {
+  alsa_mixer_retry 50%
+}
+
+# One mute for the whole TV, applied to the local hardware mixer.
 mixer() {
-  local id state
   case $1 in
     toggle)
-      # the flag is the intent of record — enforced by the web remote's
-      # server every few seconds until unmute, so nothing (wireplumber
-      # route churn, late sinks) can un-mute the TV behind our backs
       if [[ -f $RUN_DIR/muted ]]; then
         mixer unmute
       else
@@ -139,29 +108,20 @@ mixer() {
       fi
       ;;
     mute | unmute)
-      state=1
-      amixer_arg=mute
+      # landing level: until the user has picked a volume, unmuting always
+      # comes up at the default 50%, and the web slider shows exactly
+      # what's playing.
+      if [[ $1 == unmute && ! -f $RUN_DIR/volume-set ]]; then
+        normalize_outputs
+      fi
+      if ! alsa_mixer_retry "$1"; then
+        echo "tv: no ALSA mixer control found" >&2
+        return 1
+      fi
       if [[ $1 == unmute ]]; then
-        state=0
-        amixer_arg=unmute
         rm -f "$RUN_DIR/muted"
       else
         : >"$RUN_DIR/muted"
-      fi
-      for id in $(wp_sink_ids); do
-        wp set-mute "$id" "$state" || true
-      done
-      # hardware layer too (card-addressed — pipewire-alsa hides the chip
-      # from the default control): wireplumber re-applies unmuted route
-      # defaults when a route activates, but it can't touch a hardware mute
-      amixer -q -c Headphones sset PCM "$amixer_arg" 2>/dev/null ||
-        amixer -q sset Headphone "$amixer_arg" 2>/dev/null ||
-        amixer -q sset PCM "$amixer_arg" 2>/dev/null || true
-      # landing level: until the user has picked a volume, unmuting always
-      # comes up at the defaults (jack 50%, AirPlay 10%) — never a blast,
-      # and the web slider shows exactly what's playing
-      if [[ $1 == unmute && ! -f $RUN_DIR/volume-set ]]; then
-        normalize_outputs
       fi
       ;;
   esac
@@ -348,16 +308,6 @@ case $cmd in
     systemctl --no-block restart weather-kiosk.service
     echo "weather for ${secs}s, then back to the video"
     ;;
-  bridge)
-    as_root
-    # internal: feeder for the OwnTone metadata bridge (started when the
-    # "(with titles)" output is selected, stopped when leaving it)
-    case ${1:-} in
-      start) systemctl start crt-bridge.service ;;
-      stop) systemctl stop crt-bridge.service 2>/dev/null || true ;;
-      *) echo "usage: tv bridge start|stop" >&2; exit 1 ;;
-    esac
-    ;;
   resume)
     as_root
     # Fired by the crt-weatherbreak timer; play-media-x.sh consumes the
@@ -371,35 +321,12 @@ case $cmd in
     # to warm up, and the old 3-minute rotation to the videos channel kept
     # cutting away before the weather had ever appeared on screen. Videos
     # now roll when someone asks for them (web remote or `tv play`).
-    # What's left is landing the audio in a known state: silent, at the
-    # default levels, on the TV jack.
+    # What's left is landing the audio in a known state: silent at 50%.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
-    # Order matters: pin the default to the TV jack FIRST (retrying while
-    # PipeWire comes up), then mute — muting before the pin can land on a
-    # remembered AirPlay default and leave the jack live. The jack pin also
-    # stops wireplumber restoring an AirPlay default when it reappears.
-    for _ in 1 2 3 4 5; do
-      if id=$(wp_find_sink 'api\.alsa'); then
-        wp set-default "$id" || true
-        break
-      fi
-      sleep 3
-    done
-    # Level once, mute once — no repeating sweep: re-writing volumes into
-    # the live graph every few seconds caused audible stutter. The mute
-    # intent stays defended anyway (the web remote's server re-mutes every
-    # few seconds while the flag exists, catching wireplumber's route
-    # activation un-muting the jack when the weather music starts), and
-    # the volume contract holds without re-assertion: unmute lands at the
-    # defaults via mixer unmute, and AirPlay engages at 10% on selection.
+    # Level once, mute once — no repeating sweep.
     normalize_outputs
     mixer mute
-    # boot messages keep accumulating on the hidden console after the
-    # kiosk's own clear; wipe the VT buffer once everything has settled so
-    # the first switch to a video reveals black, not a flash of text
-    while ((SECONDS < 60)); do
-      sleep 5
-    done
+    # Wipe any boot messages left on the VT without holding up multi-user boot.
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
     ;;
   normalize)
@@ -407,7 +334,7 @@ case $cmd in
     # an explicit reset: the user's volume choice yields to the defaults
     rm -f "$RUN_DIR/volume-set"
     normalize_outputs
-    echo "outputs reset: jack 50%, AirPlay 10%"
+    echo "volume reset: jack 50%"
     ;;
   pause)
     as_root
@@ -424,58 +351,22 @@ case $cmd in
         echo "tv: volume must be 0-100" >&2
         exit 1
       fi
-      v=$(awk "BEGIN { printf \"%.2f\", $1 / 100 }")
-      wp set-volume @DEFAULT_AUDIO_SINK@ "$v" ||
-        amixer -q sset Headphone "${1}%" 2>/dev/null ||
-        amixer -q sset PCM "${1}%" 2>/dev/null || true
+      if ! alsa_mixer "${1}%"; then
+        echo "tv: no ALSA mixer control found" >&2
+        exit 1
+      fi
       # record the choice — unmute then returns to this level instead of
       # re-landing at the defaults (see mixer unmute / normalize_outputs)
       : >"$RUN_DIR/volume-set"
       echo "volume: ${1}%"
     else
-      wp get-volume @DEFAULT_AUDIO_SINK@ ||
-        amixer sget Headphone 2>/dev/null ||
-        amixer sget PCM 2>/dev/null || true
-    fi
-    ;;
-  airplay)
-    as_root
-    # Toggle the default output between the AirPlay receiver and the jack.
-    # PipeWire moves running streams over live — no restart needed. A
-    # running video gets its audio-delay adjusted to match the AirPlay
-    # buffer so lip-sync holds (see AIRPLAY_LATENCY_MS in crt-tv.env).
-    ap_ms=$(env_get AIRPLAY_LATENCY_MS)
-    ap_sec=$(awk "BEGIN { printf \"%.3f\", ${ap_ms:-0} / 1000 }")
-    if wp inspect @DEFAULT_AUDIO_SINK@ | grep -qi raop; then
-      id=$(wp_find_sink 'api\.alsa') || {
-        echo "tv: no jack sink found" >&2
-        exit 1
-      }
-      wp set-default "$id"
-      mpv_try 'set audio-delay 0'
-      echo "audio: TV jack"
-    else
-      id=$(wp_find_sink 'raop') || {
-        echo "tv: no AirPlay device found — is it on and on this network?" >&2
-        exit 1
-      }
-      # engage AirPlay gently: amplified speakers start at 10%; re-assert
-      # after activation because wireplumber restores its remembered
-      # device volume and can race the first set. Choosing a speaker
-      # means wanting to hear it — unmute.
-      wp set-volume "$id" 0.10 || true
-      wp set-default "$id"
-      mpv_try "set audio-delay -$ap_sec"
-      sleep 1
-      wp set-volume "$id" 0.10 || true
-      mixer unmute
-      echo "audio: AirPlay (volume starts at 10%)"
+      alsa_status
     fi
     ;;
   shuffle)
     as_root
     # A mode, not a one-shot: the flag survives channel switches and new
-    # plays (play-media-x.sh adds --shuffle) until toggled off or reboot
+    # plays until toggled off or reboot.
     if [[ -f $RUN_DIR/shuffle ]]; then
       rm -f "$RUN_DIR/shuffle"
       mpv_try 'playlist-unshuffle'
@@ -522,7 +413,7 @@ case $cmd in
   doctor)
     as_root
     echo "== units =="
-    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash owntone crt-bridge; do
+    for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash; do
       printf '%-15s active=%-10s enabled=%s\n' "$u" \
         "$(systemctl is-active "$u.service" 2>/dev/null || true)" \
         "$(systemctl is-enabled "$u.service" 2>/dev/null || true)"
@@ -546,26 +437,13 @@ case $cmd in
     done
     echo
     echo "== audio =="
-    amixer -c Headphones sget PCM 2>/dev/null || amixer sget Headphone 2>/dev/null ||
-      amixer sget PCM 2>/dev/null || echo "(no mixer control found)"
-    echo "-- pipewire sinks (* = default):"
-    wp status 2>/dev/null | awk '/Sinks:/ { f = 1 } /(Sources|Filters):/ { f = 0 } f' || echo "(pipewire not running)"
-    echo "-- pipewire streams (who is actually in the graph):"
-    wp status 2>/dev/null | sed -n '/Streams:/,/^$/p' || true
-    echo "-- owntone outputs:"
-    curl -fsS --max-time 3 http://127.0.0.1:3689/api/outputs 2>/dev/null | head -c 500 || echo "(owntone not reachable)"
-    echo
-    echo "-- pipewire/raop log (user services, this boot):"
-    journalctl _UID="$(id -u crt 2>/dev/null || echo 1001)" -b --no-pager -n 400 2>/dev/null |
-      grep -iE 'raop|rtsp|wireplumber.*(default|sink)|pipewire.*(error|fail)' | tail -40 || true
-    echo
+    alsa_status || echo "(no mixer control found)"
     echo "== boot config =="
     grep -E 'vc4|tvout|sdtv' /boot/firmware/config.txt 2>/dev/null || true
     cat /boot/firmware/cmdline.txt 2>/dev/null || true
     echo
     echo "== versions =="
     node --version 2>/dev/null || echo "node: missing"
-    pipewire --version 2>/dev/null | tail -1 || true
     command -v chromium chromium-browser cage mpv 2>/dev/null || true
     echo
     echo "== mpv log =="
