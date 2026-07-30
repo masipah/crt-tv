@@ -1,7 +1,6 @@
 [Unit]
 Description=Weather kiosk (Chromium under X on composite out)
-After=systemd-user-sessions.service network-online.target ws4kp.service getty@tty1.service
-Wants=network-online.target
+After=systemd-user-sessions.service network.target ws4kp.service getty@tty1.service
 Conflicts=getty@tty1.service crt-player.service
 
 [Service]

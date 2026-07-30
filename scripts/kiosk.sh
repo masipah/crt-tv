@@ -78,15 +78,6 @@ fi
 CRT_PARAMS="crtFit=${KIOSK_FIT_X}x${KIOSK_FIT_Y}&crtShift=${KIOSK_SHIFT_X},${KIOSK_SHIFT_Y}"
 [[ $URL == *\?* ]] && URL="$URL&$CRT_PARAMS" || URL="$URL?$CRT_PARAMS"
 
-# Wait briefly for the audio graph so Chromium binds to PipeWire instead of
-# falling back to raw ALSA (which AirPlay routing can't touch). Non-fatal —
-# worst case the weather comes up with jack-only audio.
-tries=0
-while [[ ! -S ${XDG_RUNTIME_DIR:-/nonexistent}/pulse/native ]] && ((tries < 20)); do
-  tries=$((tries + 1))
-  sleep 0.5
-done
-
 echo "kiosk: launching $URL"
 
 BROWSER=$(command -v chromium || command -v chromium-browser) || {
