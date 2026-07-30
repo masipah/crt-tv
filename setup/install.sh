@@ -38,12 +38,10 @@ if [[ -z ${CRT_TV_SYNCED:-} ]] && [[ -z $REPO_DIR || $REPO_DIR == /opt/crt-tv ]]
 fi
 
 echo "==> Installing packages"
-# Heal a half-configured OwnTone repo from a previous failed run — a list
-# without its key breaks every apt update from then on
-if [[ -f /etc/apt/sources.list.d/owntone.list ]] &&
-  [[ ! -s /usr/share/keyrings/owntone-archive-keyring.gpg ]]; then
-  rm -f /etc/apt/sources.list.d/owntone.list
-fi
+# Remove the retired OwnTone apt repo before the first apt update. A stale
+# repo list without its signing key can break package refreshes during upgrade.
+rm -f /etc/apt/sources.list.d/owntone.list
+rm -f /usr/share/keyrings/owntone-archive-keyring.gpg
 apt-get update || true
 apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
   xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
@@ -122,105 +120,37 @@ rm -f /var/swap
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
 
 echo "==> Enabling analog audio out (TRRS jack)"
-# Address the card directly: once pipewire-alsa is installed, the default
-# ALSA control no longer points at the hardware
-amixer -q -c Headphones sset PCM 100% unmute 2>/dev/null \
-  || amixer -q sset Headphone 100% unmute 2>/dev/null \
-  || amixer -q sset PCM 100% unmute 2>/dev/null || true
+amixer -q -c Headphones sset PCM 50% 2>/dev/null \
+  || amixer -q sset Headphone 50% 2>/dev/null \
+  || amixer -q sset PCM 50% 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
-echo "==> Audio routing (PipeWire + AirPlay out)"
-# PipeWire carries chromium (via its pulse interface) and mpv; the RAOP
-# module turns AirPlay receivers on the LAN into ordinary output sinks.
-# pipewire-alsa matters: chromium falls back to raw ALSA when the pulse
-# socket isn't ready at launch, and raw ALSA bypasses the graph entirely —
-# with it installed, even that fallback routes through PipeWire (and thus
-# follows the AirPlay/jack output selection).
-apt-get install -y pipewire pipewire-pulse pipewire-alsa wireplumber dbus-user-session avahi-daemon rtkit
-
-# Realtime scheduling for the audio stack: RAOP packet pacing is
-# timer-driven and starves under CPU load without RT priority (Chromium +
-# mpv contend), which kills AirPlay sessions after ~30s ("missing
-# timeout" → broken pipe). Lite has no desktop session setup, so grant
-# the headroom to user managers directly. Takes effect on reboot.
-install -d /etc/systemd/system/user@.service.d
-cat >/etc/systemd/system/user@.service.d/crt-tv-rt.conf <<'EOF'
-[Service]
-LimitRTPRIO=95
-LimitMEMLOCK=infinity
-EOF
-systemctl daemon-reload
-install -d /etc/pipewire/pipewire.conf.d
-install -m 644 "$REPO_DIR/setup/pipewire-airplay.conf" /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
-install -d /etc/wireplumber/wireplumber.conf.d
-install -m 644 "$REPO_DIR/setup/wireplumber-crt-tv.conf" /etc/wireplumber/wireplumber.conf.d/50-crt-tv.conf
-# Audio belongs to the crt user ALONE. Debian ships the pipewire/wireplumber
-# user units enabled for every user, so any other login — an admin ssh'ing
-# in — silently spawns a second session manager that fights crt's for the
-# ALSA card and resets sink volumes to 100% on every grab. That was heard
-# as the TV's volume jumping whenever someone was logged in over ssh.
+echo "==> Removing retired AirPlay audio stack"
+systemctl disable --now crt-bridge.service owntone.service avahi-daemon.service 2>/dev/null || true
+crt_uid=$(id -u crt 2>/dev/null || true)
+if [[ -n $crt_uid ]]; then
+  sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
+    systemctl --user disable --now pipewire.service pipewire.socket \
+      pipewire-pulse.service pipewire-pulse.socket wireplumber.service 2>/dev/null || true
+  loginctl disable-linger crt 2>/dev/null || true
+fi
+rm -f /etc/systemd/system/crt-bridge.service
+rm -f /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
+rm -f /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
+rm -f /etc/wireplumber/wireplumber.conf.d/50-crt-tv.conf
+rm -f /etc/systemd/system/user@.service.d/crt-tv-rt.conf
+rm -f /usr/local/lib/crt-tv/bridge-feed.sh /usr/local/lib/crt-tv/metadata.lua
 for u in pipewire.service pipewire.socket pipewire-pulse.service \
   pipewire-pulse.socket wireplumber.service; do
-  install -d "/etc/systemd/user/$u.d"
-  printf '[Unit]\nConditionUser=crt\n' >"/etc/systemd/user/$u.d/crt-tv.conf"
+  rm -f "/etc/systemd/user/$u.d/crt-tv.conf"
+  rmdir "/etc/systemd/user/$u.d" 2>/dev/null || true
 done
-# crt's user manager (which hosts pipewire) must run from boot, sessions or not
-loginctl enable-linger crt 2>/dev/null || true
-crt_uid=$(id -u crt)
-sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
-  systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
-# Level the field: every output at 100% (the remote's slider takes it from there)
-sleep 2
-/usr/local/bin/tv normalize 2>/dev/null || true
-
-echo "==> OwnTone (AirPlay with track titles)"
-# OwnTone isn't in Debian; the project runs an apt repo with a trixie dist.
-# Everything degrades gracefully if this fails — the direct AirPlay path
-# doesn't depend on it. Lite images lack the full gnupg needed to dearmor
-# the key, so install prerequisites first, validate every artifact, and
-# never leave a list without its key.
-apt-get install -y gnupg wget || true
-ot_key=/usr/share/keyrings/owntone-archive-keyring.gpg
-ot_list=/etc/apt/sources.list.d/owntone.list
-if [[ ! -s $ot_key ]]; then
-  rm -f "$ot_key"
-  ot_tmp=$(mktemp)
-  if wget -q -O "$ot_tmp" http://www.gyfgafguf.dk/raspbian/owntone.gpg &&
-    [[ -s $ot_tmp ]] && gpg --dearmor --output "$ot_key" <"$ot_tmp"; then
-    echo "  owntone repo key installed"
-  else
-    rm -f "$ot_key"
-    echo "  !! could not fetch/convert the owntone repo key"
-  fi
-  rm -f "$ot_tmp"
-fi
-if [[ -s $ot_key && ! -s $ot_list ]]; then
-  ot_tmp=$(mktemp)
-  if wget -q -O "$ot_tmp" \
-    "https://raw.githubusercontent.com/owntone/owntone-apt/refs/heads/master/repo/rpi/owntone-trixie.list" &&
-    [[ -s $ot_tmp ]]; then
-    install -m 644 "$ot_tmp" "$ot_list"
-    apt-get update || true
-  else
-    echo "  !! could not fetch the owntone repo list"
-  fi
-  rm -f "$ot_tmp"
-fi
-if [[ -s $ot_key && -s $ot_list ]] && apt-get install -y owntone; then
-  install -m 644 "$REPO_DIR/setup/owntone.conf" /etc/owntone.conf
-  # the audio pipe + its metadata companion, writable by crt, readable by owntone
-  install -d -m 755 /srv/owntone-pipe
-  [[ -p /srv/owntone-pipe/CRT-TV ]] || mkfifo -m 666 /srv/owntone-pipe/CRT-TV
-  [[ -p /srv/owntone-pipe/CRT-TV.metadata ]] || mkfifo -m 666 /srv/owntone-pipe/CRT-TV.metadata
-  install -m 644 "$REPO_DIR/setup/pipewire-bridge.conf" /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
-  install -m 755 "$REPO_DIR/scripts/bridge-feed.sh" /usr/local/lib/crt-tv/bridge-feed.sh
-  systemctl enable owntone.service 2>/dev/null || true
-  systemctl restart owntone.service || true
-  sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
-    systemctl --user restart pipewire wireplumber 2>/dev/null || true
-else
-  echo "!! OwnTone install failed — '(with titles)' outputs won't appear; direct AirPlay still works"
-fi
+rm -f /srv/owntone-pipe/CRT-TV /srv/owntone-pipe/CRT-TV.metadata
+rmdir /srv/owntone-pipe 2>/dev/null || true
+for p in owntone pipewire-alsa; do
+  apt-get purge -y "$p" 2>/dev/null || true
+done
+systemctl daemon-reload
 
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
@@ -238,7 +168,6 @@ install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-medi
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
-install -m 644 "$REPO_DIR/scripts/metadata.lua" /usr/local/lib/crt-tv/metadata.lua
 install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh

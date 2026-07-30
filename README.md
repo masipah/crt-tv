@@ -105,9 +105,8 @@ tv play [path]...   # play the videos bucket in order (or given files/folders)
 tv break [secs]     # cut to the weather now, then back to the video (default 2 min)
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
-tv airplay          # toggle audio output: AirPlay speakers <-> TV jack
-tv volume [0-100]   # show or set the volume of the active output
-tv normalize        # reset output levels (jack 50%, AirPlay 10%)
+tv volume [0-100]   # show or set the TV jack volume
+tv normalize        # reset the TV jack volume to 50%
 tv shuffle          # toggle shuffled playback — videos only, on at boot (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
@@ -137,10 +136,9 @@ cutting away before the weather had ever appeared). Videos roll when you ask
 for them, from the web remote or `tv play`.
 
 Boot is **muted**. Unmute when you want sound — one toggle covers the weather
-music and the videos alike, and it comes up at the default level (jack at 50%,
-AirPlay at 10%) with the slider showing it, so there's headroom to raise it
-(the PVM's own volume sits at full). Once you move the slider, your level is
-the one that sticks.
+music and the videos alike, and it comes up at the default 50% jack level with
+the slider showing it, so there's headroom to raise it (the PVM's own volume
+sits at full). Once you move the slider, your level is the one that sticks.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between the browser channels
@@ -222,41 +220,17 @@ remote/     web remote (zero-dependency Node server + single-page UI on :8090)
 docs/       hardware wiring, composite video deep-dive & troubleshooting
 ```
 
-## AirPlay audio
+## Audio
 
-The TV's sound (weather music and video audio alike) can play through
-AirPlay speakers instead of the PVM: PipeWire's RAOP module discovers
-AirPlay receivers on the LAN (an EverSolo, HomePod, AirPort amp, …) and the
-**AirPlay chip in the web remote** opens a picker listing the receivers by
-name — tap one and the audio moves there live, no restart. The TV's own
-speaker isn't in the list: it's the home state, returned to via
-"Stop AirPlay". The chip stays lit while casting, and the Mute chip and
-volume slider follow whichever output is active. (`tv airplay` on the CLI
-toggles between the jack and the first receiver found.)
+The TV uses the Raspberry Pi's analogue TRRS jack only. AirPlay, PipeWire
+RAOP discovery, OwnTone metadata casting, Avahi, and the bridge service are
+not part of the runtime, which keeps boot and idle performance leaner.
 
-Boot always lands on the TV jack: AirPlay needs the receiver awake and a
-fresh handshake, so after a reboot or power cycle the TV never sits waiting
-on one — re-pick the AirPlay output when you want it. Every time an AirPlay
-device is engaged it starts at **10% volume** (they usually feed amplified
-speakers); raise the slider from there. The jack starts at 50%.
-
-**Track titles on the receiver**: each device also appears as a
-"(with titles)" variant, which routes through an OwnTone bridge instead of
-PipeWire's sender — the receiver's display then shows artist/title parsed
-from the `Artist - Title.ext` filename, updating on every track change.
-PipeWire's own sender can't carry metadata, so this is a parallel path:
-audio flows into a bridge sink, a feeder pipes it to OwnTone, and the
-player pushes metadata alongside. Slightly different plumbing, same
-controls (volume slider, mute, 10% engage) — pick whichever variant of
-your speaker you prefer.
-
-Volume is normalized: the software stages (mpv, the weather music, the
-hardware mixer) are pinned to 100% at boot and each output starts at its
-default level (jack 50%, AirPlay 10%), so switching outputs never jumps
-loudness and the slider is the one volume control that matters. Levels are
-set once at boot — nothing re-writes them behind your back — and once you
-move the slider (or run `tv volume`), your level sticks: unmuting returns
-to it instead of the defaults. `tv normalize` resets to the defaults.
+Volume is normalized around the local jack: mpv and the weather music stay at
+100%, while the hardware mixer starts at 50%, so the remote's slider is the
+one volume control that matters. Levels are set once at boot, and once you
+move the slider (or run `tv volume`), your level sticks: unmuting returns to
+it instead of the default. `tv normalize` resets the jack to 50%.
 
 Widescreen handling: 16:9 videos zoom to fill the 4:3 screen (center-cut,
 sides cropped — the broadcast way). Set `CRT_PANSCAN=0` in
@@ -268,15 +242,6 @@ analysis (ffmpeg, in the background) and the player applies a per-file gain
 toward −16 LUFS with true-peak headroom — so quiet rips and loud commercials
 come out at the same level, dynamics untouched. Fresh uploads play at unity
 until their analysis finishes (seconds per file).
-
-Notes: the receiver must be powered on and on the same network (discovery
-is via mDNS/avahi). AirPlay buffers about two seconds — the RAOP latency is
-pinned (`raop.latency.ms`) and the player shifts video by the same amount
-(`AIRPLAY_LATENCY_MS` in `crt-tv.env`), so lip-sync holds while casting;
-expect a few silent seconds right after selecting a device while the
-session handshakes. RAOP streams never suspend (idle-resume silently fails
-on many receivers). Tweak both latency values together if your receiver
-needs it.
 
 ## Power-loss safety
 
