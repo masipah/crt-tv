@@ -133,9 +133,10 @@ manually and resumes the video where it left off.
 snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
 runs through color bursts, raster tunnels, vertical roll, chromatic echoes, and
 signal breakup. The full sequence loops for however long the WeatherStar needs.
-It runs concurrently with startup and is stopped the moment Chromium claims the
-display, so it cannot delay boot. The TV then stays on the WeatherStar — videos
-roll when you ask for them, from the web remote or `tv play`.
+There is no animation timeout: it runs throughout the complete readiness wait
+and is stopped only when Chromium is about to claim the display, so it cannot
+delay boot or leave a black loading gap. The TV then stays on the WeatherStar —
+videos roll when you ask for them, from the web remote or `tv play`.
 
 Boot is **muted**. Unmute when you want sound — one toggle covers the weather
 music and the videos alike, and it comes up at the default 50% jack level with
