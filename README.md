@@ -129,11 +129,12 @@ a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies either way. `tv break` still cuts to the weather
 manually and resumes the video where it left off.
 
-**On boot** a random teletext page paints tty1 within seconds, then the TV
-settles on the WeatherStar and stays there — no rotation to the videos
-channel (ws4kp takes its time to warm up, and the old 3-minute switch kept
-cutting away before the weather had ever appeared). Videos roll when you ask
-for them, from the web remote or `tv play`.
+**On boot** a lightweight signal-lock animation takes over tty1: the raster
+snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
+holds until the WeatherStar is ready. The animation runs concurrently with
+startup and is stopped when Chromium claims the display, so it cannot delay
+boot. The TV then stays on the WeatherStar — videos roll when you ask for them,
+from the web remote or `tv play`.
 
 Boot is **muted**. Unmute when you want sound — one toggle covers the weather
 music and the videos alike, and it comes up at the default 50% jack level with
