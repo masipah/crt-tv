@@ -1,14 +1,17 @@
 [Unit]
-Description=CRT-TV teletext boot splash
+Description=MASIPAH TV boot signal animation
 DefaultDependencies=no
 # console-setup: draw only after the final console font is loaded — a later
-# setfont would remap the mosaic block glyphs already on screen
+# setfont would remap the block glyphs already on screen. The simple service
+# becomes active immediately, so the animation never blocks boot.
 After=local-fs.target console-setup.service
-Before=getty.target
+Before=getty.target weather-kiosk.service
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/usr/local/lib/crt-tv/splash.sh
+KillSignal=SIGTERM
+TimeoutStopSec=2
 
 [Install]
 WantedBy=sysinit.target
