@@ -5,8 +5,7 @@ set -euo pipefail
 xset s off -dpms || true
 
 # After a weather break, `tv break` leaves a resume point (playlist index +
-# seconds) so the video picks up where it left off. Mute lives in PipeWire
-# (see `tv mute`) and needs nothing here.
+# seconds) so the video picks up where it left off.
 RESUME_ARGS=()
 if [[ -f /run/crt-tv/resume ]]; then
   read -r pos start _ </run/crt-tv/resume || true
@@ -17,18 +16,6 @@ fi
 # Note: shuffle mode is baked into the playlist file by `tv play` — no
 # --shuffle here, so the first entry is always what the user picked and
 # weather-break resumes line up with the file.
-
-# Starting while the output is already AirPlay: shift video to match the
-# buffering for lip-sync (AIRPLAY_LATENCY_MS / OWNTONE_LATENCY_MS in
-# crt-tv.env; the OwnTone bridge buffers ~2s and can't report it)
-sink_info=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null || true)
-if grep -q 'crt-bridge' <<<"$sink_info"; then
-  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${OWNTONE_LATENCY_MS:-2000} / 1000 }")
-  RESUME_ARGS+=("--audio-delay=-$ap_sec")
-elif grep -qi 'raop' <<<"$sink_info"; then
-  ap_sec=$(awk "BEGIN { printf \"%.3f\", ${AIRPLAY_LATENCY_MS:-0} / 1000 }")
-  RESUME_ARGS+=("--audio-delay=-$ap_sec")
-fi
 
 # --volume=100: mpv's own softvol stays out of the way — the sink volume
 # (remote slider / tv volume) is the one volume control
@@ -46,7 +33,6 @@ exec mpv \
   --input-ipc-server=/run/crt-tv/mpv.sock \
   --script=/usr/local/lib/crt-tv/commercials.lua \
   --script=/usr/local/lib/crt-tv/loudness.lua \
-  --script=/usr/local/lib/crt-tv/metadata.lua \
   --script=/usr/local/lib/crt-tv/reshuffle.lua \
   --loop-playlist=inf \
   --playlist=/run/crt-tv/playlist.m3u \

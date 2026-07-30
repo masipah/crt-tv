@@ -17,7 +17,7 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'scope', 'stop', 'pause', 'next', 'prev', 'mute', 'airplay',
+  'weather', 'scope', 'stop', 'pause', 'next', 'prev', 'mute',
   'shuffle', 'commercials', 'reboot',
 ]);
 // Fixed upload buckets: the ordered channel and the random interstitials
@@ -36,88 +36,43 @@ const isActive = (unit) => new Promise((resolve) => {
     (err, stdout) => resolve(stdout.trim() === 'active'));
 });
 
-// Whole-TV mute follows the default PipeWire sink (jack or AirPlay), with
-// the ALSA mixer as fallback for setups without PipeWire (see `tv mute`)
-const WP_ENV = { ...process.env, XDG_RUNTIME_DIR: `/run/user/${process.getuid()}` };
-
-const audioState = () => new Promise((resolve) => {
-  execFile('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV }, (err, stdout) => {
-    const m = !err && stdout.match(/Volume:\s*([0-9.]+)/);
-    if (m) {
-      return resolve({
-        muted: stdout.includes('[MUTED]'),
-        volume: Math.round(parseFloat(m[1]) * 100),
-      });
-    }
-    execFile('amixer', ['sget', 'Headphone'], (e2, out2) => {
-      const p2 = !e2 && String(out2).match(/\[(\d+)%\]/);
-      if (p2 && /\[(on|off)\]/.test(out2)) {
-        return resolve({ muted: out2.includes('[off]'), volume: Number(p2[1]) });
-      }
-      execFile('amixer', ['sget', 'PCM'], (e3, out3) => {
-        const p3 = String(out3 || '').match(/\[(\d+)%\]/);
-        resolve({
-          muted: String(out3 || '').includes('[off]'),
-          volume: p3 ? Number(p3[1]) : null,
-        });
-      });
-    });
-  });
+const mixerGet = () => new Promise((resolve) => {
+  const attempts = [
+    ['-c', 'Headphones', 'sget', 'PCM'],
+    ['sget', 'Headphone'],
+    ['sget', 'PCM'],
+  ];
+  const run = (i) => {
+    if (i >= attempts.length) return resolve(null);
+    execFile('amixer', attempts[i], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
+  };
+  run(0);
 });
 
-// Where is audio going? 'raop' = direct PipeWire AirPlay, 'owntone' = the
-// metadata bridge (default sink is crt-bridge), 'none' = the jack.
-const castMode = () => new Promise((resolve) => {
-  execFile('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { env: WP_ENV }, (err, stdout) => {
-    if (err) return resolve('none');
-    if (/crt-bridge/.test(stdout)) return resolve('owntone');
-    if (/raop/i.test(stdout)) return resolve('raop');
-    resolve('none');
-  });
+const mixerSet = (...args) => new Promise((resolve) => {
+  const attempts = [
+    ['-q', '-c', 'Headphones', 'sset', 'PCM'],
+    ['-q', 'sset', 'Headphone'],
+    ['-q', 'sset', 'PCM'],
+  ];
+  const run = (i) => {
+    if (i >= attempts.length) return resolve(false);
+    execFile('amixer', [...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
+  };
+  run(0);
 });
 
-const isAirplay = async () => (await castMode()) !== 'none';
-
-// ---- OwnTone (AirPlay with metadata) ------------------------------------
-const OWNTONE_URL = 'http://127.0.0.1:3689';
-const OWNTONE_LATENCY_MS = Number(process.env.OWNTONE_LATENCY_MS ?? 2000);
-
-async function otFetch(pathname, options) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 3000);
-  try {
-    const res = await fetch(`${OWNTONE_URL}${pathname}`, { ...options, signal: ctl.signal });
-    if (!res.ok) return null;
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// AirPlay receivers as OwnTone sees them (empty when OwnTone isn't installed)
-async function owntoneOutputs() {
-  const data = await otFetch('/api/outputs');
-  return (data?.outputs ?? []).filter((o) => /airplay/i.test(o.type ?? ''));
-}
-
-async function findBridgeSinkId() {
-  for (const o of await audioOutputs()) {
-    const inspect = await wpExec(['inspect', String(o.id)]) ?? '';
-    if (/crt-bridge/.test(inspect)) return o.id;
-  }
-  return null;
-}
-
-const wpExec = (args) => new Promise((resolve) => {
-  execFile('wpctl', args, { env: WP_ENV }, (err, stdout) => resolve(err ? null : stdout));
-});
+const audioState = async () => {
+  const out = String(await mixerGet() ?? '');
+  const p = out.match(/\[(\d+)%\]/);
+  return {
+    muted: out.includes('[off]'),
+    volume: p ? Number(p[1]) : null,
+  };
+};
 
 // The TV's mute intent of record — created by tv mute (and boot), removed
-// by unmute. While it exists the loop below re-mutes every few seconds, so
-// nothing can un-mute the TV behind the user's back.
+// by unmute. Status reads this alongside the hardware mixer state.
 const MUTED_FLAG = '/run/crt-tv/muted';
 
 // The user's volume choice of record — once it exists, unmute returns to
@@ -136,40 +91,6 @@ const kioskPage = async () => {
   return 'weather';
 };
 
-const hwMixer = (arg) => new Promise((resolve) => {
-  execFile('amixer', ['-q', '-c', 'Headphones', 'sset', 'PCM', arg], (e1) => {
-    if (!e1) return resolve();
-    execFile('amixer', ['-q', 'sset', 'Headphone', arg], (e2) => {
-      if (!e2) return resolve();
-      execFile('amixer', ['-q', 'sset', 'PCM', arg], () => resolve());
-    });
-  });
-});
-
-async function muteAll() {
-  for (const o of await audioOutputs()) {
-    await wpExec(['set-mute', String(o.id), '1']);
-  }
-  await hwMixer('mute');
-}
-
-// Unmute every output, PipeWire and hardware layers alike — used when the
-// user explicitly picks an output (choosing a speaker = wanting to hear it)
-async function unmuteAll() {
-  await fs.rm(MUTED_FLAG, { force: true }).catch(() => {});
-  for (const o of await audioOutputs()) {
-    await wpExec(['set-mute', String(o.id), '0']);
-  }
-  await hwMixer('unmute');
-}
-
-// Extra lip-sync shift while casting. Default 0: PipeWire 1.4+ reports the
-// AirPlay sink's buffer into the graph and mpv compensates natively —
-// manual shifting on top double-compensates. Tunable live via
-// POST /api/audio/sync {ms} for chains that still drift; boot default
-// comes from AIRPLAY_LATENCY_MS in crt-tv.env.
-let airplayLatencyMs = Number(process.env.AIRPLAY_LATENCY_MS ?? 0);
-
 const mpvSet = (prop, value) => new Promise((resolve) => {
   const sock = net.createConnection(MPV_SOCK);
   sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
@@ -180,28 +101,6 @@ const mpvSet = (prop, value) => new Promise((resolve) => {
     resolve(true);
   });
 });
-
-const setMpvAudioDelay = (seconds) => mpvSet('audio-delay', seconds);
-
-// Every selectable output: the jack plus each discovered AirPlay receiver
-async function audioOutputs() {
-  const status = await wpExec(['status']);
-  if (!status) return [];
-  const outs = [];
-  let inSinks = false;
-  for (const line of status.split('\n')) {
-    if (/Sinks:/.test(line)) { inSinks = true; continue; }
-    if (/(Sources|Filters|Streams):/.test(line)) inSinks = false;
-    if (!inSinks) continue;
-    const m = line.match(/(\*)?\s*(\d+)\.\s*(.*)$/);
-    if (!m) continue;
-    const id = Number(m[2]);
-    const name = m[3].replace(/\s*\[vol:.*$/, '').trim();
-    const inspect = await wpExec(['inspect', String(id)]) ?? '';
-    outs.push({ id, name, airplay: /raop/i.test(inspect), default: !!m[1] });
-  }
-  return outs;
-}
 
 // Ask mpv for properties over its IPC socket; null if the player isn't up.
 function mpvQuery(props) {
@@ -241,12 +140,11 @@ function mpvQuery(props) {
 }
 
 async function status() {
-  const [ws4kp, kiosk, player, audio, airplay, shuffled, noCommercials] = await Promise.all([
+  const [ws4kp, kiosk, player, audio, shuffled, noCommercials] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     audioState(),
-    isAirplay(),
     fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
     fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
   ]);
@@ -277,7 +175,6 @@ async function status() {
     muted: audio.muted
       || await fs.access(MUTED_FLAG).then(() => true, () => false),
     volume: audio.volume,
-    airplay,
     shuffled,
     noCommercials,
   };
@@ -552,103 +449,14 @@ const server = http.createServer(async (req, res) => {
         videos: await listBucket('videos'),
         commercials: await listBucket('commercials'),
       });
-    } else if (req.method === 'GET' && pathname === '/api/audio/outputs') {
-      // PipeWire sinks (jack + direct AirPlay), minus the internal bridge
-      // sink, plus OwnTone's receivers as "(with titles)" variants
-      const mode = await castMode();
-      const outs = [];
-      for (const o of await audioOutputs()) {
-        const inspect = await wpExec(['inspect', String(o.id)]) ?? '';
-        if (/crt-bridge/.test(inspect)) continue; // internal, not user-facing
-        outs.push(o);
-      }
-      for (const o of await owntoneOutputs()) {
-        outs.push({
-          id: `ot:${o.id}`,
-          name: `${o.name} (with titles)`,
-          airplay: true,
-          default: mode === 'owntone' && !!o.selected,
-        });
-      }
-      sendJson(res, 200, { outputs: outs });
-    } else if (req.method === 'POST' && pathname === '/api/audio/output') {
-      const { id } = JSON.parse(await readBody(req) || '{}');
-      const isOwntone = typeof id === 'string' && id.startsWith('ot:');
-      if (!isOwntone && !Number.isInteger(id)) {
-        return sendJson(res, 400, { error: 'id: sink id required' });
-      }
-      if (isOwntone) {
-        // metadata bridge: route audio into the bridge sink, point OwnTone
-        // at the chosen receiver, and let pipe autostart do the rest
-        const bridgeId = await findBridgeSinkId();
-        if (bridgeId == null) return sendJson(res, 400, { error: 'bridge sink missing — is the Pi updated?' });
-        const sel = await otFetch('/api/outputs/set', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ outputs: [id.slice(3)] }),
-        });
-        if (sel === null) return sendJson(res, 400, { error: 'OwnTone not reachable — is it installed?' });
-        await otFetch('/api/player/volume?volume=100', { method: 'PUT' });
-        await wpExec(['set-volume', String(bridgeId), '0.10']); // engage gently
-        await wpExec(['set-default', String(bridgeId)]);
-        await tv('bridge', 'start').catch(() => {});
-        await setMpvAudioDelay(-(OWNTONE_LATENCY_MS / 1000));
-        await unmuteAll();
-        return sendJson(res, 200, { ok: true });
-      }
-      // leaving the bridge (if it was active) — stop the feeder so OwnTone
-      // releases the receiver
-      tv('bridge', 'stop').catch(() => {});
-      // AirPlay sinks engage at 10% — they usually drive amplified speakers
-      const inspect = await wpExec(['inspect', String(id)]) ?? '';
-      const toAirplay = /raop/i.test(inspect);
-      if (toAirplay) {
-        await wpExec(['set-volume', String(id), '0.10']);
-      }
-      const ok = await new Promise((resolve) => {
-        execFile('wpctl', ['set-default', String(id)], { env: WP_ENV }, (err) => resolve(!err));
-      });
-      if (!ok) return sendJson(res, 400, { error: 'could not switch output — device gone?' });
-      // keep a running video in lip-sync with the new output's buffering
-      await setMpvAudioDelay(toAirplay ? -(airplayLatencyMs / 1000) : 0);
-      if (toAirplay) {
-        // wireplumber restores its remembered device volume when the sink
-        // activates, racing the engage level — re-assert 10% after it
-        await new Promise((r) => setTimeout(r, 700));
-        await wpExec(['set-volume', String(id), '0.10']);
-      }
-      // an explicit output choice always unmutes — a muted "new speaker"
-      // reads as broken
-      await unmuteAll();
-      sendJson(res, 200, { ok: true });
-    } else if (req.method === 'POST' && pathname === '/api/audio/sync') {
-      // live lip-sync trim while casting: positive ms delays video
-      const { ms } = JSON.parse(await readBody(req) || '{}');
-      if (typeof ms !== 'number' || ms < -5000 || ms > 5000) {
-        return sendJson(res, 400, { error: 'ms: number between -5000 and 5000 required' });
-      }
-      airplayLatencyMs = ms;
-      const applied = await isAirplay()
-        ? await setMpvAudioDelay(-(airplayLatencyMs / 1000))
-        : false;
-      sendJson(res, 200, { ok: true, ms, applied });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
       if (typeof volume !== 'number' || volume < 0 || volume > 100) {
         return sendJson(res, 400, { error: 'volume: number 0-100 required' });
       }
-      const wpOk = await new Promise((resolve) => {
-        execFile('wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', (volume / 100).toFixed(2)],
-          { env: WP_ENV }, (err) => resolve(!err));
-      });
-      if (!wpOk) {
-        // no PipeWire — set the hardware mixer instead
-        await new Promise((resolve) => {
-          execFile('amixer', ['-q', 'sset', 'Headphone', `${volume}%`], (err) => {
-            if (!err) return resolve();
-            execFile('amixer', ['-q', 'sset', 'PCM', `${volume}%`], () => resolve());
-          });
-        });
+      const ok = await mixerSet(`${volume}%`);
+      if (!ok) {
+        return sendJson(res, 500, { error: 'could not set mixer volume' });
       }
       await fs.writeFile(VOLUME_SET_FLAG, '').catch(() => {});
       sendJson(res, 200, { ok: true });
@@ -784,32 +592,6 @@ const server = http.createServer(async (req, res) => {
 // Node kills requests after 5 minutes by default — far too short for
 // multi-GB video uploads over Wi-Fi.
 server.requestTimeout = 0;
-
-// Keep mpv's lip-sync shift glued to where audio actually goes: outputs can
-// change without our endpoints being involved (wireplumber falls back to the
-// jack when an AirPlay device drops), which would leave a stale 2s shift.
-let lastAppliedMode = null;
-setInterval(async () => {
-  try {
-    // enforce the mute intent regardless of mode — wireplumber's route
-    // activations un-mute devices at unpredictable moments
-    if (await fs.access(MUTED_FLAG).then(() => true, () => false)) {
-      await muteAll();
-    }
-    if (!(await isActive('crt-player.service'))) {
-      lastAppliedMode = null;
-      return;
-    }
-    const mode = await castMode();
-    if (mode !== lastAppliedMode) {
-      const delay = mode === 'owntone' ? -(OWNTONE_LATENCY_MS / 1000)
-        : mode === 'raop' ? -(airplayLatencyMs / 1000)
-          : 0;
-      const ok = await setMpvAudioDelay(delay);
-      if (ok) lastAppliedMode = mode;
-    }
-  } catch { /* next tick */ }
-}, 3000);
 
 // Sweep upload temp files orphaned by a crash or power cut
 fs.readdir(MEDIA_DIR)
