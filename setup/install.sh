@@ -171,6 +171,7 @@ install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.l
 install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
+install -m 755 "$REPO_DIR/scripts/handoff-console.sh" /usr/local/lib/crt-tv/handoff-console.sh
 install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh
 rm -f /usr/local/lib/crt-tv/splash.txt
 install -d /usr/local/lib/crt-tv/kiosk-ext
