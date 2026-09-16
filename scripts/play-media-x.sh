@@ -27,6 +27,11 @@ fi
 exec mpv \
   --fs \
   --volume=100 \
+  --audio-device=alsa/plughw:CARD=Headphones,DEV=0 \
+  --audio-samplerate=44100 \
+  --audio-format=s16 \
+  --audio-channels=stereo \
+  --script=/usr/local/lib/crt-tv/airplay-route.lua \
   --monitoraspect=4:3 \
   --panscan="${CRT_PANSCAN:-1.0}" \
   --log-file=/run/crt-tv/mpv.log \
