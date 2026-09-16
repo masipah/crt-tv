@@ -361,7 +361,7 @@ if [[ ${1:-} == --once ]]; then
 fi
 
 # Loop the entire broadcast sequence for however long WeatherStar needs.
-# clear-console.sh stops this service before Chromium takes over tty1.
+# handoff-console.sh stops this service before Chromium takes over tty1.
 while :; do
   animation_cycle
 done
