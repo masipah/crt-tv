@@ -1,0 +1,15 @@
+[Unit]
+Description=Pi video audio feed for OwnTone AirPlay
+Requires=owntone.service
+After=owntone.service crt-remote.service
+BindsTo=crt-remote.service
+PartOf=crt-remote.service
+
+[Service]
+User=crt
+SupplementaryGroups=audio
+ExecStartPre=+/sbin/modprobe snd-aloop
+ExecStart=/usr/local/lib/crt-tv/airplay-feed.sh
+ExecStopPost=/usr/bin/rm -f /run/crt-tv/airplay.json
+Restart=no
+TimeoutStopSec=5

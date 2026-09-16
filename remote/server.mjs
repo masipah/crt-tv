@@ -2,6 +2,8 @@
 // Runs as user 'crt'; privileged actions go through `sudo -n tv ...`
 // (see setup/sudoers-crt-tv), so the CLI and the web UI share one code path.
 import http from 'node:http';
+import { AirplayTurns } from './airplay.mjs';
+import { AirplayOutput } from './airplay-output.mjs';
 import net from 'node:net';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -30,6 +32,21 @@ const tv = (...args) => new Promise((resolve, reject) => {
       else resolve(stdout);
     });
 });
+
+const airplayOutput = new AirplayOutput({
+  enabled: process.env.AIRPLAY_ENABLED === '1', tv, query: mpvQuery,
+  delayMs: Number(process.env.AIRPLAY_LATENCY_MS ?? 2000),
+});
+const airplay = new AirplayTurns({ output: airplayOutput });
+// Serialize health/metadata updates with connect/release and TV commands.
+let airplayTickPending = false;
+setInterval(() => {
+  if (airplayTickPending) return;
+  airplayTickPending = true;
+  airplay.run(() => airplay.refresh()).catch(console.error)
+    .finally(() => { airplayTickPending = false; });
+}, 2000).unref();
+const turnToken = (req) => req.headers['x-airplay-token'];
 
 const isActive = (unit) => new Promise((resolve) => {
   execFile('systemctl', ['is-active', unit],
@@ -174,7 +191,7 @@ async function status() {
     playing,
     muted: audio.muted
       || await fs.access(MUTED_FLAG).then(() => true, () => false),
-    volume: audio.volume,
+    volume: airplayOutput.output?.volume ?? audio.volume,
     shuffled,
     noCommercials,
   };
@@ -398,17 +415,30 @@ function resolveMedia(rel) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let finished = false;
+    const finish = (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(body);
+    };
+    // Speaker changes are serialized. A stalled JSON body must not hold the
+    // reservation queue forever (large uploads use a separate streaming path).
+    const timer = setTimeout(() => finish(Object.assign(new Error('request body timed out'), { status: 408 })), 10_000);
     req.on('data', (chunk) => {
+      if (finished) return;
       body += chunk;
-      if (body.length > 64 * 1024) reject(new Error('body too large'));
+      if (body.length > 64 * 1024) finish(Object.assign(new Error('body too large'), { status: 413 }));
     });
-    req.on('end', () => resolve(body));
-    req.on('error', reject);
+    req.on('end', () => finish());
+    req.on('error', finish);
+    req.on('aborted', () => finish(new Error('request aborted')));
   });
 }
 
 function sendJson(res, code, data) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
 }
 
@@ -433,10 +463,29 @@ async function serveStatic(res, pathname) {
   res.end(data);
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
   try {
+    if (req.method === 'GET' && pathname === '/api/airplay/outputs') {
+      return sendJson(res, 200, { outputs: await airplayOutput.outputs() });
+    }
+    if (req.method === 'GET' && pathname === '/api/airplay') {
+      return sendJson(res, 200, await airplay.run(() => airplay.state(turnToken(req))));
+    }
+    if (req.method === 'POST' && pathname.startsWith('/api/airplay/')) {
+      const token = turnToken(req);
+      const action = pathname.slice('/api/airplay/'.length);
+      let state;
+      if (action === 'claim') {
+        const { name, id } = JSON.parse(await readBody(req) || '{}');
+        state = await airplay.claim(token, name, id);
+      } else if (action === 'heartbeat') state = airplay.heartbeat(token);
+      else if (action === 'release') state = await airplay.release(token);
+      else return sendJson(res, 404, { error: 'unknown AirPlay action' });
+      return sendJson(res, 200, state);
+    }
+    if (req.method === 'POST' && controlsSpeakers(pathname)) airplay.guard(turnToken(req));
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       const html = await fs.readFile(path.join(PUBLIC_DIR, 'index.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -453,6 +502,10 @@ const server = http.createServer(async (req, res) => {
       const { volume } = JSON.parse(await readBody(req) || '{}');
       if (typeof volume !== 'number' || volume < 0 || volume > 100) {
         return sendJson(res, 400, { error: 'volume: number 0-100 required' });
+      }
+      if (airplay.turn) {
+        await airplayOutput.volume(volume);
+        return sendJson(res, 200, { ok: true });
       }
       const ok = await mixerSet(`${volume}%`);
       if (!ok) {
@@ -481,6 +534,7 @@ const server = http.createServer(async (req, res) => {
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
+      if (airplay.turn && ['weather', 'scope', 'stop', 'reboot'].includes(cmd)) await airplay.release(turnToken(req));
       await tv(cmd);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'PUT' && pathname === '/api/upload') {
@@ -585,9 +639,28 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: 'not found' });
     }
   } catch (err) {
-    sendJson(res, 500, { error: err.message });
+    sendJson(res, err.status || (err instanceof SyntaxError ? 400 : 500), { error: err.message });
   }
+}
+
+function controlsSpeakers(pathname) {
+  return pathname.startsWith('/api/tv/') || pathname === '/api/play'
+    || pathname === '/api/player/seek' || pathname === '/api/audio/volume';
+}
+const server = http.createServer((req, res) => {
+  const pathname = new URL(req.url, 'http://localhost').pathname;
+  const action = () => handleRequest(req, res);
+  if (req.method === 'POST' && (controlsSpeakers(pathname) || pathname.startsWith('/api/airplay/'))) {
+    airplay.run(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
+  } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });
+
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    server.close();
+    airplay.run(() => airplay.end()).finally(() => process.exit());
+  });
+}
 
 // Node kills requests after 5 minutes by default — far too short for
 // multi-GB video uploads over Wi-Fi.
@@ -607,6 +680,14 @@ Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: tr
   .then(() => syncLoudness())
   .catch(() => {});
 
+// A restart must not leave an orphaned sender controlling the receiver.
+if (airplayOutput.enabled) {
+  try { await airplayOutput.disconnect(); }
+  catch (error) { airplay.problem = error.message; }
+}
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
 });
+
+// Exported for HTTP integration tests; the runtime remains a single server.
+export { server, airplay, airplayOutput };
