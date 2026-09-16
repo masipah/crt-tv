@@ -98,6 +98,6 @@ done
 
 # Keep the boot animation running throughout the readiness wait. Stop it and
 # clear tty1 only when X is about to take over, leaving no black loading gap.
-sudo -n /usr/local/lib/crt-tv/clear-console.sh
+sudo -n /usr/local/lib/crt-tv/handoff-console.sh
 
 exec xinit /usr/local/lib/crt-tv/kiosk-x.sh -- :0 vt1 -nolisten tcp -nocursor
