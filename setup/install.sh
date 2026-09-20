@@ -139,6 +139,11 @@ echo "==> Removing retired PipeWire AirPlay stack"
 systemctl disable --now crt-bridge.service 2>/dev/null || true
 if [[ $airplay_enabled != 1 ]]; then
   systemctl disable --now crt-airplay-feed.service owntone.service avahi-daemon.service 2>/dev/null || true
+  rm -f /etc/systemd/system/owntone.service.d/crt-tv.conf
+  rm -f /usr/local/lib/crt-tv/owntone-firewall.nft
+  if command -v nft >/dev/null 2>&1; then
+    nft delete table inet crt_airplay 2>/dev/null || true
+  fi
 fi
 crt_uid=$(id -u crt 2>/dev/null || true)
 if [[ -n $crt_uid ]]; then
