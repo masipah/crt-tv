@@ -369,7 +369,11 @@ case $cmd in
     # Weather starts on the local TV speaker unless silent boot is requested.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
     # Level once — no repeating sweep that could override a person's choice.
-    normalize_outputs
+    boot_volume=$(env_get CRT_BOOT_VOLUME)
+    boot_volume=${boot_volume:-50}
+    [[ $boot_volume =~ ^(100|[1-9]?[0-9])$ ]] || boot_volume=50
+    alsa_mixer_retry "${boot_volume}%"
+    : >"$RUN_DIR/volume-set" # preserve the configured level when unmuting
     if [[ $(env_get CRT_BOOT_MUTED) == 1 ]]; then
       mixer mute
       : >"$RUN_DIR/boot-muted"

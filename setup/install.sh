@@ -145,13 +145,9 @@ if [[ $airplay_enabled != 1 ]]; then
     nft delete table inet crt_airplay 2>/dev/null || true
   fi
 fi
-crt_uid=$(id -u crt 2>/dev/null || true)
-if [[ -n $crt_uid ]]; then
-  sudo -u crt XDG_RUNTIME_DIR="/run/user/$crt_uid" \
-    systemctl --user disable --now pipewire.service pipewire.socket \
-      pipewire-pulse.service pipewire-pulse.socket wireplumber.service 2>/dev/null || true
-  loginctl disable-linger crt 2>/dev/null || true
-fi
+echo "==> Restoring appliance startup settings"
+bash "$REPO_DIR/setup/fast-boot.sh"
+loginctl disable-linger crt 2>/dev/null || true
 rm -f /etc/systemd/system/crt-bridge.service
 rm -f /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
 rm -f /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
