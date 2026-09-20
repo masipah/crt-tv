@@ -43,5 +43,6 @@ exec "$BROWSER" \
   --disable-infobars \
   --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
+  --alsa-output-device=plughw:CARD=Headphones,DEV=0 \
   --check-for-update-interval=31536000 \
   ${KIOSK_FLAGS:-}
