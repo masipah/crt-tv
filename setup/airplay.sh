@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/owntone/owntone-apt/refs/heads/mast
 gpg --batch --yes --dearmor --output /usr/share/keyrings/owntone-archive-keyring.gpg "$key_tmp"
 install -m 644 "$list_tmp" /etc/apt/sources.list.d/owntone.list
 apt-get update
-apt-get install -y owntone
+apt-get install -y owntone nftables
 id owntone &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin owntone
 install -d -m 750 -o owntone -g crt /srv/owntone-pipe
 for pipe in CRT-TV CRT-TV.metadata; do
@@ -26,7 +26,14 @@ done
 modprobe snd-aloop
 install -m 644 "$REPO_DIR/setup/tmpfiles-crt-airplay.conf" /etc/tmpfiles.d/crt-airplay.conf
 systemd-tmpfiles --create /etc/tmpfiles.d/crt-airplay.conf
+# Load protection before starting OwnTone with LAN discovery enabled. Its bind
+# address also controls mDNS, so binding to localhost hides every receiver.
+install -d /usr/local/lib/crt-tv /etc/systemd/system/owntone.service.d
+install -m 644 "$REPO_DIR/setup/owntone-firewall.nft" /usr/local/lib/crt-tv/owntone-firewall.nft
+install -m 644 "$REPO_DIR/setup/owntone-crt-tv.conf" /etc/systemd/system/owntone.service.d/crt-tv.conf
+nft -f /usr/local/lib/crt-tv/owntone-firewall.nft
 install -m 644 "$REPO_DIR/setup/owntone.conf" /etc/owntone.conf
+systemctl daemon-reload
 systemctl enable --now avahi-daemon.service owntone.service
 systemctl restart owntone.service
 # This feed is on demand, never enabled at boot.
