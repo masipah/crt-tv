@@ -1,5 +1,5 @@
 [Unit]
-Description=crt-tv boot leveling (audio silent at default levels; the TV stays on the weather)
+Description=crt-tv boot audio and optional weather-to-video startup
 After=weather-kiosk.service
 
 [Service]
