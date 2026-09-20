@@ -195,9 +195,15 @@ connects to that receiver at 10% volume; if it is off, the Pi retries every ten
 seconds until it appears. No browser, name, or reservation is needed, and TV
 controls remain shared. Switching away from Videos disconnects it.
 
-Set `CRT_VIDEO_DELAY_SECONDS=120` for weather for two minutes at boot followed
-by the video library. Without it, weather stays on until someone selects Videos.
+Set `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather presentation followed
+by the video library. The kiosk signals when the first real weather screen is
+visible and playing; loading time and the progress screen do not count. If
+weather never becomes ready, it stays on weather. Without the setting, weather
+stays on until someone selects Videos.
 Choosing a channel manually cancels the pending boot transition.
+Weather music uses the TV's analogue jack and starts unmuted at boot. Set
+`CRT_BOOT_MUTED=1` to request silent boot. The DMP-A8 is used only for video audio;
+turning it on during videos triggers automatic discovery and connection.
 
 **Stop automatic AirPlay** pauses automatic routing until **Resume automatic
 AirPlay** or leaving and returning to Videos. A manual receiver selection still
