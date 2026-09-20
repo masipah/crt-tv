@@ -9,7 +9,7 @@ test('HTTP turn handoff enforces all web control routes with independent clients
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'crt-http-test-'));
   process.env.MEDIA_DIR = dir;
   process.env.CRT_REMOTE_PORT = '0';
-  const { server, airplay } = await import('../server.mjs');
+  const { server, airplay, airplayOutput } = await import('../server.mjs');
   // Exercise the real HTTP router with a deterministic physical-output adapter.
   airplay.output = { enabled: true, output: null,
     async connect() { this.output = { id: '123', name: 'Eversolo DMP-A8' }; },
@@ -48,6 +48,28 @@ test('HTTP turn handoff enforces all web control routes with independent clients
     const page = await (await fetch(base)).text();
     assert.match(page, /Eversolo DMP-A8/);
     assert.match(page, /The Pi sends the video’s audio and title, artist and album/);
+    await request('/api/airplay/release', other, {});
+    // Automatic routing has no owner but still routes volume to the receiver.
+    let volume;
+    Object.assign(airplayOutput, {
+      enabled: true, output: null,
+      hasVideo: async () => true,
+      outputs: async () => [{ id: 'default', name: 'Default receiver' }],
+      connect: async id => { airplayOutput.output = { id }; },
+      disconnect: async () => { airplayOutput.output = null; },
+      prepareAutomatic: async () => {}, refresh: async () => {},
+      volume: async value => { volume = value; },
+    });
+    airplay.output = airplayOutput;
+    airplay.defaultId = 'default';
+    const auto = await (await request('/api/airplay/automatic', undefined, {})).json();
+    assert.equal(auto.automatic, true);
+    assert.equal(auto.busy, false);
+    assert.equal((await request('/api/audio/volume', undefined, { volume: 25 })).status, 200);
+    assert.equal(volume, 25);
+    const stopped = await (await request('/api/airplay/release', undefined, {})).json();
+    assert.equal(stopped.autoStopped, true);
+    assert.equal(stopped.output, null);
   } finally {
     await new Promise(resolve => server.close(resolve));
     await fs.rm(dir, { recursive: true, force: true });

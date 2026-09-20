@@ -187,6 +187,24 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ### AirPlay video audio
 
+For automatic routing, set `AIRPLAY_DEFAULT_ID` in `/etc/crt-tv/crt-tv.env`
+to the receiver's stable ID from `/api/airplay/outputs`, alongside
+`AIRPLAY_ENABLED=1`, and restart `crt-remote.service`. Receiver name changes
+do not affect the saved ID. Weather remains the boot channel. Starting Videos
+connects to that receiver at 10% volume; if it is off, the Pi retries every ten
+seconds until it appears. No browser, name, or reservation is needed, and TV
+controls remain shared. Switching away from Videos disconnects it.
+
+Set `CRT_VIDEO_DELAY_SECONDS=120` for weather for two minutes at boot followed
+by the video library. Without it, weather stays on until someone selects Videos.
+Choosing a channel manually cancels the pending boot transition.
+
+**Stop automatic AirPlay** pauses automatic routing until **Resume automatic
+AirPlay** or leaving and returning to Videos. A manual receiver selection still
+uses the reservation described below. Automatic routing clears the initial boot
+mute on its first connection, but respects mute set by a person. Receiver failure
+returns audio to the jack while the Pi waits to reconnect.
+
 The **AirPlay · video audio** panel sends the Pi's currently playing video's
 audio to one receiver, including the Eversolo DMP-A8 Gen 2. Metadata comes from
 the video automatically: embedded title/artist/album tags take priority, then
@@ -199,7 +217,8 @@ Enable the sender on the Pi by adding `AIRPLAY_ENABLED=1` to
 The installer uses the [official OwnTone Pi repository](https://owntone.github.io/owntone-server/installation/),
 adds OwnTone and Avahi, and checks the kernel's `snd-aloop` module. It does not
 restore PipeWire, global audio routing, or the old OwnTone capture bridge.
-AirPlay is opt-in and starts disconnected after reboot or remote restart.
+AirPlay is opt-in. Manual reservations start disconnected after reboot or remote
+restart; configured automatic routing reconnects when a video is playing.
 
 1. Play a video from the web remote.
 2. Under AirPlay, enter your name, refresh receivers, select the Eversolo, and

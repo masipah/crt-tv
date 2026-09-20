@@ -68,6 +68,12 @@ export class AirplayOutput {
       needsAuth: !!(o.requires_auth || o.needs_auth_key || o.has_password),
     }));
   }
+  async hasVideo() {
+    return !!(await this.query(['path']))?.path;
+  }
+  async prepareAutomatic() {
+    await this.tv('airplay-auto-unmute');
+  }
   async connect(id) {
     if (!this.enabled) throw failure('Enable AIRPLAY_ENABLED=1 and run the installer on the Pi.');
     const target = (await this.outputs()).find(o => o.id === id);
@@ -82,7 +88,7 @@ export class AirplayOutput {
       await this.tv('airplay-start');
       await fs.writeFile(path.join(this.runtime, 'airplay.json.tmp'), JSON.stringify({ delay: this.delayMs / 1000 }));
       await fs.rename(path.join(this.runtime, 'airplay.json.tmp'), path.join(this.runtime, 'airplay.json'));
-      this.output = target;
+      this.output = { ...target, selected: true, volume: 10 };
       this.lastPacket = '';
     } catch (error) {
       await this.disconnect();
