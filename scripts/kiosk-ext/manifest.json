@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "crt-tv kiosk fit",
   "description": "Keeps ws4kp hidden until its kiosk-mode layout is applied (no startup flash), then stretches the 640x480 canvas to fill the full 720x480 composite raster (no pillarbox bars). ws4kp only: the oscilloscope channel is excluded by path, since match patterns can't name a port.",
-  "version": "1.3",
+  "version": "1.4",
   "content_scripts": [
     {
       "matches": ["http://127.0.0.1/*", "http://localhost/*"],
@@ -13,7 +13,7 @@
         "http://localhost/fit.html*"
       ],
       "css": ["hide.css"],
-      "js": ["fill.js", "ready.js"],
+      "js": ["splash-frames.js", "splash.js", "fill.js", "ready.js"],
       "run_at": "document_start",
       "all_frames": true
     }

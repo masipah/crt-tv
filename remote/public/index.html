@@ -578,12 +578,15 @@
       : state.busy
         ? `${state.mine ? 'You control' : state.owner + ' controls'} AirPlay → ${state.output?.name || 'receiver'}${state.output?.routing ? '' : ' · waiting for video'}`
         : state.defaultId && !state.autoStopped
-          ? 'Videos automatically use your default receiver when it is available.'
+          ? state.waitingForReceiver
+            ? 'Playing through the TV. Waiting for your receiver to advertise AirPlay; checking every 10 seconds.'
+            : 'Videos automatically use your default receiver when it is available.'
           : 'Choose your receiver to play the TV’s video audio there.';
     $('airplay-reserve').hidden = !state.enabled || state.busy || state.automatic || (!!state.defaultId && !state.autoStopped);
     $('airplay-instructions').hidden = !state.mine && !state.automatic;
     $('airplay-release').textContent = state.automatic ? 'Stop automatic AirPlay' : 'Stop AirPlay & release';
-    $('airplay-automatic').hidden = !state.enabled || !state.defaultId || !state.autoStopped || state.busy;
+    $('airplay-automatic').hidden = !state.enabled || !state.defaultId || state.automatic || state.busy;
+    $('airplay-automatic').textContent = state.autoStopped ? 'Resume automatic AirPlay' : 'Retry receiver now';
     $('airplay-automatic').disabled = airplayPending;
     $('airplay-ownership').textContent = state.defaultId && !state.busy
       ? 'Automatic AirPlay keeps playing without this page open. Everyone can use the TV controls. Stop pauses automatic routing until you resume it or leave Videos.'
@@ -592,7 +595,7 @@
       ? `${state.metadata.title} · ${state.metadata.artist} · ${state.metadata.album}` : '';
     $('airplay-claim').disabled = airplayPending || !$('airplay-output').value;
     $('airplay-release').disabled = airplayPending;
-    if (state.problem || state.metadataError) $('airplay-error').textContent = state.problem || state.metadataError;
+    $('airplay-error').textContent = state.problem || state.metadataError || '';
     for (const id of ['btn-weather', 'btn-scope', 'btn-video', 'btn-off', 'btn-reboot']) $(id).disabled = state.busy && !state.mine;
     $('btn-mute').disabled = state.busy && !state.mine;
     $('vol').disabled = state.busy && !state.mine;
