@@ -138,10 +138,10 @@ and is stopped only when Chromium is about to claim the display, so it cannot
 delay boot or leave a black loading gap. The TV then stays on the WeatherStar —
 videos roll when you ask for them, from the web remote or `tv play`.
 
-Boot is **muted**. Unmute when you want sound — one toggle covers the weather
-music and the videos alike, and it comes up at the default 50% jack level with
-the slider showing it, so there's headroom to raise it (the PVM's own volume
-sits at full). Once you move the slider, your level is the one that sticks.
+Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (50% by default). Set
+`CRT_BOOT_MUTED=1` for silent startup or `CRT_BOOT_VOLUME=100` when controlling
+the listening level on the TV itself. One mute toggle covers weather and video
+audio. Once you move the slider, your level stays in effect until the next boot.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between the browser channels
@@ -206,6 +206,16 @@ Weather music uses the TV's analogue jack and starts unmuted at boot. Set
 turning it on during videos triggers automatic discovery and connection.
 Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 50%
 is an audible level rather than the Pi mixer's almost-silent raw midpoint.
+Set `CRT_BOOT_VOLUME=100` in `/etc/crt-tv/crt-tv.env` to start the TV jack at
+full volume instead. This accepts 0–100 and does not change AirPlay volume.
+The installer masks desktop audio services so their saved mixer settings cannot
+overwrite the TV's startup volume, including when an administrator logs in.
+
+The installer also removes the network-online boot wait and disables cloud-init
+after first-boot provisioning has finished and persistent network settings exist.
+To reapply these settings without a full install, run `sudo bash setup/fast-boot.sh`
+from the project checkout. Networking still starts normally; the weather intro
+still lasts the configured time after weather becomes ready.
 
 **Stop automatic AirPlay** pauses automatic routing until **Resume automatic
 AirPlay** or leaving and returning to Videos. A manual receiver selection still
