@@ -130,9 +130,9 @@ rm -f /var/swap
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
 
 echo "==> Enabling analog audio out (TRRS jack)"
-amixer -q -c Headphones sset PCM 50% 2>/dev/null \
-  || amixer -q sset Headphone 50% 2>/dev/null \
-  || amixer -q sset PCM 50% 2>/dev/null || true
+amixer -M -q -c Headphones sset PCM 50% 2>/dev/null \
+  || amixer -M -q sset Headphone 50% 2>/dev/null \
+  || amixer -M -q sset PCM 50% 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
 echo "==> Removing retired PipeWire AirPlay stack"

@@ -46,6 +46,10 @@ test('HTTP turn handoff enforces all web control routes with independent clients
     const invalid = await fetch(base + '/api/airplay/claim', { method: 'POST', body: '{' });
     assert.equal(invalid.status, 400);
     const page = await (await fetch(base)).text();
+    assert.equal((await request('/api/weather/started', undefined, {})).status, 403);
+    assert.equal((await fetch(base + '/api/weather/started', { method: 'POST', headers: {
+      Origin: 'http://127.0.0.1:8080', 'X-Forwarded-For': '10.0.0.123',
+    } })).status, 403);
     assert.match(page, /Eversolo DMP-A8/);
     assert.match(page, /The Pi sends the video’s audio and title, artist and album/);
     await request('/api/airplay/release', other, {});
