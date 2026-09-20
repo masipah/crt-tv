@@ -204,6 +204,8 @@ Choosing a channel manually cancels the pending boot transition.
 Weather music uses the TV's analogue jack and starts unmuted at boot. Set
 `CRT_BOOT_MUTED=1` to request silent boot. The DMP-A8 is used only for video audio;
 turning it on during videos triggers automatic discovery and connection.
+Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 50%
+is an audible level rather than the Pi mixer's almost-silent raw midpoint.
 
 **Stop automatic AirPlay** pauses automatic routing until **Resume automatic
 AirPlay** or leaving and returning to Videos. A manual receiver selection still

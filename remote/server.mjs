@@ -61,7 +61,7 @@ const mixerGet = () => new Promise((resolve) => {
   ];
   const run = (i) => {
     if (i >= attempts.length) return resolve(null);
-    execFile('amixer', attempts[i], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
+    execFile('amixer', ['-M', ...attempts[i]], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
   };
   run(0);
 });
@@ -74,7 +74,7 @@ const mixerSet = (...args) => new Promise((resolve) => {
   ];
   const run = (i) => {
     if (i >= attempts.length) return resolve(false);
-    execFile('amixer', [...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
+    execFile('amixer', ['-M', ...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
   };
   run(0);
 });
