@@ -229,8 +229,11 @@ prevent another device on the LAN from connecting directly to the Eversolo.
 
 Audio travels from mpv through an ALSA loopback to a PCM pipe read by OwnTone;
 only one OwnTone output is selected. The hardware jack and weather audio retain
-their existing ALSA path. OwnTone's control API listens on localhost, so another
-LAN browser cannot bypass the website lock through its separate control UI.
+their existing ALSA path. OwnTone discovers receivers on the LAN; an nftables
+rule blocks external access to its HTTP, websocket, and MPD control ports, so
+another LAN browser cannot bypass the website lock through its separate UI.
+The service reloads that rule before every start and refuses to start if it
+cannot apply it. The web remote accesses OwnTone through localhost.
 Release stops the capture and OwnTone stream, then restarts idle discovery.
 The mpv routing script detects the removed route and returns to the jack without
 restarting the video. The shared mute flag also mutes mpv while it is casting;
