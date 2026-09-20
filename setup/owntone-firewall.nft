@@ -1,0 +1,7 @@
+# Applied atomically before every OwnTone start. Touch only our own chain.
+# Keep the HTTP API, websocket and MPD ports local without blocking discovery
+# or outbound AirPlay connections. Reapplying this file is idempotent.
+add table inet crt_airplay
+add chain inet crt_airplay input { type filter hook input priority -10; policy accept; }
+flush chain inet crt_airplay input
+add rule inet crt_airplay input iifname != "lo" tcp dport { 3688, 3689, 6600 } reject with tcp reset
