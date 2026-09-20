@@ -77,9 +77,9 @@ mpv_get() {
 # ALSA mixer control for the Pi's local analogue jack. Try the card-addressed
 # Raspberry Pi OS name first, then the generic controls seen across images.
 alsa_mixer() {
-  amixer -q -c Headphones sset PCM "$@" 2>/dev/null ||
-    amixer -q sset Headphone "$@" 2>/dev/null ||
-    amixer -q sset PCM "$@" 2>/dev/null
+  amixer -M -q -c Headphones sset PCM "$@" 2>/dev/null ||
+    amixer -M -q sset Headphone "$@" 2>/dev/null ||
+    amixer -M -q sset PCM "$@" 2>/dev/null
 }
 
 alsa_mixer_retry() {
@@ -92,9 +92,9 @@ alsa_mixer_retry() {
 }
 
 alsa_status() {
-  amixer -c Headphones sget PCM 2>/dev/null ||
-    amixer sget Headphone 2>/dev/null ||
-    amixer sget PCM 2>/dev/null
+  amixer -M -c Headphones sget PCM 2>/dev/null ||
+    amixer -M sget Headphone 2>/dev/null ||
+    amixer -M sget PCM 2>/dev/null
 }
 
 # Level the jack volume only; mute state is left alone. One-shot by design:
