@@ -10,6 +10,7 @@ ENV_FILE=/etc/crt-tv/crt-tv.env
 
 cancel_boot_video() {
   systemctl stop crt-start-videos.timer 2>/dev/null || true
+  if [[ -e $RUN_DIR/weather-intro ]]; then printf 'cancelled\n' >"$RUN_DIR/weather-intro"; fi
 }
 
 # Don't source the env file — values like permalink KIOSK_URLs contain '&'
@@ -76,9 +77,9 @@ mpv_get() {
 # ALSA mixer control for the Pi's local analogue jack. Try the card-addressed
 # Raspberry Pi OS name first, then the generic controls seen across images.
 alsa_mixer() {
-  amixer -q -c Headphones sset PCM "$@" 2>/dev/null ||
-    amixer -q sset Headphone "$@" 2>/dev/null ||
-    amixer -q sset PCM "$@" 2>/dev/null
+  amixer -M -q -c Headphones sset PCM "$@" 2>/dev/null ||
+    amixer -M -q sset Headphone "$@" 2>/dev/null ||
+    amixer -M -q sset PCM "$@" 2>/dev/null
 }
 
 alsa_mixer_retry() {
@@ -91,9 +92,9 @@ alsa_mixer_retry() {
 }
 
 alsa_status() {
-  amixer -c Headphones sget PCM 2>/dev/null ||
-    amixer sget Headphone 2>/dev/null ||
-    amixer sget PCM 2>/dev/null
+  amixer -M -c Headphones sget PCM 2>/dev/null ||
+    amixer -M sget Headphone 2>/dev/null ||
+    amixer -M sget PCM 2>/dev/null
 }
 
 # Level the jack volume only; mute state is left alone. One-shot by design:
@@ -206,6 +207,20 @@ cmd=${1:-status}
 [[ $# -gt 0 ]] && shift
 
 case $cmd in
+  weather-ready)
+    as_root
+    # Called by the local kiosk only after its first weather screen is visible.
+    [[ $(cat "$RUN_DIR/weather-intro" 2>/dev/null || true) == pending ]] || exit 0
+    systemctl is-active --quiet weather-kiosk.service || exit 0
+    if grep -Eq 'oscilloscope|fit\.html' "$KIOSK_ENV" 2>/dev/null; then exit 0; fi
+    delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
+    if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
+      systemd-run --quiet --unit=crt-start-videos --on-active="${delay}s" \
+        --timer-property=AccuracySec=1s /usr/local/bin/tv play
+      printf 'scheduled\n' >"$RUN_DIR/weather-intro"
+      echo "Weather started; videos in ${delay} seconds"
+    fi
+    ;;
   airplay-auto-unmute)
     as_root
     # Automatic video audio clears only boot silence, never a user's mute.
@@ -351,18 +366,21 @@ case $cmd in
     as_root
     # The kiosk starts weather. An optional one-shot timer starts videos later;
     # without that setting, weather stays until someone changes channels.
-    # Boot starts silent at 50%; automatic AirPlay can clear this boot mute.
+    # Weather starts on the local TV speaker unless silent boot is requested.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
-    # Level once, mute once — no repeating sweep.
+    # Level once — no repeating sweep that could override a person's choice.
     normalize_outputs
-    mixer mute
-    : >"$RUN_DIR/boot-muted"
+    if [[ $(env_get CRT_BOOT_MUTED) == 1 ]]; then
+      mixer mute
+      : >"$RUN_DIR/boot-muted"
+    else
+      mixer unmute
+    fi
     # Wipe any boot messages left on the VT without holding up multi-user boot.
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
     delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
     if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
-      systemd-run --quiet --unit=crt-start-videos --on-active="${delay}s" \
-        --timer-property=AccuracySec=1s /usr/local/bin/tv play
+      printf 'pending\n' >"$RUN_DIR/weather-intro"
     fi
     ;;
   normalize)

@@ -13,7 +13,7 @@
         "http://localhost/fit.html*"
       ],
       "css": ["hide.css"],
-      "js": ["fill.js"],
+      "js": ["fill.js", "ready.js"],
       "run_at": "document_start",
       "all_frames": true
     }

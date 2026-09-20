@@ -61,7 +61,7 @@ const mixerGet = () => new Promise((resolve) => {
   ];
   const run = (i) => {
     if (i >= attempts.length) return resolve(null);
-    execFile('amixer', attempts[i], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
+    execFile('amixer', ['-M', ...attempts[i]], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
   };
   run(0);
 });
@@ -74,7 +74,7 @@ const mixerSet = (...args) => new Promise((resolve) => {
   ];
   const run = (i) => {
     if (i >= attempts.length) return resolve(false);
-    execFile('amixer', [...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
+    execFile('amixer', ['-M', ...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
   };
   run(0);
 });
@@ -467,6 +467,19 @@ async function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
   try {
+    if (req.method === 'POST' && pathname === '/api/weather/started') {
+      // The embedded kiosk is on :8080; never accept a LAN/proxied signal.
+      const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+      const origin = req.headers.origin;
+      if (!local || req.headers['x-forwarded-for'] || !['http://127.0.0.1:8080', 'http://localhost:8080'].includes(origin)) {
+        return sendJson(res, 403, { error: 'Local weather kiosk only' });
+      }
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      const intro = await fs.readFile('/run/crt-tv/weather-intro', 'utf8').catch(() => '');
+      if (intro.trim() === 'pending') await tv('weather-ready');
+      const state = await fs.readFile('/run/crt-tv/weather-intro', 'utf8').catch(() => '');
+      return sendJson(res, /scheduled|cancelled/.test(state) ? 200 : 202, { state: state.trim() || 'waiting' });
+    }
     if (req.method === 'GET' && pathname === '/api/airplay/outputs') {
       return sendJson(res, 200, { outputs: await airplayOutput.outputs() });
     }
@@ -651,7 +664,7 @@ function controlsSpeakers(pathname) {
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const action = () => handleRequest(req, res);
-  if (req.method === 'POST' && (controlsSpeakers(pathname) || pathname.startsWith('/api/airplay/'))) {
+  if (req.method === 'POST' && (controlsSpeakers(pathname) || pathname.startsWith('/api/airplay/') || pathname === '/api/weather/started')) {
     airplay.run(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
   } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });

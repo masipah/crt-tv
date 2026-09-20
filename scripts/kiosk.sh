@@ -75,8 +75,11 @@ fi
 # Overscan compensation, read by the kiosk-fit extension on ws4kp pages and
 # by the oscilloscope/pattern pages. Our own parameters; anything else
 # ignores them.
-CRT_PARAMS="crtFit=${KIOSK_FIT_X}x${KIOSK_FIT_Y}&crtShift=${KIOSK_SHIFT_X},${KIOSK_SHIFT_Y}"
+CRT_PARAMS="crtFit=${KIOSK_FIT_X}x${KIOSK_FIT_Y}&crtShift=${KIOSK_SHIFT_X},${KIOSK_SHIFT_Y}&crtRemotePort=${CRT_REMOTE_PORT:-8090}"
 [[ $URL == *\?* ]] && URL="$URL&$CRT_PARAMS" || URL="$URL?$CRT_PARAMS"
+if [[ ${CRT_VIDEO_DELAY_SECONDS:-0} =~ ^[0-9]+$ ]] && (( ${CRT_VIDEO_DELAY_SECONDS:-0} > 0 )); then
+  URL="$URL&crtWeatherIntro=1"
+fi
 
 echo "kiosk: launching $URL"
 
