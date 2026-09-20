@@ -9,6 +9,7 @@ export class AirplayTurns {
     this.nextRetry = 0;
     this.turn = null;
     this.problem = '';
+    this.waitingForReceiver = false;
     this.chain = Promise.resolve();
   }
 
@@ -28,6 +29,7 @@ export class AirplayTurns {
       enabled: !!this.output?.enabled, busy: !!this.turn, mine, problem: this.problem,
       automatic: !!this.output?.output && !this.turn,
       defaultId: this.defaultId, autoStopped: this.autoStopped,
+      waitingForReceiver: this.waitingForReceiver,
       output: this.output?.output || null, metadata: this.output?.metadata || null,
       metadataError: this.output?.metadataError || null,
       owner: this.turn?.name ?? null, expiresAt: this.turn?.expiresAt ?? null,
@@ -97,11 +99,13 @@ export class AirplayTurns {
         if (!await this.output.hasVideo()) {
           if (this.output.output) await this.end();
           this.autoStopped = false;
+          this.waitingForReceiver = false;
           return;
         }
         if (!this.output.output && !this.autoStopped && this.now() >= this.nextRetry) {
           this.nextRetry = this.now() + 10_000;
           const target = (await this.output.outputs()).find(o => o.id === this.defaultId);
+          this.waitingForReceiver = !target;
           if (target) {
             await this.output.connect(target.id);
             await this.output.prepareAutomatic();
@@ -121,5 +125,6 @@ export class AirplayTurns {
   async end() {
     if (this.output && (this.turn || this.output.output)) await this.output.disconnect();
     this.turn = null;
+    this.waitingForReceiver = false;
   }
 }

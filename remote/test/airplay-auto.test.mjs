@@ -26,12 +26,14 @@ test('weather stays local; videos reconnect when the default receiver appears, w
   assert.deepEqual(f.calls, []);
   f.video(true);
   await f.tick();
+  assert.equal(f.turns.state().waitingForReceiver, true);
   f.available(true);
   await f.tick();
   assert.equal(f.output.output, null, 'discovery is throttled');
   f.advance(10_000);
   await f.tick();
   assert.equal(f.turns.state().automatic, true);
+  assert.equal(f.turns.state().waitingForReceiver, false);
   assert.equal(f.turns.state().busy, false);
   assert.doesNotThrow(() => f.turns.guard());
   f.advance(300_000);
@@ -40,6 +42,7 @@ test('weather stays local; videos reconnect when the default receiver appears, w
   f.video(false);
   await f.tick();
   assert.equal(f.output.output, null);
+  assert.equal(f.turns.state().waitingForReceiver, false);
 });
 
 test('explicit stop pauses auto routing; resume and returning to videos can re-enable it', async () => {
