@@ -493,9 +493,10 @@
           <button id="airplay-release" class="btn-primary" onclick="airplayAction('release')">Stop AirPlay &amp; release</button>
           <p class="hint">Returns video audio to the TV jack. Switching to Weather, Scope or Off also ends AirPlay.</p>
         </div>
+        <button id="airplay-automatic" class="btn-primary" onclick="airplayAction('automatic')" hidden>Resume automatic AirPlay</button>
         <p id="airplay-track" class="hint"></p>
         <p class="hint">The Pi sends the video’s audio and title, artist and album directly to your receiver. Embedded tags take priority, then the filename.</p>
-        <p class="hint">One person controls the website during AirPlay. Keep this page open; two minutes without contact disconnects the Pi and releases control.</p>
+        <p id="airplay-ownership" class="hint">One person controls the website during manual AirPlay. Keep this page open; two minutes without contact disconnects the Pi and releases control.</p>
         <p id="airplay-error" class="hint" role="alert"></p>
       </section>
 
@@ -572,11 +573,21 @@
     airplayState = state;
     $('airplay-state').textContent = !state.enabled
       ? 'AirPlay needs setup on the Pi. See README: AirPlay video audio.'
+      : state.automatic
+        ? `Automatic AirPlay → ${state.output.name}${state.output.routing ? '' : ' · connecting video audio'}`
       : state.busy
         ? `${state.mine ? 'You control' : state.owner + ' controls'} AirPlay → ${state.output?.name || 'receiver'}${state.output?.routing ? '' : ' · waiting for video'}`
-        : 'Choose your receiver to play the TV’s video audio there.';
-    $('airplay-reserve').hidden = !state.enabled || state.busy;
-    $('airplay-instructions').hidden = !state.mine;
+        : state.defaultId && !state.autoStopped
+          ? 'Videos automatically use your default receiver when it is available.'
+          : 'Choose your receiver to play the TV’s video audio there.';
+    $('airplay-reserve').hidden = !state.enabled || state.busy || state.automatic || (!!state.defaultId && !state.autoStopped);
+    $('airplay-instructions').hidden = !state.mine && !state.automatic;
+    $('airplay-release').textContent = state.automatic ? 'Stop automatic AirPlay' : 'Stop AirPlay & release';
+    $('airplay-automatic').hidden = !state.enabled || !state.defaultId || !state.autoStopped || state.busy;
+    $('airplay-automatic').disabled = airplayPending;
+    $('airplay-ownership').textContent = state.defaultId && !state.busy
+      ? 'Automatic AirPlay keeps playing without this page open. Everyone can use the TV controls. Stop pauses automatic routing until you resume it or leave Videos.'
+      : 'One person controls manual AirPlay. Keep this page open; two minutes without contact releases control.';
     $('airplay-track').textContent = state.metadata
       ? `${state.metadata.title} · ${state.metadata.artist} · ${state.metadata.album}` : '';
     $('airplay-claim').disabled = airplayPending || !$('airplay-output').value;

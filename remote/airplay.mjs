@@ -3,8 +3,10 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 const validToken = (token) => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
 
 export class AirplayTurns {
-  constructor({ output, now = Date.now, leaseMs = 120_000 } = {}) {
-    Object.assign(this, { output, now, leaseMs });
+  constructor({ output, now = Date.now, leaseMs = 120_000, defaultId = '' } = {}) {
+    Object.assign(this, { output, now, leaseMs, defaultId });
+    this.autoStopped = false;
+    this.nextRetry = 0;
     this.turn = null;
     this.problem = '';
     this.chain = Promise.resolve();
@@ -24,6 +26,8 @@ export class AirplayTurns {
     const mine = !!this.turn && this.turn.token === token;
     return {
       enabled: !!this.output?.enabled, busy: !!this.turn, mine, problem: this.problem,
+      automatic: !!this.output?.output && !this.turn,
+      defaultId: this.defaultId, autoStopped: this.autoStopped,
       output: this.output?.output || null, metadata: this.output?.metadata || null,
       metadataError: this.output?.metadataError || null,
       owner: this.turn?.name ?? null, expiresAt: this.turn?.expiresAt ?? null,
@@ -63,17 +67,53 @@ export class AirplayTurns {
   }
 
   async release(token) {
-    if (!this.turn) return this.state(token); // safe to retry a lost response
+    if (!this.turn) {
+      if (this.defaultId) {
+        await this.end();
+        this.autoStopped = true;
+      }
+      return this.state(token);
+    }
     this.requireOwner(token);
     await this.end();
+    this.autoStopped = true;
+    return this.state(token);
+  }
+
+  async automatic(token) {
+    this.guard(token);
+    await this.end();
+    this.autoStopped = false;
+    this.nextRetry = 0;
+    this.problem = '';
+    await this.refresh();
     return this.state(token);
   }
 
   async refresh() {
-    if (!this.turn || !this.output) return;
-    try { await this.output.refresh(); }
+    if (!this.output?.enabled) return;
+    try {
+      if (!this.turn && this.defaultId) {
+        if (!await this.output.hasVideo()) {
+          if (this.output.output) await this.end();
+          this.autoStopped = false;
+          return;
+        }
+        if (!this.output.output && !this.autoStopped && this.now() >= this.nextRetry) {
+          this.nextRetry = this.now() + 10_000;
+          const target = (await this.output.outputs()).find(o => o.id === this.defaultId);
+          if (target) {
+            await this.output.connect(target.id);
+            await this.output.prepareAutomatic();
+            this.problem = '';
+          }
+        }
+      }
+      if (this.output.output || this.turn) await this.output.refresh();
+    }
     catch (error) {
       this.problem = error.message;
+      this.nextRetry = this.now() + 10_000;
       await this.end();
     }
   }
