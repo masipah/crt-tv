@@ -37,7 +37,7 @@ const airplayOutput = new AirplayOutput({
   enabled: process.env.AIRPLAY_ENABLED === '1', tv, query: mpvQuery,
   delayMs: Number(process.env.AIRPLAY_LATENCY_MS ?? 2000),
 });
-const airplay = new AirplayTurns({ output: airplayOutput });
+const airplay = new AirplayTurns({ output: airplayOutput, defaultId: process.env.AIRPLAY_DEFAULT_ID || '' });
 // Serialize health/metadata updates with connect/release and TV commands.
 let airplayTickPending = false;
 setInterval(() => {
@@ -482,6 +482,7 @@ async function handleRequest(req, res) {
         state = await airplay.claim(token, name, id);
       } else if (action === 'heartbeat') state = airplay.heartbeat(token);
       else if (action === 'release') state = await airplay.release(token);
+      else if (action === 'automatic') state = await airplay.automatic(token);
       else return sendJson(res, 404, { error: 'unknown AirPlay action' });
       return sendJson(res, 200, state);
     }
@@ -503,7 +504,7 @@ async function handleRequest(req, res) {
       if (typeof volume !== 'number' || volume < 0 || volume > 100) {
         return sendJson(res, 400, { error: 'volume: number 0-100 required' });
       }
-      if (airplay.turn) {
+      if (airplayOutput.output) {
         await airplayOutput.volume(volume);
         return sendJson(res, 200, { ok: true });
       }
@@ -534,7 +535,7 @@ async function handleRequest(req, res) {
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
-      if (airplay.turn && ['weather', 'scope', 'stop', 'reboot'].includes(cmd)) await airplay.release(turnToken(req));
+      if (['weather', 'scope', 'stop', 'reboot'].includes(cmd)) await airplay.end();
       await tv(cmd);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'PUT' && pathname === '/api/upload') {

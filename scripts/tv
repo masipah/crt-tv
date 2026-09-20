@@ -8,6 +8,10 @@ KIOSK_ENV=$RUN_DIR/kiosk.env
 MPV_SOCK=$RUN_DIR/mpv.sock
 ENV_FILE=/etc/crt-tv/crt-tv.env
 
+cancel_boot_video() {
+  systemctl stop crt-start-videos.timer 2>/dev/null || true
+}
+
 # Don't source the env file — values like permalink KIOSK_URLs contain '&'
 # and other shell metacharacters. Pull out single keys instead.
 env_get() {
@@ -27,7 +31,7 @@ usage: tv <command>
                      files/folders; a single bucket video continues through
                      the bucket from there. Commercials cut in automatically.
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autostart          (run at boot) level the audio; the TV stays on the weather
+  autostart          (run at boot) level audio; optionally start videos after weather
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   volume [0-100]     show or set the TV jack volume
@@ -109,6 +113,7 @@ mixer() {
       fi
       ;;
     mute | unmute)
+      rm -f "$RUN_DIR/boot-muted"
       # landing level: until the user has picked a volume, unmuting always
       # comes up at the default 50%, and the web slider shows exactly
       # what's playing.
@@ -201,6 +206,11 @@ cmd=${1:-status}
 [[ $# -gt 0 ]] && shift
 
 case $cmd in
+  airplay-auto-unmute)
+    as_root
+    # Automatic video audio clears only boot silence, never a user's mute.
+    if [[ -f $RUN_DIR/boot-muted ]]; then mixer unmute; fi
+    ;;
   airplay-start)
     as_root
     [[ $(env_get AIRPLAY_ENABLED) == 1 ]] || { echo "AirPlay is not enabled" >&2; exit 1; }
@@ -221,18 +231,21 @@ case $cmd in
     ;;
   weather | 4000)
     as_root
+    cancel_boot_video
     cancel_break
     kiosk_url_set "$(ws4kp_url)"
     systemctl restart weather-kiosk.service
     ;;
   scope | oscilloscope)
     as_root
+    cancel_boot_video
     cancel_break
     kiosk_url_set "$(scope_url)"
     systemctl restart weather-kiosk.service
     ;;
   pattern | fit)
     as_root
+    cancel_boot_video
     # overscan calibration grid — dial KIOSK_FIT_X/Y and KIOSK_SHIFT_X/Y in
     # /etc/crt-tv/crt-tv.env until the green box kisses the visible edges
     cancel_break
@@ -243,6 +256,7 @@ case $cmd in
     ;;
   play)
     as_root
+    cancel_boot_video
     # No arguments: play the whole videos bucket, in library order
     if [[ $# -eq 0 ]]; then
       set -- "$MEDIA_DIR/videos"
@@ -335,18 +349,21 @@ case $cmd in
     ;;
   autostart)
     as_root
-    # Boot leveling (crt-autostart.service). The kiosk unit brings up the
-    # weather on its own and that is where the TV stays: ws4kp takes a while
-    # to warm up, and the old 3-minute rotation to the videos channel kept
-    # cutting away before the weather had ever appeared on screen. Videos
-    # now roll when someone asks for them (web remote or `tv play`).
-    # What's left is landing the audio in a known state: silent at 50%.
+    # The kiosk starts weather. An optional one-shot timer starts videos later;
+    # without that setting, weather stays until someone changes channels.
+    # Boot starts silent at 50%; automatic AirPlay can clear this boot mute.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
     # Level once, mute once — no repeating sweep.
     normalize_outputs
     mixer mute
+    : >"$RUN_DIR/boot-muted"
     # Wipe any boot messages left on the VT without holding up multi-user boot.
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
+    delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
+    if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
+      systemd-run --quiet --unit=crt-start-videos --on-active="${delay}s" \
+        --timer-property=AccuracySec=1s /usr/local/bin/tv play
+    fi
     ;;
   normalize)
     as_root
@@ -418,6 +435,7 @@ case $cmd in
     ;;
   stop)
     as_root
+    cancel_boot_video
     cancel_break
     systemctl stop crt-player.service weather-kiosk.service
     ;;
