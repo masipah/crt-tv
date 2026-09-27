@@ -404,7 +404,8 @@ station-inspired departure board. A single screen shows the next four departures
 boarding stops to 8 Octavia Street: Haight/Gough inbound and outbound, and
 Market/Gough inbound and outbound. All routes are merged and ordered by arrival
 time. Japanese service labels and large 24-hour arrival times resemble a Shinkansen
-board; destinations and stop/direction names remain in English. There is no station header, footer, screen
+board; destinations and stop names remain in English, while column headings and
+inbound/outbound direction labels are Japanese. There is no station header, footer, screen
 rotation or interaction. When a departure leaves, the remaining rows slide up
 smoothly and the next arrival enters from below. Stable trip identities retain
 rows across prediction updates. Countdown minutes sit beneath the clock times.
