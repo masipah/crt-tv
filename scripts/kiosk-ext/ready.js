@@ -4,14 +4,31 @@
   if (!['127.0.0.1', 'localhost'].includes(location.hostname) || location.port !== '8080') return;
   const params = new URLSearchParams(location.search);
   const reportIntro = params.get('crtWeatherIntro') === '1';
-  let pending = false;
+  let pending = false, stableKey = null, stableSince = 0;
   const timer = setInterval(async () => {
     const screen = document.querySelector('.weather-display.show:not(#progress-html)');
     const loading = document.querySelector('#loading');
     const playing = document.querySelector('#NavigatePlay')?.title === 'Pause';
-    if (pending || !playing || !screen || !screen.getClientRects().length
-      || (loading && getComputedStyle(loading).display !== 'none')) return;
-    globalThis.crtFinishSplash?.();
+    if (pending) return;
+    const visible = playing && screen && screen.getClientRects().length
+      && (!loading || getComputedStyle(loading).display === 'none');
+    const imagesReady = visible && [...screen.querySelectorAll('img')]
+      .filter(img => img.getClientRects().length)
+      .every(img => img.complete && img.naturalWidth > 0);
+    const fontsReady = !document.fonts || document.fonts.status === 'loaded';
+    const rect = visible && screen.getBoundingClientRect();
+    const key = rect && `${screen.id}:${rect.x},${rect.y},${rect.width},${rect.height}`;
+    if (!visible || !imagesReady || !fontsReady || key !== stableKey) {
+      stableKey = visible && imagesReady && fontsReady ? key : null;
+      stableSince = performance.now();
+      globalThis.crtFinishSplash?.(false);
+      return;
+    }
+    // Wait through layout, font and image changes before exposing the screen.
+    if (performance.now() - stableSince < 1000) return;
+    // A loaded weather page can be ready before the boot ident has finished.
+    // Count two minutes only after the overlay has actually been removed.
+    if (globalThis.crtFinishSplash?.() === false) return;
     if (!reportIntro) { clearInterval(timer); return; }
     pending = true;
     try {

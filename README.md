@@ -133,11 +133,17 @@ manually and resumes the video where it left off.
 **On boot** a lightweight signal-lock animation takes over tty1: the raster
 snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
 runs through color bursts, raster tunnels, vertical roll, chromatic echoes, and
-signal breakup. The full sequence loops for however long the WeatherStar needs.
-There is no animation timeout: it runs throughout the complete readiness wait
-and is stopped only when Chromium is about to claim the display, so it cannot
-delay boot or leave a black loading gap. The TV then stays on the WeatherStar —
-videos roll when you ask for them, from the web remote or `tv play`.
+signal breakup. Chromium continues the same animation over the loading weather
+page. On a fresh boot, that overlay plays for at least 12 seconds
+(`CRT_SPLASH_MIN_SECONDS`) and stays until a real weather screen is loaded and
+playing. It then disappears directly into weather. System and weather loading
+continue underneath; manual channel switches do not repeat the minimum hold.
+There is no timeout that exposes an unfinished loading screen.
+
+The default boot sequence is animation → weather → shuffled videos with the
+normal commercial rotation. `CRT_VIDEO_DELAY_SECONDS=120` starts the playlist
+two minutes after the animation hands off to visible weather, not after power-on.
+Set it to 0 to keep weather on until a channel is selected manually.
 
 Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (75% by default). Set
 `CRT_BOOT_MUTED=1` for silent startup or `CRT_BOOT_VOLUME=100` when controlling
@@ -205,7 +211,11 @@ controls remain shared. Switching away from Videos disconnects it.
 
 Set `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather presentation followed
 by the video library. The kiosk signals when the first real weather screen is
-visible and playing; loading time and the progress screen do not count. If
+visible and playing, after the boot animation is removed; animation time,
+loading time and the progress screen do not count. The animation finishes on
+the complete station logo, then cuts to weather after its visible images, fonts
+and layout have settled. Chromium opens at the X display size so its default
+window cannot leave unused strips along the bottom and right. If
 weather never becomes ready, it stays on weather. Without the setting, weather
 stays on until someone selects Videos.
 Choosing a channel manually cancels the pending boot transition.

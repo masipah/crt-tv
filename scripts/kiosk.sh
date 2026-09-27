@@ -81,6 +81,15 @@ if [[ ${CRT_VIDEO_DELAY_SECONDS:-0} =~ ^[0-9]+$ ]] && (( ${CRT_VIDEO_DELAY_SECON
   URL="$URL&crtWeatherIntro=1"
 fi
 
+# A fresh boot has no channel override in /run. Let WeatherStar load behind
+# the ident for at least this long; later manual channel switches stay fast.
+if [[ $URL == *:8080* && ! -e /run/crt-tv/kiosk.env ]]; then
+  splash_seconds=${CRT_SPLASH_MIN_SECONDS:-12}
+  [[ $splash_seconds =~ ^[0-9]+$ ]] || splash_seconds=12
+  (( splash_seconds > 60 )) && splash_seconds=60
+  URL="$URL&crtSplashMin=$splash_seconds"
+fi
+
 echo "kiosk: launching $URL"
 
 BROWSER=$(command -v chromium || command -v chromium-browser) || {

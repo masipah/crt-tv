@@ -54,7 +54,7 @@ if [[ $airplay_enabled != 1 ]]; then
 fi
 apt-get update || true
 apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
-  xserver-xorg xserver-xorg-legacy xinit x11-xserver-utils
+  xserver-xorg xserver-xorg-legacy xinit x11-utils x11-xserver-utils
 # Package name differs between Debian (chromium) and some RPi OS builds.
 # Install once and leave it alone: re-runs must not upgrade the browser (a
 # working kiosk beats a fresh Chromium, and upgrades mid-run risk the SD card)
