@@ -395,3 +395,32 @@ config changes until you turn it off, so it's not enabled by default.
 - [docs/hardware.md](docs/hardware.md) — TRRS pinout, PVM hookup, wrong-cable symptoms
 - [docs/composite-video.md](docs/composite-video.md) — how 480i output works on
   the Pi 4 with KMS, verification, and how to revert to HDMI
+
+### F-Market map channel
+
+Choose **F-Market** in the web remote, or run `tv muni`, for a silent,
+WeatherStar-inspired street map. The neighborhood view is centered between
+Market/Gough and Market/Dolores, with a fixed Castro–Fisherman's Wharf overview.
+The CRT screen has no interactive controls; change channels from the web remote.
+Only F-line vehicles and route shapes are drawn. Gough's two platforms and
+Dolores' Wharf-bound platform are highlighted using SFMTA stop coordinates.
+
+The Pi polls the same public F-line vehicle endpoint used by
+[SFMTA's live map](https://www.sfmta.com/routes/f-market-wharves) every 15 seconds
+while the map is open. Requests are shared across viewers. Streetcar markers
+interpolate between reported positions rather than predicting future movement.
+Old positions fade after two minutes and disappear after five; feed failures
+are visibly marked. No service and unavailable data are separate states.
+No personal API key or account is required; the public browser configuration
+is discovered from SFMTA's embed and stays on the server.
+
+The street map is bundled locally, so losing the feed does not erase the map.
+Street centerlines come from [SF Public Works / DataSF](https://data.sfgov.org/d/3psu-pn9h);
+route shapes and stops come from SFMTA's public GTFS map service. Refresh the
+bundled geometry with `python3 tools/build-muni-map.py` (requires curl and
+Internet access). This is a current map styled like a 1997 television display,
+not a historical 1997 route map.
+
+Choosing this channel cancels a pending weather-to-video transition and ends
+AirPlay. Normal boot still starts with weather, and manual AirPlay remains
+available for videos.

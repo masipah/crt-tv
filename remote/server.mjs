@@ -1,3 +1,4 @@
+import { createMuniFeed } from './muni.mjs';
 // crt-tv web remote — zero-dependency Node server.
 // Runs as user 'crt'; privileged actions go through `sudo -n tv ...`
 // (see setup/sudoers-crt-tv), so the CLI and the web UI share one code path.
@@ -19,7 +20,7 @@ const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
 const TV_COMMANDS = new Set([
-  'weather', 'scope', 'stop', 'pause', 'next', 'prev', 'mute',
+  'weather', 'scope', 'muni', 'stop', 'pause', 'next', 'prev', 'mute',
   'shuffle', 'commercials', 'reboot',
 ]);
 // Fixed upload buckets: the ordered channel and the random interstitials
@@ -99,11 +100,14 @@ const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
 // Which page the Chromium kiosk is showing. `tv weather` and `tv scope`
 // write the URL here, so the file — not the unit — is the channel of record;
 // no file (fresh boot) means the unit's own default, the weather.
+const muniFeed = createMuniFeed();
+
 const KIOSK_ENV = '/run/crt-tv/kiosk.env';
 
 const kioskPage = async () => {
   const env = await fs.readFile(KIOSK_ENV, 'utf8').catch(() => '');
   if (/oscilloscope/.test(env)) return 'scope';
+  if (/muni\.html/.test(env)) return 'muni';
   if (/fit\.html/.test(env)) return 'pattern';
   return 'weather';
 };
@@ -448,6 +452,8 @@ const STATIC_TYPES = {
   '.png': 'image/png',
   '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.mjs': 'text/javascript; charset=utf-8',
 };
 
 async function serveStatic(res, pathname) {
@@ -467,6 +473,7 @@ async function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
   try {
+    if (req.method === 'GET' && pathname === '/api/muni') return sendJson(res, 200, await muniFeed());
     if (req.method === 'POST' && pathname === '/api/weather/started') {
       // The embedded kiosk is on :8080; never accept a LAN/proxied signal.
       const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
@@ -548,7 +555,7 @@ async function handleRequest(req, res) {
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
-      if (['weather', 'scope', 'stop', 'reboot'].includes(cmd)) await airplay.end();
+      if (['weather', 'scope', 'muni', 'stop', 'reboot'].includes(cmd)) await airplay.end();
       await tv(cmd);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'PUT' && pathname === '/api/upload') {
