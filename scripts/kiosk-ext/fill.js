@@ -11,6 +11,9 @@
   // ws4kp's BASE_SIZE (non-wide, non-portrait — the kiosk never uses those)
   const BASE_W = 640;
   const BASE_H = 480;
+  // WeatherStar reserves 30 empty source pixels above its header. Trim 16
+  // of those on the small CRT, keeping 14 for overscan and the footer pinned.
+  const TOP_TRIM = 16;
   const applied = new Map();
 
   // Overscan compensation (kiosk.sh's crtFit/crtShift, from KIOSK_FIT*):
@@ -35,10 +38,10 @@
     const el = document.querySelector('#divTwcMain');
     if (!el) return;
     const sx = (window.innerWidth * fitX) / BASE_W;
-    const sy = (window.innerHeight * fitY) / BASE_H;
+    const sy = (window.innerHeight * fitY) / (BASE_H - TOP_TRIM);
     const styles = {
       position: 'fixed', left: `${window.innerWidth * (1 - fitX) / 2 + shiftX}px`,
-      top: `${window.innerHeight * (1 - fitY) / 2 + shiftY}px`,
+      top: `${window.innerHeight * (1 - fitY) / 2 + shiftY - TOP_TRIM * sy}px`,
       width: `${BASE_W}px`, height: `${BASE_H}px`, margin: '0px',
       padding: '0px', 'transform-origin': '0px 0px', transform: `scale(${sx}, ${sy})`,
     };
