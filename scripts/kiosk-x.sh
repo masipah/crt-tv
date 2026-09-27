@@ -8,7 +8,7 @@ xset s off -dpms || true
 
 # Bare X has no window manager to expand Chromium's default 700x460 window.
 # Explicitly cover the real raster, including the bottom/right 20 pixels.
-DISPLAY_SIZE=$(xdpyinfo | awk '/dimensions:/ {print $2; exit}')
+DISPLAY_SIZE=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2; exit}' || true)
 DISPLAY_SIZE=${DISPLAY_SIZE:-720x480}
 
 # Keep the station card visible during the X-to-browser handoff.
