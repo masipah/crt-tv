@@ -35,8 +35,8 @@ test('one screen merges both directions by time, excludes stale stops and expire
   const stop={id:'1',fetchedAt:0,services:[{route:'7',destination:'Town',arrivals:[10000,20000,40000],ids:{10000:'trip-a'}}]};
   const other={id:'2',fetchedAt:0,services:[{route:'F',destination:'Wharf',arrivals:[5000,15000,30000]}]};
   const departures=upcomingDepartures([stop,other],0);
-  assert.equal(departures.length,5);assert.deepEqual(departures.map(a=>a.arrivalAt),[5000,10000,15000,20000,30000]);
-  assert.deepEqual(departures.map(a=>a.route),['F','7','F','7','F']);
+  assert.equal(departures.length,4);assert.deepEqual(departures.map(a=>a.arrivalAt),[5000,10000,15000,20000]);
+  assert.deepEqual(departures.map(a=>a.route),['F','7','F','7']);
   assert.equal(departures[1].key,'1:7:Town:trip-a');
   assert.deepEqual(upcomingDepartures([stop,other],0,{unavailable:true}),[]);
   assert.equal(upcomingDepartures([{...stop,stale:true},other],0).length,3);
