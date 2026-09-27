@@ -2,6 +2,7 @@
 """Export the existing console animation, with its original frame timing."""
 import json
 import pathlib
+import re
 import subprocess
 
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -15,6 +16,29 @@ result = subprocess.run(['bash', '-s', '--', '--once'], input=source, text=True,
 parts = result.stdout.split('\0')
 frames = [[parts[i], float(parts[i + 1])] for i in range(0, len(parts) - 2, 2)]
 assert len(frames) > 50
+final = parts[-2]
+assert any(frame[0] == final for frame in frames)
 (root / 'scripts/kiosk-ext/splash-frames.js').write_text(
     '// Generated from scripts/splash.sh by tools/build-splash-frames.py.\n'
-    'globalThis.crtSplashFrames = ' + json.dumps(frames, ensure_ascii=False, separators=(',', ':')) + ';\n')
+    'globalThis.crtSplashFrames = ' + json.dumps(frames, ensure_ascii=False, separators=(',', ':')) + ';\n'
+    'globalThis.crtSplashFinal = ' + json.dumps(final, ensure_ascii=False) + ';\n')
+
+# Matching monochrome station card for X while Chromium opens its window.
+bits = bytearray(720 * 480 // 8)
+row = col = 0
+for token in re.finditer(r'\x1b\[([?\d;]*)([A-Za-z])|([^\x1b]+)', final):
+    if token[2] == 'H':
+        coords = [int(v or 1) for v in token[1].split(';')]
+        row, col = coords[0] - 1, (coords[1] if len(coords) > 1 else 1) - 1
+    elif token[3]:
+        for char in token[3]:
+            x, y = col * 8, row * 16
+            col += 1
+            start, end = {'█': (0, 16), '▀': (0, 8), '▄': (8, 16), '■': (4, 12)}.get(char, (0, 0))
+            for yy in range(y + start, y + end):
+                if 0 <= x < 720 and 0 <= yy < 480:
+                    bits[yy * 90 + x // 8] = 255
+(root / 'scripts/kiosk-ext/boot-card.xbm').write_text(
+    '#define boot_card_width 720\n#define boot_card_height 480\n'
+    'static unsigned char boot_card_bits[] = {\n' +
+    ',\n'.join(','.join(f'0x{b:02x}' for b in bits[i:i+30]) for i in range(0, len(bits), 30)) + '\n};\n')

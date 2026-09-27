@@ -333,7 +333,7 @@ final_frame() { # optional pulse colour
 }
 
 stop_animation() {
-  printf '%s' "${RS}${bK}${E}[2J${E}[H${E}[?25l"
+  final_frame
   exit 0
 }
 trap stop_animation INT TERM HUP

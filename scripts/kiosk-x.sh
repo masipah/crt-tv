@@ -6,6 +6,16 @@ set -euo pipefail
 # Never blank a weather display (the PVM has no DPMS to speak of anyway)
 xset s off -dpms || true
 
+# Bare X has no window manager to expand Chromium's default 700x460 window.
+# Explicitly cover the real raster, including the bottom/right 20 pixels.
+DISPLAY_SIZE=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2; exit}' || true)
+DISPLAY_SIZE=${DISPLAY_SIZE:-720x480}
+
+# Keep the station card visible during the X-to-browser handoff.
+if [[ $URL == http://127.0.0.1:8080/* ]]; then
+  xsetroot -bitmap /usr/local/lib/crt-tv/kiosk-ext/boot-card.xbm -fg white -bg black || true
+fi
+
 # en-US locale: RPi OS defaults to en_GB, which makes ws4kp's clock render
 # 24-hour; the authentic WeatherStar clock is 12-hour AM/PM. On Linux,
 # Chromium ignores --lang and reads the locale from the environment.
@@ -33,6 +43,7 @@ rm -f "${XDG_CONFIG_HOME:-$HOME/.config}"/chromium/Singleton{Lock,Cookie,Socket}
 exec "$BROWSER" \
   --kiosk "$URL" \
   --window-position=0,0 \
+  --window-size="${DISPLAY_SIZE/x/,}" \
   --disk-cache-dir=/run/crt-tv/cache/chromium \
   --disk-cache-size=67108864 \
   --media-cache-size=16777216 \
