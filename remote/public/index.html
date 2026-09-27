@@ -74,10 +74,7 @@
     margin-bottom: 14px;
   }
 
-  .airplay-name { width: 100%; padding: 10px; margin: 8px 0 12px;
-    color: var(--text); background: var(--bg); border: 1px solid var(--edge-strong); border-radius: 6px; }
-  #airplay-state { margin-top: 0; }
-  #airplay-instructions { line-height: 1.6; }
+
   button:disabled { opacity: 0.4; cursor: default; }
 
   /* now showing */
@@ -479,28 +476,6 @@
         </div>
       </div>
 
-      <div class="sec-head"><h2>AirPlay · video audio</h2></div>
-      <section class="card" aria-label="AirPlay video audio">
-        <p id="airplay-state" class="hint" role="status">Checking AirPlay…</p>
-        <div id="airplay-reserve" hidden>
-          <label for="airplay-name">Your name</label>
-          <input id="airplay-name" class="airplay-name" maxlength="40" placeholder="Who’s controlling the TV?" autocomplete="given-name">
-          <label for="airplay-output">Receiver</label>
-          <select id="airplay-output" class="airplay-name"><option value="">Find your Eversolo DMP-A8…</option></select>
-          <button class="link" id="airplay-refresh" onclick="loadOutputs()">Refresh receivers</button>
-          <button id="airplay-claim" class="btn-primary" onclick="airplayAction('claim')" disabled>Send video audio</button>
-        </div>
-        <div id="airplay-instructions" hidden>
-          <button id="airplay-release" class="btn-primary" onclick="airplayAction('release')">Stop AirPlay &amp; release</button>
-          <p class="hint">Returns video audio to the TV jack. Switching to Weather, Scope or Off also ends AirPlay.</p>
-        </div>
-        <button id="airplay-automatic" class="btn-primary" onclick="airplayAction('automatic')" hidden>Resume automatic AirPlay</button>
-        <p id="airplay-track" class="hint"></p>
-        <p class="hint">The Pi sends the video’s audio and title, artist and album directly to your receiver. Embedded tags take priority, then the filename.</p>
-        <p id="airplay-ownership" class="hint">One person controls the website during manual AirPlay. Keep this page open; two minutes without contact disconnects the Pi and releases control.</p>
-        <p id="airplay-error" class="hint" role="alert"></p>
-      </section>
-
       <div class="sec-head"><h2>Upload</h2></div>
       <div class="card">
         <div class="seg" id="upload-seg" style="margin-bottom: 12px">
@@ -561,102 +536,12 @@
   const $ = (id) => document.getElementById(id);
   const err = (msg) => { $('error').textContent = msg || ''; };
 
-  let airplayState = { busy: false, mine: false };
-  let airplayToken;
-  try { airplayToken = sessionStorage.getItem('airplay-token'); } catch {}
-  if (!/^[a-f0-9]{64}$/.test(airplayToken || '')) {
-    airplayToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
-    try { sessionStorage.setItem('airplay-token', airplayToken); } catch {}
-  }
-  const turnHeaders = () => ({ 'X-Airplay-Token': airplayToken });
-  let airplayPending = false;
-  function renderAirplay(state) {
-    airplayState = state;
-    $('airplay-state').textContent = !state.enabled
-      ? 'AirPlay needs setup on the Pi. See README: AirPlay video audio.'
-      : state.automatic
-        ? `Automatic AirPlay → ${state.output.name}${state.output.routing ? '' : ' · connecting video audio'}`
-      : state.busy
-        ? `${state.mine ? 'You control' : state.owner + ' controls'} AirPlay → ${state.output?.name || 'receiver'}${state.output?.routing ? '' : ' · waiting for video'}`
-        : state.defaultId && !state.autoStopped
-          ? state.waitingForReceiver
-            ? 'Playing through the TV. Waiting for your receiver to advertise AirPlay; checking every 10 seconds.'
-            : 'Videos automatically use your default receiver when it is available.'
-          : 'Choose your receiver to play the TV’s video audio there.';
-    $('airplay-reserve').hidden = !state.enabled || state.busy || state.automatic || (!!state.defaultId && !state.autoStopped);
-    $('airplay-instructions').hidden = !state.mine && !state.automatic;
-    $('airplay-release').textContent = state.automatic ? 'Stop automatic AirPlay' : 'Stop AirPlay & release';
-    $('airplay-automatic').hidden = !state.enabled || !state.defaultId || state.automatic || state.busy;
-    $('airplay-automatic').textContent = state.autoStopped ? 'Resume automatic AirPlay' : 'Retry receiver now';
-    $('airplay-automatic').disabled = airplayPending;
-    $('airplay-ownership').textContent = state.defaultId && !state.busy
-      ? 'Automatic AirPlay keeps playing without this page open. Everyone can use the TV controls. Stop pauses automatic routing until you resume it or leave Videos.'
-      : 'One person controls manual AirPlay. Keep this page open; two minutes without contact releases control.';
-    $('airplay-track').textContent = state.metadata
-      ? `${state.metadata.title} · ${state.metadata.artist} · ${state.metadata.album}` : '';
-    $('airplay-claim').disabled = airplayPending || !$('airplay-output').value;
-    $('airplay-release').disabled = airplayPending;
-    $('airplay-error').textContent = state.problem || state.metadataError || '';
-    for (const id of ['btn-weather', 'btn-muni', 'btn-scope', 'btn-video', 'btn-off', 'btn-reboot']) $(id).disabled = state.busy && !state.mine;
-    $('btn-mute').disabled = state.busy && !state.mine;
-    $('vol').disabled = state.busy && !state.mine;
-  }
-  async function loadOutputs() {
-    $('airplay-refresh').disabled = true;
-    try {
-      const res = await fetch('/api/airplay/outputs', { cache: 'no-store' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const select = $('airplay-output');
-      const selected = select.value;
-      select.replaceChildren(new Option(data.outputs.length ? 'Choose a receiver…' : 'No receivers found — check power and network', ''));
-      for (const output of data.outputs) {
-        const option = new Option(output.name + (output.needsAuth ? ' (pairing required)' : ''), output.id);
-        option.disabled = output.needsAuth;
-        select.add(option);
-      }
-      if ([...select.options].some(o => o.value === selected)) select.value = selected;
-      $('airplay-error').textContent = '';
-      renderAirplay(airplayState);
-    } catch (e) { $('airplay-error').textContent = e.message; }
-    finally { $('airplay-refresh').disabled = false; }
-  }
-  $('airplay-output').addEventListener('change', () => renderAirplay(airplayState));
-  async function refreshAirplay() {
-    try {
-      const res = await fetch('/api/airplay', { headers: turnHeaders(), cache: 'no-store' });
-      if (!res.ok) throw new Error('Could not check AirPlay.');
-      renderAirplay(await res.json());
-    } catch (e) { $('airplay-error').textContent = e.message; }
-  }
-  async function airplayAction(action) {
-    if (airplayPending) return;
-    airplayPending = true;
-    renderAirplay(airplayState);
-    $('airplay-error').textContent = '';
-    try {
-      const res = await fetch('/api/airplay/' + action, {
-        method: 'POST', headers: { ...turnHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(action === 'claim' ? { name: $('airplay-name').value.trim(), id: $('airplay-output').value } : {}),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'AirPlay request failed.');
-      renderAirplay(data);
-    } catch (e) { $('airplay-error').textContent = e.message; }
-    finally {
-      airplayPending = false;
-      await refreshAirplay();
-      refresh();
-    }
-  }
-  setInterval(() => { if (airplayState.mine) airplayAction('heartbeat'); }, 30_000);
-
   async function post(url, body) {
     err('');
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { ...turnHeaders(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        headers: body ? { 'Content-Type': 'application/json' } : {},
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json();
@@ -701,7 +586,7 @@
     $('btn-video').classList.toggle('active', st.mode === 'video');
     $('btn-off').classList.toggle('active', st.mode === 'off');
     for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle', 'btn-nocomm']) {
-      $(b).disabled = st.mode !== 'video' || (airplayState.busy && !airplayState.mine);
+      $(b).disabled = st.mode !== 'video';
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
     if (st.volume != null && Date.now() > volHold && document.activeElement !== $('vol')) {
@@ -774,7 +659,7 @@
       try {
         const res = await fetch('/api/audio/volume', {
           method: 'POST',
-          headers: { ...turnHeaders(), 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ volume: Number($('vol').value) }),
         });
         if (!res.ok) err((await res.json()).error);
@@ -1105,9 +990,9 @@
   });
 
   $('channel-hint').textContent = hintText();
-  refreshAirplay().then(() => { if (airplayState.enabled) loadOutputs(); refresh(); });
+  refresh();
   loadMedia();
-  setInterval(() => refreshAirplay().then(refresh), 3000);
+  setInterval(refresh, 3000);
 </script>
 </body>
 </html>
