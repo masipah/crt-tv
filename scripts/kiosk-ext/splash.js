@@ -8,7 +8,10 @@
   const ctx = canvas.getContext('2d');
   const colors = ['#000', '#a00', '#0a0', '#a50', '#00a', '#a0a', '#0aa', '#aaa'];
   const bright = ['#555', '#f55', '#5f5', '#ff5', '#55f', '#f5f', '#5ff', '#fff'];
-  let frame = 0, timer;
+  const started = performance.now();
+  const seconds = Number(new URLSearchParams(location.search).get('crtSplashMin'));
+  const minimum = Number.isFinite(seconds) ? Math.min(60, Math.max(0, seconds)) * 1000 : 12000;
+  let frame = 0, timer, finished = false;
   function draw() {
     const [ansi, seconds] = globalThis.crtSplashFrames[frame];
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 720, 480);
@@ -38,7 +41,13 @@
     frame = (frame + 1) % globalThis.crtSplashFrames.length;
     timer = setTimeout(draw, seconds * 1000);
   }
-  const deadline = setTimeout(() => globalThis.crtFinishSplash(), 60000);
-  globalThis.crtFinishSplash = () => { clearTimeout(timer); clearTimeout(deadline); canvas.remove(); };
+  // ready.js calls only when a real, playing weather screen is behind us.
+  // No timeout may reveal the loading screen or start the video timer early.
+  globalThis.crtFinishSplash = () => {
+    if (finished) return true;
+    if (performance.now() - started < minimum) return false;
+    clearTimeout(timer); canvas.remove(); finished = true;
+    return true;
+  };
   draw();
 })();

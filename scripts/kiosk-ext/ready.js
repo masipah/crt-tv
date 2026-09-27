@@ -11,7 +11,9 @@
     const playing = document.querySelector('#NavigatePlay')?.title === 'Pause';
     if (pending || !playing || !screen || !screen.getClientRects().length
       || (loading && getComputedStyle(loading).display !== 'none')) return;
-    globalThis.crtFinishSplash?.();
+    // A loaded weather page can be ready before the boot ident has finished.
+    // Count two minutes only after the overlay has actually been removed.
+    if (globalThis.crtFinishSplash?.() === false) return;
     if (!reportIntro) { clearInterval(timer); return; }
     pending = true;
     try {
