@@ -9,6 +9,7 @@ for unit in crt-airplay-feed.service owntone.service; do
     systemctl disable --now "$unit"
   fi
 done
+systemctl reset-failed crt-airplay-feed.service owntone.service 2>/dev/null || true
 rm -f /etc/systemd/system/crt-airplay-feed.service \
   /etc/systemd/system/owntone.service.d/crt-tv.conf \
   /etc/tmpfiles.d/crt-airplay.conf \
@@ -30,7 +31,7 @@ rm -f /etc/owntone.conf \
   /run/crt-tv/airplay.json /run/crt-tv/airplay.json.tmp /run/crt-tv/boot-muted \
   /srv/owntone-pipe/CRT-TV /srv/owntone-pipe/CRT-TV.metadata
 rmdir /srv/owntone-pipe 2>/dev/null || true
-rm -rf /run/crt-owntone
+rm -rf /run/crt-owntone /var/cache/owntone
 if [[ -f /etc/crt-tv/crt-tv.env ]]; then
   sed -i '/^[[:space:]]*#\{0,1\}[[:space:]]*AIRPLAY_[A-Z_]*=/d' /etc/crt-tv/crt-tv.env
 fi
