@@ -465,7 +465,7 @@ async function serveStatic(res, pathname) {
   }
   const data = await fs.readFile(file).catch(() => null);
   if (!data) return sendJson(res, 404, { error: 'not found' });
-  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'max-age=3600' });
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': /\.(html|mjs)$/.test(file) ? 'no-cache' : 'max-age=3600' });
   res.end(data);
 }
 

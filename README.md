@@ -400,7 +400,8 @@ config changes until you turn it off, so it's not enabled by default.
 
 Choose **F-Market** in the web remote, or run `tv muni`, for a silent,
 WeatherStar-inspired street map. The neighborhood view is centered between
-Market/Gough and Market/Dolores, with a fixed Castro–Fisherman's Wharf overview.
+Market/Gough and Market/Dolores. One large map fills the screen and switches
+every 20 seconds between that neighborhood and the full Castro–Fisherman's Wharf route.
 The CRT screen has no interactive controls; change channels from the web remote.
 Only F-line vehicles and route shapes are drawn. Gough's two platforms and
 Dolores' Wharf-bound platform are highlighted using SFMTA stop coordinates.

@@ -54,7 +54,10 @@ test('HTTP turn handoff enforces all web control routes with independent clients
     assert.match(page, /btn-muni/);
     const mapPage = await fetch(base + '/muni.html');
     assert.equal(mapPage.status, 200);
-    assert.match(await mapPage.text(), /Market &amp; Gough/);
+    const mapHtml = await mapPage.text();
+    assert.match(mapHtml, /Market and Gough/);
+    assert.doesNotMatch(mapHtml, /<button|<aside|id="overview"/);
+    assert.match(mapHtml, /alternate every 20 seconds/);
     const mapData = await fetch(base + '/muni/map.json');
     assert.equal(mapData.headers.get('content-type'), 'application/json');
     assert.equal((await mapData.json()).stops.length, 3);
