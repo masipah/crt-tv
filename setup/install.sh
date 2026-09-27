@@ -37,21 +37,10 @@ if [[ -z ${CRT_TV_SYNCED:-} ]] && [[ -z $REPO_DIR || $REPO_DIR == /opt/crt-tv ]]
   CRT_TV_SYNCED=1 exec /opt/crt-tv/setup/install.sh
 fi
 
-# Read opt-in before retiring old components; preserve the OwnTone repository
-# when the metadata sender is enabled. Config values are data, never sourced.
-install -d /etc/crt-tv
-if [[ ! -f /etc/crt-tv/crt-tv.env ]]; then
-  install -m 644 "$REPO_DIR/setup/crt-tv.env" /etc/crt-tv/crt-tv.env
-fi
-airplay_enabled=$(sed -n 's/^AIRPLAY_ENABLED=//p' /etc/crt-tv/crt-tv.env | tail -n1 | tr -d '"')
+# Retire old network-audio components before apt reads their repository.
+bash "$REPO_DIR/setup/remove-network-audio.sh"
 
 echo "==> Installing packages"
-# Remove the retired OwnTone apt repo before the first apt update. A stale
-# repo list without its signing key can break package refreshes during upgrade.
-if [[ $airplay_enabled != 1 ]]; then
-  rm -f /etc/apt/sources.list.d/owntone.list
-  rm -f /usr/share/keyrings/owntone-archive-keyring.gpg
-fi
 apt-get update || true
 apt-get install -y git curl nodejs npm mpv ffmpeg socat alsa-utils \
   xserver-xorg xserver-xorg-legacy xinit x11-utils x11-xserver-utils
@@ -135,16 +124,8 @@ amixer -M -q -c Headphones sset PCM 75% 2>/dev/null \
   || amixer -M -q sset PCM 75% 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
-echo "==> Removing retired PipeWire AirPlay stack"
+echo "==> Removing retired desktop audio stack"
 systemctl disable --now crt-bridge.service 2>/dev/null || true
-if [[ $airplay_enabled != 1 ]]; then
-  systemctl disable --now crt-airplay-feed.service owntone.service avahi-daemon.service 2>/dev/null || true
-  rm -f /etc/systemd/system/owntone.service.d/crt-tv.conf
-  rm -f /usr/local/lib/crt-tv/owntone-firewall.nft
-  if command -v nft >/dev/null 2>&1; then
-    nft delete table inet crt_airplay 2>/dev/null || true
-  fi
-fi
 echo "==> Restoring appliance startup settings"
 bash "$REPO_DIR/setup/fast-boot.sh"
 loginctl disable-linger crt 2>/dev/null || true
@@ -159,11 +140,6 @@ for u in pipewire.service pipewire.socket pipewire-pulse.service \
   rm -f "/etc/systemd/user/$u.d/crt-tv.conf"
   rmdir "/etc/systemd/user/$u.d" 2>/dev/null || true
 done
-if [[ $airplay_enabled != 1 ]]; then
-  rm -f /srv/owntone-pipe/CRT-TV /srv/owntone-pipe/CRT-TV.metadata
-  rmdir /srv/owntone-pipe 2>/dev/null || true
-  apt-get purge -y owntone 2>/dev/null || true
-fi
 for p in pipewire-alsa; do
   apt-get purge -y "$p" 2>/dev/null || true
 done
@@ -185,8 +161,6 @@ install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-medi
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
-install -m 644 "$REPO_DIR/scripts/airplay-route.lua" /usr/local/lib/crt-tv/airplay-route.lua
-install -m 755 "$REPO_DIR/scripts/airplay-feed.sh" /usr/local/lib/crt-tv/airplay-feed.sh
 install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
 install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
@@ -199,7 +173,7 @@ install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
 install -d /usr/local/lib/crt-tv/remote/public/icons
-install -m 644 "$REPO_DIR/remote/server.mjs" "$REPO_DIR/remote/airplay.mjs" "$REPO_DIR/remote/airplay-output.mjs" "$REPO_DIR/remote/muni.mjs" "$REPO_DIR/remote/muni-stops.json" /usr/local/lib/crt-tv/remote/
+install -m 644 "$REPO_DIR/remote/server.mjs" "$REPO_DIR/remote/muni.mjs" "$REPO_DIR/remote/muni-stops.json" /usr/local/lib/crt-tv/remote/
 # the whole public tree: the remote itself, the oscilloscope channel page,
 # and the web-app manifest/icons
 install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webmanifest \
@@ -216,9 +190,6 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
-if [[ $airplay_enabled == 1 ]]; then
-  "$REPO_DIR/setup/airplay.sh"
-fi
 systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service crt-splash.service
 # No login prompt over the splash: tty1 is the display, not a terminal. Log in
 # via SSH, or Ctrl+Alt+F2 for a console (logind still spawns getty on tty2+).

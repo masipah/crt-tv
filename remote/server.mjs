@@ -3,8 +3,6 @@ import { createMuniFeed } from './muni.mjs';
 // Runs as user 'crt'; privileged actions go through `sudo -n tv ...`
 // (see setup/sudoers-crt-tv), so the CLI and the web UI share one code path.
 import http from 'node:http';
-import { AirplayTurns } from './airplay.mjs';
-import { AirplayOutput } from './airplay-output.mjs';
 import net from 'node:net';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -33,21 +31,6 @@ const tv = (...args) => new Promise((resolve, reject) => {
       else resolve(stdout);
     });
 });
-
-const airplayOutput = new AirplayOutput({
-  enabled: process.env.AIRPLAY_ENABLED === '1', tv, query: mpvQuery,
-  delayMs: Number(process.env.AIRPLAY_LATENCY_MS ?? 2000),
-});
-const airplay = new AirplayTurns({ output: airplayOutput, defaultId: process.env.AIRPLAY_DEFAULT_ID || '' });
-// Serialize health/metadata updates with connect/release and TV commands.
-let airplayTickPending = false;
-setInterval(() => {
-  if (airplayTickPending) return;
-  airplayTickPending = true;
-  airplay.run(() => airplay.refresh()).catch(console.error)
-    .finally(() => { airplayTickPending = false; });
-}, 2000).unref();
-const turnToken = (req) => req.headers['x-airplay-token'];
 
 const isActive = (unit) => new Promise((resolve) => {
   execFile('systemctl', ['is-active', unit],
@@ -195,7 +178,7 @@ async function status() {
     playing,
     muted: audio.muted
       || await fs.access(MUTED_FLAG).then(() => true, () => false),
-    volume: airplayOutput.output?.volume ?? audio.volume,
+    volume: audio.volume,
     shuffled,
     noCommercials,
   };
@@ -487,26 +470,6 @@ async function handleRequest(req, res) {
       const state = await fs.readFile('/run/crt-tv/weather-intro', 'utf8').catch(() => '');
       return sendJson(res, /scheduled|cancelled/.test(state) ? 200 : 202, { state: state.trim() || 'waiting' });
     }
-    if (req.method === 'GET' && pathname === '/api/airplay/outputs') {
-      return sendJson(res, 200, { outputs: await airplayOutput.outputs() });
-    }
-    if (req.method === 'GET' && pathname === '/api/airplay') {
-      return sendJson(res, 200, await airplay.run(() => airplay.state(turnToken(req))));
-    }
-    if (req.method === 'POST' && pathname.startsWith('/api/airplay/')) {
-      const token = turnToken(req);
-      const action = pathname.slice('/api/airplay/'.length);
-      let state;
-      if (action === 'claim') {
-        const { name, id } = JSON.parse(await readBody(req) || '{}');
-        state = await airplay.claim(token, name, id);
-      } else if (action === 'heartbeat') state = airplay.heartbeat(token);
-      else if (action === 'release') state = await airplay.release(token);
-      else if (action === 'automatic') state = await airplay.automatic(token);
-      else return sendJson(res, 404, { error: 'unknown AirPlay action' });
-      return sendJson(res, 200, state);
-    }
-    if (req.method === 'POST' && controlsSpeakers(pathname)) airplay.guard(turnToken(req));
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       const html = await fs.readFile(path.join(PUBLIC_DIR, 'index.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -523,10 +486,6 @@ async function handleRequest(req, res) {
       const { volume } = JSON.parse(await readBody(req) || '{}');
       if (typeof volume !== 'number' || volume < 0 || volume > 100) {
         return sendJson(res, 400, { error: 'volume: number 0-100 required' });
-      }
-      if (airplayOutput.output) {
-        await airplayOutput.volume(volume);
-        return sendJson(res, 200, { ok: true });
       }
       const ok = await mixerSet(`${volume}%`);
       if (!ok) {
@@ -555,7 +514,6 @@ async function handleRequest(req, res) {
     } else if (req.method === 'POST' && pathname.startsWith('/api/tv/')) {
       const cmd = pathname.slice('/api/tv/'.length);
       if (!TV_COMMANDS.has(cmd)) return sendJson(res, 404, { error: `unknown command: ${cmd}` });
-      if (['weather', 'scope', 'muni', 'stop', 'reboot'].includes(cmd)) await airplay.end();
       await tv(cmd);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'PUT' && pathname === '/api/upload') {
@@ -664,22 +622,24 @@ async function handleRequest(req, res) {
   }
 }
 
-function controlsSpeakers(pathname) {
+function changesPlayback(pathname) {
   return pathname.startsWith('/api/tv/') || pathname === '/api/play'
     || pathname === '/api/player/seek' || pathname === '/api/audio/volume';
 }
+// Keep channel changes and weather-start signals ordered across browsers.
+let commandQueue = Promise.resolve();
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const action = () => handleRequest(req, res);
-  if (req.method === 'POST' && (controlsSpeakers(pathname) || pathname.startsWith('/api/airplay/') || pathname === '/api/weather/started')) {
-    airplay.run(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
+  if (req.method === 'POST' && (changesPlayback(pathname) || pathname === '/api/weather/started')) {
+    commandQueue = commandQueue.then(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
   } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
     server.close();
-    airplay.run(() => airplay.end()).finally(() => process.exit());
+    process.exit();
   });
 }
 
@@ -701,14 +661,9 @@ Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: tr
   .then(() => syncLoudness())
   .catch(() => {});
 
-// A restart must not leave an orphaned sender controlling the receiver.
-if (airplayOutput.enabled) {
-  try { await airplayOutput.disconnect(); }
-  catch (error) { airplay.problem = error.message; }
-}
 server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
 });
 
 // Exported for HTTP integration tests; the runtime remains a single server.
-export { server, airplay, airplayOutput };
+export { server };
