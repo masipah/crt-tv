@@ -33,7 +33,7 @@ test('HTTP turn handoff enforces all web control routes with independent clients
     const publicState = await state.json();
     assert.equal(publicState.mine, false);
     assert.equal(publicState.token, undefined);
-    for (const route of ['/api/play', '/api/tv/weather', '/api/tv/scope', '/api/tv/stop', '/api/tv/reboot', '/api/tv/mute', '/api/tv/pause', '/api/tv/next', '/api/tv/prev', '/api/tv/shuffle', '/api/tv/commercials', '/api/player/seek', '/api/audio/volume']) {
+    for (const route of ['/api/play', '/api/tv/weather', '/api/tv/scope', '/api/tv/muni', '/api/tv/stop', '/api/tv/reboot', '/api/tv/mute', '/api/tv/pause', '/api/tv/next', '/api/tv/prev', '/api/tv/shuffle', '/api/tv/commercials', '/api/player/seek', '/api/audio/volume']) {
       const r = await request(route, other, {});
       assert.equal(r.status, 409, route);
     }
@@ -51,6 +51,16 @@ test('HTTP turn handoff enforces all web control routes with independent clients
       Origin: 'http://127.0.0.1:8080', 'X-Forwarded-For': '10.0.0.123',
     } })).status, 403);
     assert.match(page, /Eversolo DMP-A8/);
+    assert.match(page, /btn-muni/);
+    const boardPage = await fetch(base + '/muni.html');
+    assert.equal(boardPage.status, 200);
+    assert.equal(boardPage.headers.get('cache-control'), 'no-cache');
+    const boardHtml = await boardPage.text();
+    assert.match(boardHtml, /Haight and Gough/);
+    assert.doesNotMatch(boardHtml, /<button|<canvas|<aside|<header|<footer/);
+    const boardScript = await fetch(base + '/muni/board.mjs');
+    assert.equal(boardScript.status, 200);
+    assert.match(boardScript.headers.get('content-type'), /javascript/);
     assert.match(page, /The Pi sends the video’s audio and title, artist and album/);
     await request('/api/airplay/release', other, {});
     // Automatic routing has no owner but still routes volume to the receiver.

@@ -119,7 +119,7 @@
     min-width: 0;
     padding: 8px 4px;
     border-radius: 6px;
-    /* four channels have to fit across a phone — short labels, no wrapping */
+    /* five channels have to fit across a phone — short labels, no wrapping */
     font-family: var(--mono);
     font-size: 0.8rem;
     font-weight: 500;
@@ -454,6 +454,7 @@
       <div class="seg" id="channels">
         <button id="btn-weather" onclick="post('/api/tv/weather')"
                 title="WeatherStar 4000+">Weather</button>
+        <button id="btn-muni" onclick="post('/api/tv/muni')" title="Live arrivals at nearby Muni stops">Muni</button>
         <button id="btn-scope" onclick="post('/api/tv/scope')"
                 title="Oscilloscope — a beam figure and live readouts, no signal required">Scope</button>
         <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
@@ -596,7 +597,7 @@
     $('airplay-claim').disabled = airplayPending || !$('airplay-output').value;
     $('airplay-release').disabled = airplayPending;
     $('airplay-error').textContent = state.problem || state.metadataError || '';
-    for (const id of ['btn-weather', 'btn-scope', 'btn-video', 'btn-off', 'btn-reboot']) $(id).disabled = state.busy && !state.mine;
+    for (const id of ['btn-weather', 'btn-muni', 'btn-scope', 'btn-video', 'btn-off', 'btn-reboot']) $(id).disabled = state.busy && !state.mine;
     $('btn-mute').disabled = state.busy && !state.mine;
     $('vol').disabled = state.busy && !state.mine;
   }
@@ -671,6 +672,7 @@
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
     scope: 'Now showing: oscilloscope',
+    muni: 'Now showing: Muni departures',
     pattern: 'Now showing: fit pattern (tv pattern)',
     video: 'Now showing: videos',
     off: 'Screen off',
@@ -694,6 +696,7 @@
     }
     $('mode').textContent = MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');
+    $('btn-muni').classList.toggle('active', st.mode === 'muni');
     $('btn-scope').classList.toggle('active', st.mode === 'scope');
     $('btn-video').classList.toggle('active', st.mode === 'video');
     $('btn-off').classList.toggle('active', st.mode === 'off');
