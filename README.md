@@ -106,7 +106,7 @@ tv break [secs]     # cut to the weather now, then back to the video (default 2 
 tv pause            # toggle pause
 tv mute             # toggle mute — whole TV (weather music and videos)
 tv volume [0-100]   # show or set the TV jack volume
-tv normalize        # reset the TV jack volume to 50%
+tv normalize        # reset the TV jack volume to 75%
 tv shuffle          # toggle shuffled playback — videos only, on at boot (lit in the web remote)
 tv commercials      # toggle whether commercials play (on by default)
 tv next / tv prev   # skip within the playlist
@@ -138,10 +138,10 @@ and is stopped only when Chromium is about to claim the display, so it cannot
 delay boot or leave a black loading gap. The TV then stays on the WeatherStar —
 videos roll when you ask for them, from the web remote or `tv play`.
 
-Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (50% by default). Set
+Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (75% by default). Set
 `CRT_BOOT_MUTED=1` for silent startup or `CRT_BOOT_VOLUME=100` when controlling
-the listening level on the TV itself. One mute toggle covers weather and video
-audio. Once you move the slider, your level stays in effect until the next boot.
+the listening level on the TV itself. The current setup pairs 75% Pi output
+with the TV at 80%. One mute toggle covers weather and video audio. Once you move the slider, your level stays in effect until the next boot.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
 set in `/etc/crt-tv/crt-tv.env`). Switching between the browser channels
@@ -212,7 +212,7 @@ Weather music uses the TV's analogue jack and starts unmuted at boot. Set
 `CRT_BOOT_MUTED=1` to request silent boot. The DMP-A8 is used only for video audio;
 turning it on during videos triggers automatic connection only when an
 `AIRPLAY_DEFAULT_ID` has explicitly been configured.
-Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 50%
+Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 75%
 is an audible level rather than the Pi mixer's almost-silent raw midpoint.
 Set `CRT_BOOT_VOLUME=100` in `/etc/crt-tv/crt-tv.env` to start the TV jack at
 full volume instead. This accepts 0–100 and does not change AirPlay volume.
@@ -351,10 +351,10 @@ AirPlay video audio uses OwnTone with metadata (see above); weather remains
 on the jack. The retired PipeWire routing stack is not required.
 
 Volume is normalized around the local jack: mpv and the weather music stay at
-100%, while the hardware mixer starts at 50%, so the remote's slider is the
+100%, while the hardware mixer starts at 75%, so the remote's slider is the
 one volume control that matters. Levels are set once at boot, and once you
 move the slider (or run `tv volume`), your level sticks: unmuting returns to
-it instead of the default. `tv normalize` resets the jack to 50%.
+it instead of the default. `tv normalize` resets the jack to 75%.
 
 Widescreen handling: 16:9 videos zoom to fill the 4:3 screen (center-cut,
 sides cropped — the broadcast way). Set `CRT_PANSCAN=0` in
