@@ -11,8 +11,8 @@ xset s off -dpms || true
 DISPLAY_SIZE=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2; exit}' || true)
 DISPLAY_SIZE=${DISPLAY_SIZE:-720x480}
 
-# Keep the station card visible during the X-to-browser handoff.
-if [[ $URL == http://127.0.0.1:8080/* ]]; then
+# Keep the station card visible only during the boot-to-browser handoff.
+if [[ $URL == http://127.0.0.1:8080/* && $URL == *[\?\&]crtSplashMin=* ]]; then
   xsetroot -bitmap /usr/local/lib/crt-tv/kiosk-ext/boot-card.xbm -fg white -bg black || true
 fi
 

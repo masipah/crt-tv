@@ -109,7 +109,7 @@ until curl -fsS --max-time 2 -o /dev/null "$URL"; do
 done
 
 # Keep the boot animation running throughout the readiness wait. Stop it and
-# clear tty1 only when X is about to take over, leaving no black loading gap.
+# hand tty1 to X only when the local weather server is available.
 sudo -n /usr/local/lib/crt-tv/handoff-console.sh
 
 exec xinit /usr/local/lib/crt-tv/kiosk-x.sh -- :0 vt1 -nolisten tcp -nocursor
