@@ -1,4 +1,4 @@
-import { upcomingDepartures, formatWait, serviceLabel } from './display.mjs?v=6';
+import { upcomingDepartures, formatWait, serviceLabel } from './display.mjs?v=8';
 const $ = id => document.getElementById(id);
 const q = new URLSearchParams(location.search), clamp = (n,a,b) => Math.min(b,Math.max(a,n));
 const [fx,fy] = (q.get('crtFit') || '1').split('x').map(Number);
@@ -31,7 +31,7 @@ function render() {
   const keys=new Set(arrivals.map(a=>a.key));
   for(const [key,row] of rows){
     if(keys.has(key))continue;
-    rows.delete(key);row.style.transform='translateY(-87px)';row.style.opacity='0';
+    rows.delete(key);row.style.transform='translateY(-100px)';row.style.opacity='0';
     row.setAttribute('aria-hidden','true');setTimeout(()=>row.remove(),700);
   }
   arrivals.forEach((arrival,index)=>{
@@ -39,7 +39,7 @@ function render() {
     const entering=!row;
     if(entering){
       row=document.createElement('div');row.className='row';row.dataset.trip=arrival.key;
-      row.style.transition='none';row.style.transform=`translateY(${wasEmpty?index*87:435}px)`;
+      row.style.transition='none';row.style.transform=`translateY(${wasEmpty?index*100:400}px)`;
       row.style.opacity=wasEmpty?'1':'0';
       const label=serviceLabel(arrival.route), service=document.createElement('div');service.className=`service ${label.kind}`;
       const name=document.createElement('span');name.className='name';name.textContent=label.name;
@@ -59,7 +59,7 @@ function render() {
       // Commit the off-screen position, then glide into the vacated bottom row.
       void row.offsetHeight;row.style.transition='';
     }
-    row.style.transform=`translateY(${index*87}px)`;row.style.opacity='1';
+    row.style.transform=`translateY(${index*100}px)`;row.style.opacity='1';
 
   });
   // Reordering an attached element can cancel its CSS transition. Preserve nodes
@@ -69,7 +69,7 @@ function render() {
   if(targetKeys.join('|')!==domKeys.join('|')){
     clearTimeout(orderTimer);orderTimer=setTimeout(()=>{for(const key of targetKeys){const row=rows.get(key);if(row)$('departures').append(row);}},700);
   }
-  for(let i=arrivals.length;i<5;i++){const empty=document.createElement('div');empty.className='placeholder';empty.style.transform=`translateY(${i*87}px)`;empty.textContent='—';$('departures').append(empty);}
+  for(let i=arrivals.length;i<4;i++){const empty=document.createElement('div');empty.className='placeholder';empty.style.transform=`translateY(${i*100}px)`;empty.textContent='—';$('departures').append(empty);}
 
 }
 async function poll() {

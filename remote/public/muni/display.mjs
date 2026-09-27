@@ -9,7 +9,7 @@ export function serviceLabel(route) {
   return {name:'路線バス',number:route,kind:'bus'};
 }
 // Merge every platform before sorting. Never reserve rows for a particular line.
-export function upcomingDepartures(stops,now,{limit=5,unavailable=false}={}) {
+export function upcomingDepartures(stops,now,{limit=4,unavailable=false}={}) {
   if(unavailable)return [];
   return stops.filter(stop=>!stop.stale&&now-stop.fetchedAt<=45000)
     .flatMap(stop=>stop.services.flatMap(service=>service.arrivals.filter(t=>t>=now)
