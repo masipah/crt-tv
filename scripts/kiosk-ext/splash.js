@@ -1,6 +1,10 @@
 // Continue the console's original animation while WeatherStar loads.
 (() => {
   if (location.port !== '8080' || window.top !== window) return;
+  const params = new URLSearchParams(location.search);
+  // Only the boot launcher supplies this marker. Manual Weather switches
+  // must not create an animation, even with a zero minimum hold.
+  if (!params.has('crtSplashMin')) return;
   const canvas = document.createElement('canvas');
   canvas.width = 720; canvas.height = 480;
   canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483647;background:black;visibility:visible;pointer-events:none';
@@ -9,7 +13,7 @@
   const colors = ['#000', '#a00', '#0a0', '#a50', '#00a', '#a0a', '#0aa', '#aaa'];
   const bright = ['#555', '#f55', '#5f5', '#ff5', '#55f', '#f5f', '#5ff', '#fff'];
   const started = performance.now();
-  const seconds = Number(new URLSearchParams(location.search).get('crtSplashMin'));
+  const seconds = Number(params.get('crtSplashMin'));
   const minimum = Number.isFinite(seconds) ? Math.min(60, Math.max(0, seconds)) * 1000 : 12000;
   let frame = 0, timer, finished = false, requested = false, parkedAt = null, revealing = false;
   function draw() {
