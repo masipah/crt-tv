@@ -5,4 +5,5 @@
 set -euo pipefail
 
 systemctl stop crt-splash.service
-exec /usr/local/lib/crt-tv/clear-console.sh
+# Leave the final station card on tty1 until X takes ownership.
+# Display stop hooks still clear the console when leaving a channel.

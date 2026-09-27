@@ -212,7 +212,10 @@ controls remain shared. Switching away from Videos disconnects it.
 Set `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather presentation followed
 by the video library. The kiosk signals when the first real weather screen is
 visible and playing, after the boot animation is removed; animation time,
-loading time and the progress screen do not count. If
+loading time and the progress screen do not count. The animation finishes on
+the complete station logo, then cuts to weather after its visible images, fonts
+and layout have settled. Chromium opens at the X display size so its default
+window cannot leave unused strips along the bottom and right. If
 weather never becomes ready, it stays on weather. Without the setting, weather
 stays on until someone selects Videos.
 Choosing a channel manually cancels the pending boot transition.

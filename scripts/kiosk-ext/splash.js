@@ -11,7 +11,7 @@
   const started = performance.now();
   const seconds = Number(new URLSearchParams(location.search).get('crtSplashMin'));
   const minimum = Number.isFinite(seconds) ? Math.min(60, Math.max(0, seconds)) * 1000 : 12000;
-  let frame = 0, timer, finished = false;
+  let frame = 0, timer, finished = false, requested = false, parkedAt = null, revealing = false;
   function draw() {
     const [ansi, seconds] = globalThis.crtSplashFrames[frame];
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 720, 480);
@@ -38,16 +38,30 @@
         }
       }
     }
+    // Finish the running sequence on its complete station ident, never a glitch.
+    if (requested && ansi === globalThis.crtSplashFinal) {
+      parkedAt = performance.now();
+      return;
+    }
     frame = (frame + 1) % globalThis.crtSplashFrames.length;
     timer = setTimeout(draw, seconds * 1000);
   }
   // ready.js calls only when a real, playing weather screen is behind us.
   // No timeout may reveal the loading screen or start the video timer early.
-  globalThis.crtFinishSplash = () => {
+  globalThis.crtFinishSplash = (ready = true) => {
     if (finished) return true;
-    if (performance.now() - started < minimum) return false;
-    clearTimeout(timer); canvas.remove(); finished = true;
-    return true;
+    requested = ready && performance.now() - started >= minimum;
+    if (!requested || parkedAt === null || performance.now() - parkedAt < 650) return false;
+    if (!revealing) {
+      revealing = true;
+      // Give the composed weather frame a paint before the single cut.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        revealing = false;
+        if (!requested) return;
+        clearTimeout(timer); canvas.remove(); finished = true;
+      }));
+    }
+    return false;
   };
   draw();
 })();
