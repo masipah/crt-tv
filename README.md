@@ -187,6 +187,13 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ### AirPlay video audio
 
+AirPlay is available in the web UI by default, but audio stays on the TV until
+you select a receiver and choose **Send video audio**. The default configuration
+uses `AIRPLAY_ENABLED=1` and an empty `AIRPLAY_DEFAULT_ID`; booting or starting
+videos does not connect to a receiver automatically. To restore this behavior
+on an existing installation, clear `AIRPLAY_DEFAULT_ID` in
+`/etc/crt-tv/crt-tv.env` and restart `crt-remote.service`.
+
 For automatic routing, set `AIRPLAY_DEFAULT_ID` in `/etc/crt-tv/crt-tv.env`
 to the receiver's stable ID from `/api/airplay/outputs`, alongside
 `AIRPLAY_ENABLED=1`, and restart `crt-remote.service`. Receiver name changes
@@ -203,7 +210,8 @@ stays on until someone selects Videos.
 Choosing a channel manually cancels the pending boot transition.
 Weather music uses the TV's analogue jack and starts unmuted at boot. Set
 `CRT_BOOT_MUTED=1` to request silent boot. The DMP-A8 is used only for video audio;
-turning it on during videos triggers automatic discovery and connection.
+turning it on during videos triggers automatic connection only when an
+`AIRPLAY_DEFAULT_ID` has explicitly been configured.
 Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 50%
 is an audible level rather than the Pi mixer's almost-silent raw midpoint.
 Set `CRT_BOOT_VOLUME=100` in `/etc/crt-tv/crt-tv.env` to start the TV jack at
@@ -230,12 +238,13 @@ the video automatically: embedded title/artist/album tags take priority, then
 on skips, commercials, and when connecting partway through a video. Track
 position/duration is forwarded about every ten seconds. Artwork is not sent.
 
-Enable the sender on the Pi by adding `AIRPLAY_ENABLED=1` to
-`/etc/crt-tv/crt-tv.env`, then run `sudo setup/install.sh` from this checkout.
+Existing installations keep their settings during updates. If the sender was
+disabled, set `AIRPLAY_ENABLED=1` in `/etc/crt-tv/crt-tv.env`, then run
+`sudo setup/install.sh` from this checkout.
 The installer uses the [official OwnTone Pi repository](https://owntone.github.io/owntone-server/installation/),
 adds OwnTone and Avahi, and checks the kernel's `snd-aloop` module. It does not
 restore PipeWire, global audio routing, or the old OwnTone capture bridge.
-AirPlay is opt-in. Manual reservations start disconnected after reboot or remote
+AirPlay connections are manual by default. Reservations start disconnected after reboot or remote
 restart; configured automatic routing reconnects when a video is playing.
 
 1. Play a video from the web remote.
