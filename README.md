@@ -402,8 +402,8 @@ Choose **Muni** in the web remote, or run `tv muni`, for a silent, 1997 Japanese
 station-inspired departure board. A single screen shows the next five departures from the four closest active
 boarding stops to 8 Octavia Street: Haight/Gough inbound and outbound, and
 Market/Gough inbound and outbound. All routes are merged and ordered by arrival
-time. Japanese destinations, colored service labels and large 24-hour arrival
-times resemble a Shinkansen board. There is no station header, footer, screen
+time. Japanese service labels and large 24-hour arrival times resemble a Shinkansen
+board; destinations and stop/direction names remain in English. There is no station header, footer, screen
 rotation or interaction. When a departure leaves, the remaining rows slide up
 smoothly and the next arrival enters from below. Stable trip identities retain
 rows across prediction updates. Countdown minutes sit beneath the clock times.
@@ -412,8 +412,7 @@ Stop selection uses SFMTA's stop finder, ranked by straight-line distance from
 its geocoded address (not walking distance). Coordinates, IDs and provenance
 are recorded in `remote/muni-stops.json`. These four platforms serve the 7 and F,
 plus Owl and replacement buses when reported by Muni. The five earliest predictions win regardless of line; replacement buses and
-streetcars are labeled separately. Unrecognized destinations retain their
-original names rather than receiving an invented translation.
+streetcars are labeled separately. Destinations use the English source names.
 
 The Pi polls the same public prediction source used by
 [SFMTA's stop finder](https://www.sfmta.com/find-a-stop) every 15 seconds while

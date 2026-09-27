@@ -1,4 +1,4 @@
-import { upcomingDepartures, formatWait, japaneseDestination, serviceLabel } from './display.mjs?v=4';
+import { upcomingDepartures, formatWait, serviceLabel } from './display.mjs?v=6';
 const $ = id => document.getElementById(id);
 const q = new URLSearchParams(location.search), clamp = (n,a,b) => Math.min(b,Math.max(a,n));
 const [fx,fy] = (q.get('crtFit') || '1').split('x').map(Number);
@@ -23,7 +23,7 @@ function render() {
   const unavailable=failed||elapsed>45000;
   const missing=unavailable?snapshot.stops.length:snapshot.stops.filter(s=>s.stale||now-s.fetchedAt>45000).length;
   const arrivals=upcomingDepartures(snapshot.stops,now,{unavailable});
-  $('stop-heading').textContent=missing?'一部未取得':'停留所';
+  $('stop-heading').textContent=missing?'Unavailable*':'Stop';
   if(!arrivals.length){message(missing?'情報を取得できません':'到着予測はありません',missing?'再接続しています':'まもなく再更新します');return;}
   const wasEmpty=showingMessage;
   if(showingMessage){$('departures').replaceChildren();showingMessage=false;}
@@ -31,7 +31,7 @@ function render() {
   const keys=new Set(arrivals.map(a=>a.key));
   for(const [key,row] of rows){
     if(keys.has(key))continue;
-    rows.delete(key);row.style.transform='translateY(-84px)';row.style.opacity='0';
+    rows.delete(key);row.style.transform='translateY(-90px)';row.style.opacity='0';
     row.setAttribute('aria-hidden','true');setTimeout(()=>row.remove(),700);
   }
   arrivals.forEach((arrival,index)=>{
@@ -39,18 +39,18 @@ function render() {
     const entering=!row;
     if(entering){
       row=document.createElement('div');row.className='row';row.dataset.trip=arrival.key;
-      row.style.transition='none';row.style.transform=`translateY(${wasEmpty?index*84:420}px)`;
+      row.style.transition='none';row.style.transform=`translateY(${wasEmpty?index*90:450}px)`;
       row.style.opacity=wasEmpty?'1':'0';
       const label=serviceLabel(arrival.route), service=document.createElement('div');service.className=`service ${label.kind}`;
       const name=document.createElement('span');name.className='name';name.textContent=label.name;
       const number=document.createElement('span');number.className='number';number.textContent=label.number;service.append(name,number);
       const time=document.createElement('div');time.className='time';
       const at=document.createElement('span');at.className='at';const wait=document.createElement('small');time.append(at,wait);
-      const destination=document.createElement('div');const translated=japaneseDestination(arrival.destination);
-      destination.className='destination'+(translated===arrival.destination?' latin':'');destination.textContent=translated;
+      const destination=document.createElement('div');
+      destination.className='destination latin';destination.textContent=arrival.destination.replace('Castro + Market','Castro');
       const stop=document.createElement('div');stop.className='stop';
-      stop.textContent=arrival.stop.name.startsWith('Haight')?'ヘイト・ゴフ':'マーケット';
-      const direction=document.createElement('small');direction.textContent=(arrival.stop.name.startsWith('Market')?'ゴフ・':'')+(arrival.stop.direction==='INBOUND'?'都心方面':'郊外方面');stop.append(direction);
+      stop.textContent=arrival.stop.name.startsWith('Haight')?'Haight\n& Gough':'Market\n& Gough';
+      const direction=document.createElement('small');direction.textContent=arrival.stop.direction==='INBOUND'?'Inbound':'Outbound';stop.append(direction);
       row.append(service,time,destination,stop);rows.set(arrival.key,row);$('departures').append(row);
     }
     row.querySelector('.at').textContent=clock.format(new Date(arrival.arrivalAt));
@@ -59,7 +59,7 @@ function render() {
       // Commit the off-screen position, then glide into the vacated bottom row.
       void row.offsetHeight;row.style.transition='';
     }
-    row.style.transform=`translateY(${index*84}px)`;row.style.opacity='1';
+    row.style.transform=`translateY(${index*90}px)`;row.style.opacity='1';
 
   });
   // Reordering an attached element can cancel its CSS transition. Preserve nodes
@@ -69,7 +69,7 @@ function render() {
   if(targetKeys.join('|')!==domKeys.join('|')){
     clearTimeout(orderTimer);orderTimer=setTimeout(()=>{for(const key of targetKeys){const row=rows.get(key);if(row)$('departures').append(row);}},700);
   }
-  for(let i=arrivals.length;i<5;i++){const empty=document.createElement('div');empty.className='placeholder';empty.style.transform=`translateY(${i*84}px)`;empty.textContent='—';$('departures').append(empty);}
+  for(let i=arrivals.length;i<5;i++){const empty=document.createElement('div');empty.className='placeholder';empty.style.transform=`translateY(${i*90}px)`;empty.textContent='—';$('departures').append(empty);}
 
 }
 async function poll() {

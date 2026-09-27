@@ -2,17 +2,6 @@ export function formatWait(arrivalAt, now) {
   const seconds=(arrivalAt-now)/1000;
   return seconds<60?'まもなく':`あと${Math.floor(seconds/60)}分`;
 }
-const destinations = new Map([
-  ['Transit Center','トランジット\nセンター'],
-  ["Fisherman's Wharf",'フィッシャーマンズ\nワーフ'],
-  ['Castro + Market','カストロ'],['Castro','カストロ'],['The Castro','カストロ'],
-  ['Ocean Beach','オーシャンビーチ'],['Downtown','ダウンタウン'],
-  ['Wawona + 46th Avenue','ワウォナ・46番街'],['SF Zoo','動物園'],['The Zoo','動物園'],
-  ['Balboa Park','バルボアパーク'],['Caltrain','カルトレイン'],
-]);
-export function japaneseDestination(text) {
-  return destinations.get(text.replaceAll('`',"'")) || text;
-}
 export function serviceLabel(route) {
   if(route.endsWith('BUS'))return {name:'代行バス',number:route.slice(0,-3),kind:'replacement'};
   if(route.endsWith('OWL'))return {name:'深夜バス',number:route.slice(0,-3),kind:'owl'};
