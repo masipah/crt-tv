@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-function fixture(search='') {
+function fixture(search='?crtSplashMin=0') {
   let removed=0,rectangles=0,now=0,id=0;
   const timers=new Map(), paints=[];
   const canvas={style:{},remove:()=>{removed++;},getContext:()=>({fillRect:()=>{rectangles++;},fillText:()=>{}})};
@@ -44,4 +44,11 @@ test('slow loading never auto-dismisses the ident',()=>{
   const f=fixture('?crtSplashMin=12');
   for(let i=0;i<1000;i++)f.advance();
   assert.equal(f.removed(),0);assert.equal(f.timers.size,1);
+});
+
+test('manual Weather switches never create the station opening',()=>{
+  const f=fixture('?kiosk=true&crtWeatherIntro=1&crtFit=0.943x1');
+  assert.equal(f.rectangles(),0);
+  assert.equal(f.timers.size,0);
+  assert.equal(f.context.crtFinishSplash,undefined);
 });
