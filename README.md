@@ -192,22 +192,7 @@ list for live mixing and vanishes when replaced.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
 
-### AirPlay video audio
-
-AirPlay is available in the web UI by default, but audio stays on the TV until
-you select a receiver and choose **Send video audio**. The default configuration
-uses `AIRPLAY_ENABLED=1` and an empty `AIRPLAY_DEFAULT_ID`; booting or starting
-videos does not connect to a receiver automatically. To restore this behavior
-on an existing installation, clear `AIRPLAY_DEFAULT_ID` in
-`/etc/crt-tv/crt-tv.env` and restart `crt-remote.service`.
-
-For automatic routing, set `AIRPLAY_DEFAULT_ID` in `/etc/crt-tv/crt-tv.env`
-to the receiver's stable ID from `/api/airplay/outputs`, alongside
-`AIRPLAY_ENABLED=1`, and restart `crt-remote.service`. Receiver name changes
-do not affect the saved ID. Weather remains the boot channel. Starting Videos
-connects to that receiver at 10% volume; if it is off, the Pi retries every ten
-seconds until it appears. No browser, name, or reservation is needed, and TV
-controls remain shared. Switching away from Videos disconnects it.
+### Boot sequence and local audio
 
 Set `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather presentation followed
 by the video library. The kiosk signals when the first real weather screen is
@@ -220,13 +205,11 @@ weather never becomes ready, it stays on weather. Without the setting, weather
 stays on until someone selects Videos.
 Choosing a channel manually cancels the pending boot transition.
 Weather music uses the TV's analogue jack and starts unmuted at boot. Set
-`CRT_BOOT_MUTED=1` to request silent boot. The DMP-A8 is used only for video audio;
-turning it on during videos triggers automatic connection only when an
-`AIRPLAY_DEFAULT_ID` has explicitly been configured.
+`CRT_BOOT_MUTED=1` to request silent boot.
 Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 75%
 is an audible level rather than the Pi mixer's almost-silent raw midpoint.
 Set `CRT_BOOT_VOLUME=100` in `/etc/crt-tv/crt-tv.env` to start the TV jack at
-full volume instead. This accepts 0–100 and does not change AirPlay volume.
+full volume instead. This accepts 0–100.
 The installer masks desktop audio services so their saved mixer settings cannot
 overwrite the TV's startup volume, including when an administrator logs in.
 
@@ -235,87 +218,6 @@ after first-boot provisioning has finished and persistent network settings exist
 To reapply these settings without a full install, run `sudo bash setup/fast-boot.sh`
 from the project checkout. Networking still starts normally; the weather intro
 still lasts the configured time after weather becomes ready.
-
-**Stop automatic AirPlay** pauses automatic routing until **Resume automatic
-AirPlay** or leaving and returning to Videos. A manual receiver selection still
-uses the reservation described below. Automatic routing clears the initial boot
-mute on its first connection, but respects mute set by a person. Receiver failure
-returns audio to the jack while the Pi waits to reconnect.
-
-The **AirPlay · video audio** panel sends the Pi's currently playing video's
-audio to one receiver, including the Eversolo DMP-A8 Gen 2. Metadata comes from
-the video automatically: embedded title/artist/album tags take priority, then
-`Artist - Title.ext`, then the filename with `CRT-TV` as artist/album. It updates
-on skips, commercials, and when connecting partway through a video. Track
-position/duration is forwarded about every ten seconds. Artwork is not sent.
-
-Existing installations keep their settings during updates. If the sender was
-disabled, set `AIRPLAY_ENABLED=1` in `/etc/crt-tv/crt-tv.env`, then run
-`sudo setup/install.sh` from this checkout.
-The installer uses the [official OwnTone Pi repository](https://owntone.github.io/owntone-server/installation/),
-adds OwnTone and Avahi, and checks the kernel's `snd-aloop` module. It does not
-restore PipeWire, global audio routing, or the old OwnTone capture bridge.
-AirPlay connections are manual by default. Reservations start disconnected after reboot or remote
-restart; configured automatic routing reconnects when a video is playing.
-
-1. Play a video from the web remote.
-2. Under AirPlay, enter your name, refresh receivers, select the Eversolo, and
-   choose **Send video audio**. Receiver volume starts at 10%; unmute and adjust
-   with the web remote. The Pi is the AirPlay sender; the browser's computer is
-   only a remote control. All browsers can use this flow.
-3. Choose **Stop AirPlay & release** to disconnect and return video audio to the
-   TV jack. Weather, Scope, Off, and Reboot also end AirPlay first.
-
-Only one website user can control the TV while AirPlay is reserved. The server
-serializes claims and playback/volume/mute/seek/reboot requests, rejects other
-clients with HTTP 409, and permits only the owner to renew or release. The
-browser retains its random token across a same-tab reload. The reservation
-renews every 30 seconds and expires after two minutes without renewal (plus a
-short cleanup interval); expiry actually stops the Pi's sender. Closing or
-suspending the owner tab therefore disconnects AirPlay. Receiver/bridge failure
-also disconnects and releases control. Names are labels, not user accounts;
-keep the remote on a trusted LAN and use its HTTPS setup to protect tokens.
-Uploads and library management remain shared. SSH/root remains administrative
-access outside the website lock.
-
-The Eversolo must be powered on, on the Pi's LAN, and reachable by multicast
-DNS. Password/pairing-required outputs are listed but unavailable until OwnTone
-has the necessary receiver authentication; pairing is not exposed by this UI.
-The website prevents competing **Pi** senders and website controls. It cannot
-prevent another device on the LAN from connecting directly to the Eversolo.
-
-Audio travels from mpv through an ALSA loopback to a PCM pipe read by OwnTone;
-only one OwnTone output is selected. The hardware jack and weather audio retain
-their existing ALSA path. OwnTone discovers receivers on the LAN; an nftables
-rule blocks external access to its HTTP, websocket, and MPD control ports, so
-another LAN browser cannot bypass the website lock through its separate UI.
-The service reloads that rule before every start and refuses to start if it
-cannot apply it. The web remote accesses OwnTone through localhost.
-Release stops the capture and OwnTone stream, then restarts idle discovery.
-The mpv routing script detects the removed route and returns to the jack without
-restarting the video. The shared mute flag also mutes mpv while it is casting;
-the remote volume slider adjusts the selected receiver during AirPlay. `tv
-volume` continues to control the local jack; use the remote for receiver volume.
-`tv airplay-stop` is an SSH recovery command.
-
-OwnTone/AirPlay buffers audio. `AIRPLAY_LATENCY_MS=2000` shifts video to compensate;
-tune this in the env file and restart `crt-remote.service` for your receiver and
-network. Receiver buffer and lip-sync need verification on the real Pi/Eversolo.
-The UI shows a selected/routed output, not a claim that sound was measured at
-the speakers. Titles retry if the metadata pipe is not yet ready. OwnTone logs/cache/database
-are in RAM under `/run/crt-owntone`, so discovery does not add SD-card writers;
-receiver pairing state is not retained across reboot in this appliance setup.
-
-Development checks: `node --test remote/test/*.test.mjs`,
-`node --check remote/server.mjs`, and `bash -n setup/install.sh setup/airplay.sh`.
-Tests cover concurrent browsers, expiry, disconnect failure, output selection,
-metadata encoding and changes, and missing metadata readers. After installing,
-verify actual audio, title changes through a commercial, mute/volume, lip-sync,
-and stop/release with the Eversolo before relying on the setup.
-
-References: [OwnTone pipe audio/metadata](https://owntone.github.io/owntone-server/library/),
-[OwnTone output API](https://owntone.github.io/owntone-server/json-api/),
-[Eversolo AirPlay](https://www.eversolo.com/musicservice/airplay.html).
 
 ### HTTPS for the web remote
 
@@ -357,9 +259,8 @@ docs/       hardware wiring, composite video deep-dive & troubleshooting
 
 ## Audio
 
-The TV uses the Raspberry Pi's analogue TRRS jack by default. Optional
-AirPlay video audio uses OwnTone with metadata (see above); weather remains
-on the jack. The retired PipeWire routing stack is not required.
+Weather, videos, and commercials use the Raspberry Pi's analogue TRRS jack
+connected to the TV. No network audio sender or desktop audio stack is needed.
 
 Volume is normalized around the local jack: mpv and the weather music stay at
 100%, while the hardware mixer starts at 75%, so the remote's slider is the
@@ -437,5 +338,4 @@ that service has ended. Each platform can recover independently.
 No personal API key or account is required. The agency's public browser
 configuration is discovered on the server and never included in API responses.
 The board honors CRT fit/overscan settings. Selecting it cancels the pending
-weather-to-video transition and ends AirPlay. Boot still starts with weather,
-and videos retain manual AirPlay selection.
+weather-to-video transition. Boot still starts with weather.

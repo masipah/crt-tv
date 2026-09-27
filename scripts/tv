@@ -43,7 +43,6 @@ usage: tv <command>
   next | prev        skip within the playlist
   stop               blank the screen (stop player and kiosk)
   status             show what's running
-  airplay-stop       disconnect AirPlay and return video audio to the jack
   doctor             one-shot diagnostic dump (paste this when asking for help)
   reboot             reboot the Pi
 EOF
@@ -115,7 +114,6 @@ mixer() {
       fi
       ;;
     mute | unmute)
-      rm -f "$RUN_DIR/boot-muted"
       # landing level: until the user has picked a volume, unmuting always
       # comes up at the default 75%, and the web slider shows exactly
       # what's playing.
@@ -223,29 +221,6 @@ case $cmd in
       printf 'scheduled\n' >"$RUN_DIR/weather-intro"
       echo "Weather started; videos in ${delay} seconds"
     fi
-    ;;
-  airplay-auto-unmute)
-    as_root
-    # Automatic video audio clears only boot silence, never a user's mute.
-    if [[ -f $RUN_DIR/boot-muted ]]; then mixer unmute; fi
-    ;;
-  airplay-start)
-    as_root
-    [[ $(env_get AIRPLAY_ENABLED) == 1 ]] || { echo "AirPlay is not enabled" >&2; exit 1; }
-    systemctl start owntone.service
-    systemctl restart crt-airplay-feed.service
-    ;;
-  airplay-check)
-    as_root
-    systemctl is-active --quiet crt-airplay-feed.service
-    ;;
-  airplay-stop)
-    as_root
-    rm -f "$RUN_DIR/airplay.json"
-    systemctl stop crt-airplay-feed.service
-    # End the sender itself so a failed HTTP API cannot strand a receiver.
-    systemctl stop owntone.service
-    systemctl start owntone.service
     ;;
   weather | 4000)
     as_root
@@ -386,7 +361,6 @@ case $cmd in
     : >"$RUN_DIR/volume-set" # preserve the configured level when unmuting
     if [[ $(env_get CRT_BOOT_MUTED) == 1 ]]; then
       mixer mute
-      : >"$RUN_DIR/boot-muted"
     else
       mixer unmute
     fi

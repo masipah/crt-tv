@@ -7,8 +7,8 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# The web servers can bind before DHCP completes. Weather fetches and AirPlay
-# discovery handle the network becoming available after their services start.
+# The web servers can bind before DHCP completes. Weather fetches handle
+# the network becoming available after their services start.
 if [[ $(systemctl show NetworkManager-wait-online.service -p LoadState --value) != not-found ]]; then
   systemctl disable NetworkManager-wait-online.service
 fi
