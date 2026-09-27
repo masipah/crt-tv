@@ -199,7 +199,7 @@ install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
 install -d /usr/local/lib/crt-tv/remote/public/icons
-install -m 644 "$REPO_DIR/remote/server.mjs" "$REPO_DIR/remote/airplay.mjs" "$REPO_DIR/remote/airplay-output.mjs" "$REPO_DIR/remote/muni.mjs" /usr/local/lib/crt-tv/remote/
+install -m 644 "$REPO_DIR/remote/server.mjs" "$REPO_DIR/remote/airplay.mjs" "$REPO_DIR/remote/airplay-output.mjs" "$REPO_DIR/remote/muni.mjs" "$REPO_DIR/remote/muni-stops.json" /usr/local/lib/crt-tv/remote/
 # the whole public tree: the remote itself, the oscilloscope channel page,
 # and the web-app manifest/icons
 install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webmanifest \

@@ -27,7 +27,7 @@ usage: tv <command>
 
   weather            show the WeatherStar 4000+
   scope              show the oscilloscope channel
-  muni               show the live F-Market streetcar map
+  muni               show nearby Muni departures
   pattern            show the overscan calibration grid (tune KIOSK_FIT_*)
   play [path]...     play the videos bucket in order (no args), or the given
                      files/folders; a single bucket video continues through

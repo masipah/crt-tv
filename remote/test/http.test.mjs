@@ -52,18 +52,15 @@ test('HTTP turn handoff enforces all web control routes with independent clients
     } })).status, 403);
     assert.match(page, /Eversolo DMP-A8/);
     assert.match(page, /btn-muni/);
-    const mapPage = await fetch(base + '/muni.html');
-    assert.equal(mapPage.status, 200);
-    const mapHtml = await mapPage.text();
-    assert.match(mapHtml, /Market and Gough/);
-    assert.doesNotMatch(mapHtml, /<button|<aside|id="overview"/);
-    assert.match(mapHtml, /alternate every 20 seconds/);
-    const mapData = await fetch(base + '/muni/map.json');
-    assert.equal(mapData.headers.get('content-type'), 'application/json');
-    assert.equal((await mapData.json()).stops.length, 3);
-    const mapScript = await fetch(base + '/muni/map.mjs');
-    assert.equal(mapScript.status, 200);
-    assert.match(mapScript.headers.get('content-type'), /javascript/);
+    const boardPage = await fetch(base + '/muni.html');
+    assert.equal(boardPage.status, 200);
+    assert.equal(boardPage.headers.get('cache-control'), 'no-cache');
+    const boardHtml = await boardPage.text();
+    assert.match(boardHtml, /Haight and Gough/);
+    assert.doesNotMatch(boardHtml, /<button|<canvas|<aside|<header|<footer/);
+    const boardScript = await fetch(base + '/muni/board.mjs');
+    assert.equal(boardScript.status, 200);
+    assert.match(boardScript.headers.get('content-type'), /javascript/);
     assert.match(page, /The Pi sends the video’s audio and title, artist and album/);
     await request('/api/airplay/release', other, {});
     // Automatic routing has no owner but still routes volume to the receiver.

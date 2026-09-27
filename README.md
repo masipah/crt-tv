@@ -396,32 +396,35 @@ config changes until you turn it off, so it's not enabled by default.
 - [docs/composite-video.md](docs/composite-video.md) — how 480i output works on
   the Pi 4 with KMS, verification, and how to revert to HDMI
 
-### F-Market map channel
+### Muni departure board
 
-Choose **F-Market** in the web remote, or run `tv muni`, for a silent,
-WeatherStar-inspired street map. The neighborhood view is centered between
-Market/Gough and Market/Dolores. One large map fills the screen and switches
-every 20 seconds between that neighborhood and the full Castro–Fisherman's Wharf route.
-The CRT screen has no interactive controls; change channels from the web remote.
-Only F-line vehicles and route shapes are drawn. Gough's two platforms and
-Dolores' Wharf-bound platform are highlighted using SFMTA stop coordinates.
+Choose **Muni** in the web remote, or run `tv muni`, for a silent, 1997 Japanese
+station-inspired departure board. A single screen shows the next five departures from the four closest active
+boarding stops to 8 Octavia Street: Haight/Gough inbound and outbound, and
+Market/Gough inbound and outbound. All routes are merged and ordered by arrival
+time. Japanese destinations, colored service labels and large 24-hour arrival
+times resemble a Shinkansen board. There is no station header, footer, screen
+rotation or interaction. When a departure leaves, the remaining rows slide up
+smoothly and the next arrival enters from below. Stable trip identities retain
+rows across prediction updates. Countdown minutes sit beneath the clock times.
 
-The Pi polls the same public F-line vehicle endpoint used by
-[SFMTA's live map](https://www.sfmta.com/routes/f-market-wharves) every 15 seconds
-while the map is open. Requests are shared across viewers. Streetcar markers
-interpolate between reported positions rather than predicting future movement.
-Old positions fade after two minutes and disappear after five; feed failures
-are visibly marked. No service and unavailable data are separate states.
-No personal API key or account is required; the public browser configuration
-is discovered from SFMTA's embed and stays on the server.
+Stop selection uses SFMTA's stop finder, ranked by straight-line distance from
+its geocoded address (not walking distance). Coordinates, IDs and provenance
+are recorded in `remote/muni-stops.json`. These four platforms serve the 7 and F,
+plus Owl and replacement buses when reported by Muni. The five earliest predictions win regardless of line; replacement buses and
+streetcars are labeled separately. Unrecognized destinations retain their
+original names rather than receiving an invented translation.
 
-The street map is bundled locally, so losing the feed does not erase the map.
-Street centerlines come from [SF Public Works / DataSF](https://data.sfgov.org/d/3psu-pn9h);
-route shapes and stops come from SFMTA's public GTFS map service. Refresh the
-bundled geometry with `python3 tools/build-muni-map.py` (requires curl and
-Internet access). This is a current map styled like a 1997 television display,
-not a historical 1997 route map.
+The Pi polls the same public prediction source used by
+[SFMTA's stop finder](https://www.sfmta.com/find-a-stop) every 15 seconds while
+the board is open. Concurrent viewers share cached requests. Countdown times
+use the source's clock and the browser's elapsed time. Departed predictions
+are removed, and errors or data older than 45 seconds suppress countdowns.
+“No live predictions” is distinct from “Updates unavailable”; neither claims
+that service has ended. Each platform can recover independently.
 
-Choosing this channel cancels a pending weather-to-video transition and ends
-AirPlay. Normal boot still starts with weather, and manual AirPlay remains
-available for videos.
+No personal API key or account is required. The agency's public browser
+configuration is discovered on the server and never included in API responses.
+The board honors CRT fit/overscan settings. Selecting it cancels the pending
+weather-to-video transition and ends AirPlay. Boot still starts with weather,
+and videos retain manual AirPlay selection.

@@ -454,7 +454,7 @@
       <div class="seg" id="channels">
         <button id="btn-weather" onclick="post('/api/tv/weather')"
                 title="WeatherStar 4000+">Weather</button>
-        <button id="btn-muni" onclick="post('/api/tv/muni')" title="Live F-Market streetcar map">F-Market</button>
+        <button id="btn-muni" onclick="post('/api/tv/muni')" title="Live arrivals at nearby Muni stops">Muni</button>
         <button id="btn-scope" onclick="post('/api/tv/scope')"
                 title="Oscilloscope — a beam figure and live readouts, no signal required">Scope</button>
         <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
@@ -672,7 +672,7 @@
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
     scope: 'Now showing: oscilloscope',
-    muni: 'Now showing: F-Market live map',
+    muni: 'Now showing: Muni departures',
     pattern: 'Now showing: fit pattern (tv pattern)',
     video: 'Now showing: videos',
     off: 'Screen off',
