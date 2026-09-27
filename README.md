@@ -78,11 +78,12 @@ button (which shrinks the raster ~3% and leaves black borders in view), the
 kiosk scales its page down and keeps it centred, so the black remainder lands
 in the margin the tube crops and the whole picture stays visible.
 
-The default is the PVM-9045Q's own datasheet number: normal scan is **6%
-overscan of the effective screen area** (the Q/QM family manual), so the tube
-shows 1/1.06 ≈ 94.3% of the raster per axis — `KIOSK_FIT=0.943`. Individual
-tubes drift from spec and rarely crop both axes alike, so it's tunable in
-`/etc/crt-tv/crt-tv.env`: `KIOSK_FIT_X`/`KIOSK_FIT_Y` (fractions), and
+The horizontal fit defaults to 0.943. The supplied config sets
+`KIOSK_FIT_Y=1` to use the full raster height: shrinking both axes to 0.943
+left visible black bars above and below the weather on this PVM-9045Q.
+The launcher falls back to 0.943 on either axis without a configured fit.
+Tune each axis for the actual screen in `/etc/crt-tv/crt-tv.env` using
+`KIOSK_FIT_X`/`KIOSK_FIT_Y` (fractions), and
 `KIOSK_SHIFT_X`/`KIOSK_SHIFT_Y` (raster pixels) for an off-centre scan.
 
 To dial it in, run `tv pattern`: a calibration grid with percent rulers on
@@ -90,7 +91,7 @@ all four edges and a green box drawn exactly where the current settings put
 the picture. The smallest ruler number readable on the tube is that edge's
 crop; tune the env values until the green box just kisses all four visible
 edges, re-running `tv pattern` after each change, then `tv weather`. Set
-`KIOSK_FIT=1` to switch compensation off. It covers both browser channels;
+`KIOSK_FIT_X=1` and `KIOSK_FIT_Y=1` to switch compensation off. It covers both browser channels;
 video keeps its own `CRT_PANSCAN` fit.
 
 ## Usage
