@@ -396,3 +396,35 @@ config changes until you turn it off, so it's not enabled by default.
 - [docs/hardware.md](docs/hardware.md) — TRRS pinout, PVM hookup, wrong-cable symptoms
 - [docs/composite-video.md](docs/composite-video.md) — how 480i output works on
   the Pi 4 with KMS, verification, and how to revert to HDMI
+
+### Muni departure board
+
+Choose **Muni** in the web remote, or run `tv muni`, for a silent, 1997 Japanese
+station-inspired departure board. A single screen shows the next five departures from the four closest active
+boarding stops to 8 Octavia Street: Haight/Gough inbound and outbound, and
+Market/Gough inbound and outbound. All routes are merged and ordered by arrival
+time. Japanese service labels and large 24-hour arrival times resemble a Shinkansen
+board; destinations and stop/direction names remain in English. There is no station header, footer, screen
+rotation or interaction. When a departure leaves, the remaining rows slide up
+smoothly and the next arrival enters from below. Stable trip identities retain
+rows across prediction updates. Countdown minutes sit beneath the clock times.
+
+Stop selection uses SFMTA's stop finder, ranked by straight-line distance from
+its geocoded address (not walking distance). Coordinates, IDs and provenance
+are recorded in `remote/muni-stops.json`. These four platforms serve the 7 and F,
+plus Owl and replacement buses when reported by Muni. The five earliest predictions win regardless of line; replacement buses and
+streetcars are labeled separately. Destinations use the English source names.
+
+The Pi polls the same public prediction source used by
+[SFMTA's stop finder](https://www.sfmta.com/find-a-stop) every 15 seconds while
+the board is open. Concurrent viewers share cached requests. Countdown times
+use the source's clock and the browser's elapsed time. Departed predictions
+are removed, and errors or data older than 45 seconds suppress countdowns.
+“No live predictions” is distinct from “Updates unavailable”; neither claims
+that service has ended. Each platform can recover independently.
+
+No personal API key or account is required. The agency's public browser
+configuration is discovered on the server and never included in API responses.
+The board honors CRT fit/overscan settings. Selecting it cancels the pending
+weather-to-video transition and ends AirPlay. Boot still starts with weather,
+and videos retain manual AirPlay selection.

@@ -27,6 +27,7 @@ usage: tv <command>
 
   weather            show the WeatherStar 4000+
   scope              show the oscilloscope channel
+  muni               show nearby Muni departures
   pattern            show the overscan calibration grid (tune KIOSK_FIT_*)
   play [path]...     play the videos bucket in order (no args), or the given
                      files/folders; a single bucket video continues through
@@ -148,6 +149,8 @@ kiosk_url_set() { # <url>
 kiosk_page() {
   if [[ -f $KIOSK_ENV ]] && grep -q oscilloscope "$KIOSK_ENV"; then
     echo oscilloscope
+  elif [[ -f $KIOSK_ENV ]] && grep -q muni.html "$KIOSK_ENV"; then
+    echo muni
   elif [[ -f $KIOSK_ENV ]] && grep -q fit.html "$KIOSK_ENV"; then
     echo pattern
   else
@@ -212,7 +215,7 @@ case $cmd in
     # Called by the local kiosk only after its first weather screen is visible.
     [[ $(cat "$RUN_DIR/weather-intro" 2>/dev/null || true) == pending ]] || exit 0
     systemctl is-active --quiet weather-kiosk.service || exit 0
-    if grep -Eq 'oscilloscope|fit\.html' "$KIOSK_ENV" 2>/dev/null; then exit 0; fi
+    if grep -Eq 'oscilloscope|fit\.html|muni\.html' "$KIOSK_ENV" 2>/dev/null; then exit 0; fi
     delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
     if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
       systemd-run --quiet --unit=crt-start-videos --on-active="${delay}s" \
@@ -256,6 +259,13 @@ case $cmd in
     cancel_boot_video
     cancel_break
     kiosk_url_set "$(scope_url)"
+    systemctl restart weather-kiosk.service
+    ;;
+  muni)
+    as_root
+    cancel_boot_video
+    cancel_break
+    kiosk_url_set "$(remote_url muni.html)"
     systemctl restart weather-kiosk.service
     ;;
   pattern | fit)

@@ -1,0 +1,76 @@
+{
+  "source": "https://www.sfmta.com/find-a-stop",
+  "checked": "2026-09-26",
+  "origin": {
+    "label": "8 Octavia Street",
+    "lat": 37.7725673,
+    "lon": -122.4233929
+  },
+  "selection": "Four nearest active boarding platforms, ranked by straight-line distance. Both directions at Haight/Gough and Market/Gough.",
+  "stops": [
+    {
+      "id": "17757",
+      "name": "Haight & Gough",
+      "direction": "INBOUND",
+      "destination": "Downtown",
+      "location": [
+        -122.422301,
+        37.773084
+      ],
+      "meters": 112,
+      "routes": [
+        "7"
+      ]
+    },
+    {
+      "id": "14954",
+      "name": "Haight & Gough",
+      "direction": "OUTBOUND",
+      "destination": "Ocean Beach",
+      "location": [
+        -122.422553,
+        37.773183
+      ],
+      "meters": 101,
+      "routes": [
+        "7"
+      ]
+    },
+    {
+      "id": "15673",
+      "name": "Market & Gough",
+      "direction": "INBOUND",
+      "destination": "Downtown / Wharf",
+      "location": [
+        -122.421991,
+        37.772875
+      ],
+      "meters": 128,
+      "routes": [
+        "F",
+        "NOWL",
+        "LOWL",
+        "NBUS",
+        "KBUS"
+      ]
+    },
+    {
+      "id": "15672",
+      "name": "Market & Gough",
+      "direction": "OUTBOUND",
+      "destination": "Castro / westbound",
+      "location": [
+        -122.421768,
+        37.773269
+      ],
+      "meters": 163,
+      "routes": [
+        "F",
+        "NOWL",
+        "LOWL",
+        "NBUS",
+        "KBUS"
+      ]
+    }
+  ]
+}
