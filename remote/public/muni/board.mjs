@@ -23,7 +23,7 @@ function render() {
   const unavailable=failed||elapsed>45000;
   const missing=unavailable?snapshot.stops.length:snapshot.stops.filter(s=>s.stale||now-s.fetchedAt>45000).length;
   const arrivals=upcomingDepartures(snapshot.stops,now,{unavailable});
-  $('stop-heading').textContent=missing?'Unavailable*':'Stop';
+  $('stop-heading').textContent=missing?'一部未取得':'停留所';
   if(!arrivals.length){message(missing?'情報を取得できません':'到着予測はありません',missing?'再接続しています':'まもなく再更新します');return;}
   const wasEmpty=showingMessage;
   if(showingMessage){$('departures').replaceChildren();showingMessage=false;}
@@ -50,7 +50,7 @@ function render() {
       destination.className='destination latin';destination.textContent=arrival.destination.replace('Castro + Market','Castro');
       const stop=document.createElement('div');stop.className='stop';
       stop.textContent=arrival.stop.name.startsWith('Haight')?'Haight\n& Gough':'Market\n& Gough';
-      const direction=document.createElement('small');direction.textContent=arrival.stop.direction==='INBOUND'?'Inbound':'Outbound';stop.append(direction);
+      const direction=document.createElement('small');direction.textContent=arrival.stop.direction==='INBOUND'?'都心方面':'郊外方面';stop.append(direction);
       row.append(service,time,destination,stop);rows.set(arrival.key,row);$('departures').append(row);
     }
     row.querySelector('.at').textContent=clock.format(new Date(arrival.arrivalAt));
