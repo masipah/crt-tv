@@ -134,16 +134,16 @@ a multi-file list (the web remote's queue) plays exactly as given — the
 commercial rotation applies unless the list includes manual Videos. `tv break`
 still cuts to the weather manually and resumes the video where it left off.
 
-**On boot** a lightweight signal-lock animation takes over tty1: the raster
-snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
-runs through color bursts, raster tunnels, vertical roll, chromatic echoes, and
-signal breakup. Chromium continues the same animation on a local opening page
-for at least 12 seconds (`CRT_SPLASH_MIN_SECONDS`), finishes on the full station
-ident, and holds it until the player takes over.
+**On boot** the MASIPAH TV logo stays lit while a cyan loading rail moves
+continuously back and forth. The console and native player use the same frames;
+there are no blank scenes or repeating intro. The player holds its first decoded
+video frame behind the loader for at least 12 seconds (`CRT_SPLASH_MIN_SECONDS`),
+then cuts straight to Channel in the same display session. Slower loading keeps
+the animation running until video is ready, without an arbitrary timeout.
 
 The default boot sequence is animation → shuffled **Channel**, with the normal
 commercial rotation. Weather is selected manually using the remote or `tv weather`.
-Starting Channel needs only the local media and web remote, with no weather or
+Starting Channel needs only the local media, with no browser, weather or
 internet data dependency. Manual Videos never join this boot rotation.
 
 For the optional weather-first sequence, set `CRT_BOOT_MODE=weather` and

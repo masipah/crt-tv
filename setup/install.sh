@@ -160,6 +160,8 @@ install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
 install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
+install -d /usr/local/lib/crt-tv/startup
+install -m 644 "$REPO_DIR"/scripts/startup/*.lua /usr/local/lib/crt-tv/startup/
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
 install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua

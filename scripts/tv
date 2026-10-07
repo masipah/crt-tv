@@ -9,6 +9,7 @@ MPV_SOCK=$RUN_DIR/mpv.sock
 ENV_FILE=/etc/crt-tv/crt-tv.env
 
 cancel_boot_video() {
+  rm -f "$RUN_DIR/startup-loader"
   systemctl stop crt-start-videos.timer 2>/dev/null || true
   if [[ $(cat "$RUN_DIR/channel-intro" 2>/dev/null || true) == pending ]]; then
     printf 'cancelled\n' >"$RUN_DIR/channel-intro"
@@ -37,7 +38,7 @@ usage: tv <command>
                      the bucket from there, with commercials. Files in
                      on-demand play once, in order, without commercials.
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autostart          (run at boot) level audio and arm the opening-to-channel handoff
+  autostart          (run at boot) level audio and start Channel behind the station loader
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   volume [0-100]     show or set the TV jack volume
@@ -347,6 +348,9 @@ case $cmd in
     fi
     install -m 644 "$tmp" "$PLAYLIST"
     rm -f "$tmp"
+    if [[ ${CRT_STARTUP_LOADER:-0} == 1 && ! -e $KIOSK_ENV ]]; then
+      : >"$RUN_DIR/startup-loader"
+    fi
     systemctl restart crt-player.service
     ;;
   break | weatherbreak)
@@ -380,7 +384,7 @@ case $cmd in
     ;;
   autostart)
     as_root
-    # The local opening arms Channel; weather-first remains a configurable option.
+    # Start Channel paused behind the native loader; weather-first is optional.
     # Both channels use the TV speaker unless silent boot is requested.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
     # Level once — no repeating sweep that could override a person's choice.
@@ -394,11 +398,14 @@ case $cmd in
     else
       mixer unmute
     fi
-    # Wipe any boot messages left on the VT without holding up multi-user boot.
-    /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
     boot_mode=$(env_get CRT_BOOT_MODE)
     if [[ ${boot_mode:-channel} == channel ]]; then
-      [[ -e $KIOSK_ENV ]] || printf 'pending\n' >"$RUN_DIR/channel-intro"
+      if [[ ! -e $KIOSK_ENV ]]; then
+        if ! CRT_STARTUP_LOADER=1 "$0" play; then
+          rm -f "$RUN_DIR/startup-loader"
+          exit 1
+        fi
+      fi
     else
       delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
       if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then

@@ -7,6 +7,11 @@ xset s off -dpms || true
 # After a weather break, `tv break` leaves a resume point (playlist index +
 # seconds) so the video picks up where it left off.
 PLAYER_ARGS=(--script=/usr/local/lib/crt-tv/loudness.lua)
+if [[ -f /run/crt-tv/startup-loader ]]; then
+  rm -f /run/crt-tv/startup-loader
+  xsetroot -bitmap /usr/local/lib/crt-tv/kiosk-ext/boot-card.xbm -fg white -bg black || true
+  PLAYER_ARGS+=(--pause --force-window=immediate --script=/usr/local/lib/crt-tv/startup)
+fi
 if [[ -f /run/crt-tv/resume ]]; then
   read -r pos start _ </run/crt-tv/resume || true
   rm -f /run/crt-tv/resume
