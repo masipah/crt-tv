@@ -21,8 +21,8 @@ const TV_COMMANDS = new Set([
   'weather', 'scope', 'muni', 'stop', 'pause', 'next', 'prev', 'mute',
   'shuffle', 'commercials', 'reboot',
 ]);
-// Fixed upload buckets: the ordered channel and the random interstitials
-const BUCKETS = ['videos', 'commercials'];
+// Keep the existing channel directory; on-demand clips never enter its schedule.
+const BUCKETS = ['videos', 'commercials', 'on-demand'];
 
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
@@ -176,6 +176,7 @@ async function status() {
     units: { ws4kp, kiosk, player },
     mode,
     playing,
+    manualPlayback: player && await fs.access('/run/crt-tv/manual-playback').then(() => true, () => false),
     muted: audio.muted
       || await fs.access(MUTED_FLAG).then(() => true, () => false),
     volume: audio.volume,
@@ -300,10 +301,8 @@ async function dropLoudness(rel) {
 
 // prune entries for gone files; queue analysis for anything new
 async function syncLoudness() {
-  const rels = [
-    ...(await listBucket('videos')).map((n) => `videos/${n}`),
-    ...(await listBucket('commercials')).map((n) => `commercials/${n}`),
-  ];
+  const rels = (await Promise.all(BUCKETS.map(async (bucket) =>
+    (await listBucket(bucket)).map((n) => `${bucket}/${n}`)))).flat();
   const map = await loadLoudness();
   let dirty = false;
   for (const k of Object.keys(map)) {
@@ -481,6 +480,7 @@ async function handleRequest(req, res) {
         mediaDir: MEDIA_DIR,
         videos: await listBucket('videos'),
         commercials: await listBucket('commercials'),
+        'on-demand': await listBucket('on-demand'),
       });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
@@ -537,7 +537,7 @@ async function handleRequest(req, res) {
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/move') {
-      // Move a file to the other bucket
+      // Move a file between library sections
       const { from, to } = JSON.parse(await readBody(req) || '{}');
       if (!from || typeof from !== 'string') {
         return sendJson(res, 400, { error: 'from: file path required' });

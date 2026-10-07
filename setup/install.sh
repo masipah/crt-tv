@@ -242,7 +242,7 @@ else
   echo "  $cf_ini (from setup/cloudflare.ini.example) to enable"
 fi
 
-install -d -m 775 -o crt -g crt /srv/media /srv/media/videos /srv/media/commercials
+install -d -m 775 -o crt -g crt /srv/media /srv/media/videos /srv/media/commercials /srv/media/on-demand
 # Migrate a pre-bucket layout: loose videos at the top level belong to the
 # videos bucket now
 find /srv/media -maxdepth 1 -type f \( \

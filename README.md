@@ -116,10 +116,14 @@ tv status           # what's running
 tv reboot           # reboot the Pi (also a button on the web remote)
 ```
 
-The media library is two buckets: **videos** (the channel — plays top to
-bottom in your saved order and loops) and **commercials** (after every 4th
-video, one plays at random, picked fresh each time by the player itself).
-Shuffle is on by default at boot and affects the videos only — the
+The media library has three sections: **Channel** (`videos/`, plays in your
+saved order and loops), **Commercials** (`commercials/`, one random spot after
+every 4th channel video), and **Videos** (`on-demand/`, manual playback only).
+Upload or move clips into Videos to keep them out of the boot/channel rotation.
+Playing these clips (or a queue containing any of them) plays the selected files
+once, in order, without commercials. There are no filename-specific exclusions;
+putting a clip back in Channel makes it part of the broadcast again.
+Shuffle is on by default at boot and affects the Channel only — the
 commercial cadence is by count, so it holds either way — and the
 "No commercials" toggle suspends the spots entirely until turned off (or
 the next boot). A shuffled channel re-rolls itself on every full pass:
@@ -127,8 +131,8 @@ when the looping playlist wraps around, the order is shuffled fresh, so
 no two passes play the same sequence.
 Playing a single bucket video continues through the bucket from that point;
 a multi-file list (the web remote's queue) plays exactly as given — the
-commercial rotation applies either way. `tv break` still cuts to the weather
-manually and resumes the video where it left off.
+commercial rotation applies unless the list includes manual Videos. `tv break`
+still cuts to the weather manually and resumes the video where it left off.
 
 **On boot** a lightweight signal-lock animation takes over tty1: the raster
 snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
@@ -172,8 +176,8 @@ is still loading.
 ### Web remote
 
 Open `http://<pi-address>:8090/` from any browser on your network for a
-remote control: switch channels (weather, scope, videos, off), upload into
-either bucket (videos or commercials) straight from your phone or laptop,
+remote control: switch channels (weather, Muni, scope, Channel, off), upload into
+Channel, Commercials or manual Videos straight from your phone or laptop,
 drag to reorder the channel, and tap any row for actions (play, queue,
 rename, move between buckets, delete) — plus transport, a draggable position
 bar to skip or rewind within the playing video, mute/shuffle/no-commercials
@@ -187,7 +191,7 @@ app with its own icon, running fullscreen.
 
 **The videos bucket order is the broadcast schedule**: it persists (hidden
 `.order.json`/`.playorder.m3u` files in `MEDIA_DIR`) and is exactly what
-plays when you hit Play videos. The play queue, by contrast, is a one-off
+plays when you select Channel. The play queue, by contrast, is a one-off
 list for live mixing and vanishes when replaced.
 
 No authentication — it's meant for your LAN. Don't port-forward it.
