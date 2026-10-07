@@ -1,1 +1,0 @@
-../../../scripts/kiosk-ext/splash-frames.js

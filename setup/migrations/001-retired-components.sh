@@ -38,3 +38,31 @@ fi
 # No module is removed while another process might still be using it.
 modprobe -r snd_aloop 2>/dev/null || true
 systemctl daemon-reload
+
+# Retired: WeatherStar 3000+ was removed from this project
+if [[ -f /etc/systemd/system/ws3kp.service || -d /opt/ws3kp ]]; then
+  echo "==> Removing retired WeatherStar 3000+"
+  systemctl disable --now ws3kp.service 2>/dev/null || true
+  rm -f /etc/systemd/system/ws3kp.service
+  rm -rf /opt/ws3kp
+fi
+
+echo "==> Removing retired desktop audio stack"
+systemctl disable --now crt-bridge.service 2>/dev/null || true
+loginctl disable-linger crt 2>/dev/null || true
+rm -f /etc/systemd/system/crt-bridge.service
+rm -f /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
+rm -f /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
+rm -f /etc/wireplumber/wireplumber.conf.d/50-crt-tv.conf
+rm -f /etc/systemd/system/user@.service.d/crt-tv-rt.conf
+rm -f /usr/local/lib/crt-tv/bridge-feed.sh /usr/local/lib/crt-tv/metadata.lua
+for u in pipewire.service pipewire.socket pipewire-pulse.service \
+  pipewire-pulse.socket wireplumber.service; do
+  rm -f "/etc/systemd/user/$u.d/crt-tv.conf"
+  rmdir "/etc/systemd/user/$u.d" 2>/dev/null || true
+done
+for p in pipewire-alsa; do
+  apt-get purge -y "$p" 2>/dev/null || true
+done
+systemctl daemon-reload
+

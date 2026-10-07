@@ -89,7 +89,7 @@ if [[ ${CRT_VIDEO_DELAY_SECONDS:-0} =~ ^[0-9]+$ ]] && (( ${CRT_VIDEO_DELAY_SECON
 fi
 
 # Hold the opening on fresh boots; manual channel switches stay fast.
-if [[ ($URL == *:8080* || $URL == */boot.html*) && ! -e /run/crt-tv/kiosk.env ]]; then
+if [[ $URL == *:8080* && ! -e /run/crt-tv/kiosk.env ]]; then
   splash_seconds=${CRT_SPLASH_MIN_SECONDS:-12}
   [[ $splash_seconds =~ ^[0-9]+$ ]] || splash_seconds=12
   (( splash_seconds > 60 )) && splash_seconds=60

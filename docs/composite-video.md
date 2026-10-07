@@ -47,7 +47,7 @@ vt.global_cursor_default=0 logo.nologo systemd.show_status=false console=tty3
   teletext splash on tty1. Switch VTs or use `journalctl` to read it.
 
 The install script also disables `getty@tty1` — the boot sequence on tty1 is
-splash → weather kiosk, with no login prompt in between. Console logins remain
+loader → Channel, with no login prompt in between. Console logins remain
 available on tty2+ (Ctrl+Alt+F2) and over SSH.
 
 ## Verifying after reboot

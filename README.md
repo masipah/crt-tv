@@ -43,7 +43,7 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
    instead; that installs the checkout as-is, without syncing.
 
 3. After reboot the Pi switches to composite out and the PVM shows the
-   WeatherStar 4000+.
+   MASIPAH loading sequence followed by Channel.
 
 ### Setting your location
 
@@ -346,4 +346,4 @@ that service has ended. Each platform can recover independently.
 No personal API key or account is required. The agency's public browser
 configuration is discovered on the server and never included in API responses.
 The board honors CRT fit/overscan settings. Selecting it cancels the pending
-weather-to-video transition. Boot still starts with weather.
+weather-to-video transition. Boot starts with the MASIPAH loader followed by Channel.

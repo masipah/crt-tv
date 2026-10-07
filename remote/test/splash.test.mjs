@@ -54,12 +54,3 @@ test('manual Weather switches never create the station opening',()=>{
   assert.equal(f.timers.size,0);
   assert.equal(f.context.crtFinishSplash,undefined);
 });
-
-test('legacy opening keeps moving during its player handoff',()=>{
-  const f=fixture('?crtSplashMin=12','8090','/boot.html');
-  assert.ok(f.rectangles()>0);
-  f.setTime(11999);assert.equal(f.context.crtFinishSplash(true,true),false);
-  f.setTime(12000);assert.equal(f.context.crtFinishSplash(true,true),true);
-  assert.equal(f.timers.size,1);f.advance();
-  assert.equal(f.removed(),0);assert.equal(f.paints.length,0);
-});

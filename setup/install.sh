@@ -45,7 +45,7 @@ elif [[ $(systemctl show crt-player.service -p LoadState --value) == not-found ]
 fi
 
 # Retire old network-audio components before apt reads their repository.
-bash "$REPO_DIR/setup/remove-network-audio.sh"
+bash "$REPO_DIR/setup/migrate.sh"
 
 echo "==> Installing packages"
 apt-get update || true
@@ -92,14 +92,6 @@ else
 fi
 (cd /opt/ws4kp && sudo -u crt npm install --no-audit --no-fund)
 
-# Retired: WeatherStar 3000+ was removed from this project
-if [[ -f /etc/systemd/system/ws3kp.service || -d /opt/ws3kp ]]; then
-  echo "==> Removing retired WeatherStar 3000+"
-  systemctl disable --now ws3kp.service 2>/dev/null || true
-  rm -f /etc/systemd/system/ws3kp.service
-  rm -rf /opt/ws3kp
-fi
-
 echo "==> Hardening for hard power-off"
 # This appliance gets unplugged, not shut down. ext4's journal plus the
 # fsck.repair=yes already on the kernel command line survive that fine —
@@ -131,26 +123,8 @@ amixer -M -q -c Headphones sset PCM 75% 2>/dev/null \
   || amixer -M -q sset PCM 75% 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
-echo "==> Removing retired desktop audio stack"
-systemctl disable --now crt-bridge.service 2>/dev/null || true
 echo "==> Restoring appliance startup settings"
 bash "$REPO_DIR/setup/fast-boot.sh"
-loginctl disable-linger crt 2>/dev/null || true
-rm -f /etc/systemd/system/crt-bridge.service
-rm -f /etc/pipewire/pipewire.conf.d/50-crt-tv-airplay.conf
-rm -f /etc/pipewire/pipewire.conf.d/60-crt-tv-bridge.conf
-rm -f /etc/wireplumber/wireplumber.conf.d/50-crt-tv.conf
-rm -f /etc/systemd/system/user@.service.d/crt-tv-rt.conf
-rm -f /usr/local/lib/crt-tv/bridge-feed.sh /usr/local/lib/crt-tv/metadata.lua
-for u in pipewire.service pipewire.socket pipewire-pulse.service \
-  pipewire-pulse.socket wireplumber.service; do
-  rm -f "/etc/systemd/user/$u.d/crt-tv.conf"
-  rmdir "/etc/systemd/user/$u.d" 2>/dev/null || true
-done
-for p in pipewire-alsa; do
-  apt-get purge -y "$p" 2>/dev/null || true
-done
-systemctl daemon-reload
 
 echo "==> Installing config, scripts, and systemd units"
 install -d /etc/crt-tv
@@ -189,8 +163,8 @@ install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webm
   /usr/local/lib/crt-tv/remote/public/
 install -m 644 "$REPO_DIR"/remote/public/icons/* /usr/local/lib/crt-tv/remote/public/icons/
 
-install -d /usr/local/lib/crt-tv/remote/public/boot
-install -m 644 "$REPO_DIR"/remote/public/boot/* /usr/local/lib/crt-tv/remote/public/boot/
+rm -rf /usr/local/lib/crt-tv/remote/public/boot
+rm -f /usr/local/lib/crt-tv/remote/public/boot.html
 
 install -d /usr/local/lib/crt-tv/remote/public/muni
 install -m 644 "$REPO_DIR"/remote/public/muni/* /usr/local/lib/crt-tv/remote/public/muni/
@@ -270,7 +244,7 @@ Done. Reboot to switch output from HDMI to composite:
 
   sudo reboot
 
-The PVM should come up with the WeatherStar 4000+. Control with `tv`
+The PVM should show the MASIPAH loader followed by Channel. Control with `tv`
 (tv weather / tv play <file> / tv status) or from a browser
 on your network:  http://<this-pi>:8090/
 EOF

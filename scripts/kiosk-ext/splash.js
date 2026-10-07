@@ -1,6 +1,6 @@
 // Keep a seamless loader visible until WeatherStar is ready.
 (() => {
-  if ((location.port !== '8080' && location.pathname !== '/boot.html') || window.top !== window) return;
+  if (location.port !== '8080' || window.top !== window) return;
   const params = new URLSearchParams(location.search);
   // Only the boot launcher supplies this marker. Manual Weather switches
   // must not create an animation, even with a zero minimum hold.
@@ -47,12 +47,10 @@
   }
   // ready.js calls only when a real, playing weather screen is behind us.
   // No timeout may reveal the loading screen or start the video timer early.
-  globalThis.crtFinishSplash = (ready = true, hold = false) => {
+  globalThis.crtFinishSplash = (ready = true) => {
     if (finished) return true;
     requested = ready && performance.now() - started >= minimum;
     if (!requested) return false;
-    // Legacy boot pages keep animating during their handoff.
-    if (hold) return true;
     if (!revealing) {
       revealing = true;
       // Give the composed weather frame a paint before the single cut.

@@ -1,31 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
-const script = readFileSync(new URL('../public/boot/start.mjs', import.meta.url),'utf8');
-
-function fixture(hostname='127.0.0.1') {
-  let tick, ready=false, status=202, calls=0, cleared=false;
-  vm.runInNewContext(script, {
-    location:{hostname}, AbortSignal,
-    crtFinishSplash:(visible,hold)=>{assert.equal(visible,true);assert.equal(hold,true);return ready;},
-    setInterval:fn=>{tick=fn;return 1;}, clearInterval:()=>{cleared=true;},
-    fetch:async url=>{assert.equal(url,'/api/boot/channel');calls++;return {status};},
-  });
-  return {tick:async()=>{if(!cleared)await tick?.();}, calls:()=>calls, cleared:()=>cleared,
-    ready:()=>{ready=true;}, success:()=>{status=200;}};
-}
-
-test('Channel waits for the complete ident, retries readiness, and starts only once',async()=>{
-  const f=fixture();await f.tick();assert.equal(f.calls(),0);
-  f.ready();await f.tick();assert.equal(f.calls(),1);assert.equal(f.cleared(),false);
-  f.success();await f.tick();assert.equal(f.calls(),2);assert.equal(f.cleared(),true);
-  await f.tick();assert.equal(f.calls(),2);
-});
-test('a LAN browser viewing the opening cannot start the boot channel',async()=>{
-  const f=fixture('10.0.0.101');f.ready();await f.tick();assert.equal(f.calls(),0);
-});
-
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

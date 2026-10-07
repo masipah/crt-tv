@@ -19,10 +19,6 @@ VOFF=$(( (ROWS - 24) / 2 ))
 E=$'\033'
 RS="${E}[0m"
 fD="${E}[0;37m"
-fR="${E}[1;31m"
-fY="${E}[1;33m"
-fB="${E}[1;34m"
-fM="${E}[1;35m"
 fC="${E}[1;36m"
 fW="${E}[1;37m"
 bK="${E}[40m"
@@ -59,13 +55,6 @@ pause() {
 center_col() {
   CENTER_COL=$(( (COLS - $1) / 2 + 1 + ${2:-0} ))
   (( CENTER_COL < 1 )) && CENTER_COL=1
-}
-
-draw_line() { # row, width, colour
-  local row=$1 width=$2 color=$3
-  center_col "$width"
-  rep "$width" '▄'
-  put "$row" "$CENTER_COL" "${color}${REP}"
 }
 
 # MASIPAH TV
