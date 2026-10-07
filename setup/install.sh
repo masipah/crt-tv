@@ -37,6 +37,13 @@ if [[ -z ${CRT_TV_SYNCED:-} ]] && [[ -z $REPO_DIR || $REPO_DIR == /opt/crt-tv ]]
   CRT_TV_SYNCED=1 exec /opt/crt-tv/setup/install.sh
 fi
 
+# Capture display state before provisioning restarts any service.
+display_mode=off
+if systemctl is-active --quiet crt-player.service; then display_mode=player
+elif systemctl is-active --quiet weather-kiosk.service; then display_mode=kiosk
+elif [[ $(systemctl show crt-player.service -p LoadState --value) == not-found ]]; then display_mode=boot
+fi
+
 # Retire old network-audio components before apt reads their repository.
 bash "$REPO_DIR/setup/remove-network-audio.sh"
 
@@ -200,8 +207,7 @@ systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-auto
 # via SSH, or Ctrl+Alt+F2 for a console (logind still spawns getty on tty2+).
 systemctl disable getty@tty1.service 2>/dev/null || true
 systemctl restart ws4kp.service crt-remote.service
-# Restart the kiosk too so display-stack changes take effect on re-runs
-systemctl restart weather-kiosk.service
+bash "$REPO_DIR/setup/restart-display.sh" "$display_mode"
 
 echo "==> HTTPS for the web remote (Let's Encrypt via Cloudflare DNS-01)"
 # Opt-in: needs HTTPS_DOMAIN in /etc/crt-tv/crt-tv.env and a Cloudflare
