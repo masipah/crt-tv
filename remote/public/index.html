@@ -343,7 +343,7 @@
       pointer-events: none;
       transition: opacity 0.12s ease;
     }
-    #commercials-list .acts { right: 10px; }
+    #commercials-list .acts, #on-demand-list .acts { right: 10px; }
     ul.list li:hover .acts, ul.list li:focus-within .acts {
       opacity: 1;
       pointer-events: auto;
@@ -454,7 +454,7 @@
         <button id="btn-muni" onclick="post('/api/tv/muni')" title="Live arrivals at nearby Muni stops">Muni</button>
         <button id="btn-scope" onclick="post('/api/tv/scope')"
                 title="Oscilloscope — a beam figure and live readouts, no signal required">Scope</button>
-        <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Videos</button>
+        <button id="btn-video" onclick="post('/api/play', { paths: ['videos'] })">Channel</button>
         <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
       </div>
 
@@ -479,8 +479,9 @@
       <div class="sec-head"><h2>Upload</h2></div>
       <div class="card">
         <div class="seg" id="upload-seg" style="margin-bottom: 12px">
-          <button class="active" data-bucket="videos">Videos</button>
+          <button class="active" data-bucket="videos">Channel</button>
           <button data-bucket="commercials">Commercials</button>
+          <button data-bucket="on-demand">Videos</button>
         </div>
         <label class="btn-primary">
           Choose videos…
@@ -518,13 +519,21 @@
         <p id="commercials-empty" class="hint" hidden>No commercials yet — the channel plays uninterrupted.</p>
       </section>
 
+      <section>
+        <div class="sec-head"><h2>Videos</h2></div>
+        <p class="hint">Play when you choose. Never included in the channel rotation;
+          no commercials, shuffle or looping.</p>
+        <ul class="list" id="on-demand-list"></ul>
+        <p id="on-demand-empty" class="hint" hidden>No videos yet — upload here or move clips from Channel.</p>
+      </section>
+
       <section id="queue-sec" hidden>
         <div class="sec-head">
           <h2>Queue</h2>
           <button class="link" onclick="playQueue()">Play</button>
           <button class="link" onclick="clearQueue()">Clear</button>
         </div>
-        <p class="hint">One-off list for live mixing — doesn't touch the channel order.</p>
+        <p class="hint">One-off list for live mixing — doesn't touch the channel order. Queues containing Videos play once without commercials.</p>
         <ul class="list" id="queue-list"></ul>
       </section>
     </main>
@@ -579,14 +588,18 @@
       err('Remote unreachable — is the Pi up?');
       return;
     }
-    $('mode').textContent = MODE_LABEL[st.mode];
+    $('mode').textContent = st.mode === 'video'
+      ? (st.manualPlayback ? 'Now showing: Videos' : 'Now showing: Channel') : MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');
     $('btn-muni').classList.toggle('active', st.mode === 'muni');
     $('btn-scope').classList.toggle('active', st.mode === 'scope');
-    $('btn-video').classList.toggle('active', st.mode === 'video');
+    $('btn-video').classList.toggle('active', st.mode === 'video' && !st.manualPlayback);
     $('btn-off').classList.toggle('active', st.mode === 'off');
-    for (const b of ['btn-prev', 'btn-pause', 'btn-next', 'btn-shuffle', 'btn-nocomm']) {
+    for (const b of ['btn-prev', 'btn-pause', 'btn-next']) {
       $(b).disabled = st.mode !== 'video';
+    }
+    for (const b of ['btn-shuffle', 'btn-nocomm']) {
+      $(b).disabled = st.mode !== 'video' || st.manualPlayback;
     }
     $('btn-mute').classList.toggle('on', !!st.muted);
     if (st.volume != null && Date.now() > volHold && document.activeElement !== $('vol')) {
@@ -692,21 +705,23 @@
   });
 
   // ---- library ------------------------------------------------------------
-  let lib = { videos: [], commercials: [] };
+  const bucketLabels = { videos: 'Channel', commercials: 'Commercials', 'on-demand': 'Videos' };
+  const buckets = Object.keys(bucketLabels);
+  let lib = { videos: [], commercials: [], 'on-demand': [] };
 
   async function loadMedia() {
     lib = await (await fetch('/api/media')).json();
-    renderBucket('videos');
-    renderBucket('commercials');
+    buckets.forEach(renderBucket);
   }
 
   function rowActions(bucket, rel, n) {
-    const other = bucket === 'videos' ? 'commercials' : 'videos';
     openSheet(n, [
       { label: 'Play now', fn: () => play(rel) },
       { label: 'Add to queue', fn: () => addToQueue(rel) },
       { label: 'Rename…', fn: () => renameFile(rel, n) },
-      { label: `Move to ${other}`, fn: () => libAction('/api/move', { from: rel, to: other }) },
+      ...buckets.filter((b) => b !== bucket).map((b) => ({
+        label: `Move to ${bucketLabels[b]}`, fn: () => libAction('/api/move', { from: rel, to: b }),
+      })),
       { label: 'Delete…', danger: true, fn: () => del(rel) },
     ]);
   }
@@ -715,8 +730,7 @@
   // to open the action sheet instead.
   const desktopMQ = matchMedia('(min-width: 880px)');
   desktopMQ.addEventListener('change', () => {
-    renderBucket('videos');
-    renderBucket('commercials');
+    buckets.forEach(renderBucket);
     renderQueue();
     $('channel-hint').textContent = hintText();
   });
@@ -726,7 +740,6 @@
     + (desktopMQ.matches ? 'hover a row for actions.' : 'tap a row for actions.');
 
   function inlineActions(bucket, rel, n) {
-    const other = bucket === 'videos' ? 'commercials' : 'videos';
     const acts = document.createElement('span');
     acts.className = 'acts';
     const mk = (label, fn, cls) => {
@@ -740,8 +753,8 @@
       mk('Play', () => play(rel)),
       mk('Queue', () => addToQueue(rel)),
       mk('Rename', () => renameFile(rel, n)),
-      mk(bucket === 'videos' ? '→ Comm' : '→ Videos',
-        () => libAction('/api/move', { from: rel, to: other })),
+      ...buckets.filter((b) => b !== bucket).map((b) =>
+        mk('→ ' + bucketLabels[b], () => libAction('/api/move', { from: rel, to: b }))),
       mk('✕', () => del(rel), 'danger'),
     );
     return acts;

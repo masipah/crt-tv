@@ -45,6 +45,26 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.equal((await fetch(base + '/api/weather/started', { method: 'POST', headers: {
       Origin:'http://127.0.0.1:8080', 'X-Forwarded-For':'10.0.0.123',
     }})).status, 403);
+    // The schedule includes only Channel, regardless of filenames. Moves into
+    // manual Videos remove a clip; moving it back restores normal broadcast.
+    for (const [bucket, name] of [['videos', 'Rez.mp4'], ['commercials', 'ad.mp4'], ['on-demand', 'manual.mp4']]) {
+      const uploaded = await fetch(base + `/api/upload?dir=${bucket}&name=${name}`, {method:'PUT', body:'test video'});
+      assert.equal(uploaded.status, 200);
+    }
+    let media = await (await fetch(base + '/api/media')).json();
+    assert.deepEqual(media['on-demand'], ['manual.mp4']);
+    const schedule = () => fs.readFile(path.join(dir, '.playorder.m3u'), 'utf8');
+    assert.equal((await schedule()).trim(), path.join(dir, 'videos', 'Rez.mp4'));
+    assert.equal((await post('/api/move', {from:'videos/Rez.mp4', to:'on-demand'})).status, 200);
+    assert.equal((await schedule()).trim(), '');
+    assert.equal((await post('/api/play', {paths:['on-demand/Rez.mp4']})).status, 200);
+    assert.match(await fs.readFile(process.env.CRT_TEST_LOG, 'utf8'), /tv play .*on-demand\/Rez\.mp4/);
+    assert.equal((await post('/api/move', {from:'on-demand/Rez.mp4', to:'videos'})).status, 200);
+    assert.equal((await schedule()).trim(), path.join(dir, 'videos', 'Rez.mp4'));
+    media = await (await fetch(base + '/api/media')).json();
+    assert.deepEqual(media.videos, ['Rez.mp4']);
+    assert.deepEqual(media.commercials, ['ad.mp4']);
+    assert.deepEqual(media['on-demand'], ['manual.mp4']);
     const page = await (await fetch(base)).text();
     assert.doesNotMatch(page, /airplay|owntone|receiver|turnHeaders/i);
     assert.match(page, /btn-muni/);
