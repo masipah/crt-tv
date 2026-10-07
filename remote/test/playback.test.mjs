@@ -32,7 +32,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
       .replace('[[ $EUID -ne 0 ]]', 'false');
     const player = (await fs.readFile(new URL('../../scripts/play-media-x.sh', import.meta.url), 'utf8'))
       .replaceAll('/run/crt-tv', run);
-    await fs.writeFile(path.join(dir, 'tv'), tv);
+    await fs.writeFile(path.join(dir, 'tv'), tv, {mode:0o755});
     await fs.writeFile(path.join(dir, 'player'), player);
     const env = {...process.env, PATH:`${bin}:${process.env.PATH}`};
     const play = (...args) => execFile('bash', [path.join(dir, 'tv'), 'play', ...args], {env});
@@ -55,6 +55,18 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await play(channel[1]);
     assert.equal((await playlist())[0], channel[1]);
     assert.deepEqual(new Set(await playlist()), new Set(channel));
+    // Boot completes into the channel only while armed. Manual Weather wins
+    // over a delayed/retried ready signal from an old opening page.
+    await fs.writeFile(path.join(run, 'channel-intro'), 'pending');
+    await execFile('bash', [path.join(dir, 'tv'), 'boot-channel-ready'], {env});
+    assert.equal((await fs.readFile(path.join(run, 'channel-intro'), 'utf8')).trim(), 'started');
+    assert.deepEqual(new Set(await playlist()), new Set(channel));
+    await fs.writeFile(path.join(run, 'channel-intro'), 'pending');
+    await execFile('bash', [path.join(dir, 'tv'), 'weather'], {env});
+    assert.equal((await fs.readFile(path.join(run, 'channel-intro'), 'utf8')).trim(), 'cancelled');
+    await fs.writeFile(path.join(run, 'playlist.m3u'), 'unchanged');
+    await execFile('bash', [path.join(dir, 'tv'), 'boot-channel-ready'], {env});
+    assert.equal((await fs.readFile(path.join(run, 'playlist.m3u'), 'utf8')), 'unchanged');
     // Even a broad media-root request must not sweep in manual clips or ads.
     await fs.rm(path.join(media, '.playorder.m3u'));
     await play(media);

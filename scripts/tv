@@ -10,6 +10,9 @@ ENV_FILE=/etc/crt-tv/crt-tv.env
 
 cancel_boot_video() {
   systemctl stop crt-start-videos.timer 2>/dev/null || true
+  if [[ $(cat "$RUN_DIR/channel-intro" 2>/dev/null || true) == pending ]]; then
+    printf 'cancelled\n' >"$RUN_DIR/channel-intro"
+  fi
   if [[ -e $RUN_DIR/weather-intro ]]; then printf 'cancelled\n' >"$RUN_DIR/weather-intro"; fi
 }
 
@@ -34,7 +37,7 @@ usage: tv <command>
                      the bucket from there, with commercials. Files in
                      on-demand play once, in order, without commercials.
   break [secs]       cut to the weather now, then back to the video (default 120s)
-  autostart          (run at boot) level audio; optionally start videos after weather
+  autostart          (run at boot) level audio and arm the opening-to-channel handoff
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
   volume [0-100]     show or set the TV jack volume
@@ -211,6 +214,19 @@ cmd=${1:-status}
 [[ $# -gt 0 ]] && shift
 
 case $cmd in
+  boot-channel-ready)
+    as_root
+    [[ $(cat "$RUN_DIR/channel-intro" 2>/dev/null || true) == pending ]] || exit 0
+    [[ ! -e $KIOSK_ENV ]] || exit 0
+    systemctl is-active --quiet weather-kiosk.service || exit 0
+    printf 'launching\n' >"$RUN_DIR/channel-intro"
+    if "$0" play; then
+      printf 'started\n' >"$RUN_DIR/channel-intro"
+    else
+      printf 'pending\n' >"$RUN_DIR/channel-intro"
+      exit 1
+    fi
+    ;;
   weather-ready)
     as_root
     # Called by the local kiosk only after its first weather screen is visible.
@@ -364,9 +380,8 @@ case $cmd in
     ;;
   autostart)
     as_root
-    # The kiosk starts weather. An optional one-shot timer starts videos later;
-    # without that setting, weather stays until someone changes channels.
-    # Weather starts on the local TV speaker unless silent boot is requested.
+    # The local opening arms Channel; weather-first remains a configurable option.
+    # Both channels use the TV speaker unless silent boot is requested.
     : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
     # Level once — no repeating sweep that could override a person's choice.
     boot_volume=$(env_get CRT_BOOT_VOLUME)
@@ -381,9 +396,14 @@ case $cmd in
     fi
     # Wipe any boot messages left on the VT without holding up multi-user boot.
     /usr/local/lib/crt-tv/clear-console.sh 2>/dev/null || true
-    delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
-    if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
-      printf 'pending\n' >"$RUN_DIR/weather-intro"
+    boot_mode=$(env_get CRT_BOOT_MODE)
+    if [[ ${boot_mode:-channel} == channel ]]; then
+      [[ -e $KIOSK_ENV ]] || printf 'pending\n' >"$RUN_DIR/channel-intro"
+    else
+      delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
+      if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
+        printf 'pending\n' >"$RUN_DIR/weather-intro"
+      fi
     fi
     ;;
   normalize)

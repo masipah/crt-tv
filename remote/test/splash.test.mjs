@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-function fixture(search='?crtSplashMin=0') {
+function fixture(search='?crtSplashMin=0', port='8080', pathname='/') {
   let removed=0,rectangles=0,now=0,id=0;
   const timers=new Map(), paints=[];
   const canvas={style:{},remove:()=>{removed++;},getContext:()=>({fillRect:()=>{rectangles++;},fillText:()=>{}})};
   const window={};window.top=window;
-  const context=vm.createContext({window,location:{port:'8080',search},URLSearchParams,performance:{now:()=>now},
+  const context=vm.createContext({window,location:{port,pathname,search},URLSearchParams,performance:{now:()=>now},
     document:{createElement:()=>canvas,documentElement:{appendChild:()=>{}}},
     requestAnimationFrame:fn=>paints.push(fn),
     setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:n=>timers.delete(n)});
@@ -51,4 +51,14 @@ test('manual Weather switches never create the station opening',()=>{
   assert.equal(f.rectangles(),0);
   assert.equal(f.timers.size,0);
   assert.equal(f.context.crtFinishSplash,undefined);
+});
+
+// The same ident runs on the standalone local boot page without revealing weather.
+test('channel opening holds its final station card for the player handoff',()=>{
+  const f=fixture('?crtSplashMin=12','8090','/boot.html');
+  assert.ok(f.rectangles()>0);
+  f.setTime(12000);assert.equal(f.context.crtFinishSplash(true,true),false);
+  f.park();f.setTime(30000);
+  assert.equal(f.context.crtFinishSplash(true,true),true);
+  assert.equal(f.removed(),0);assert.equal(f.paints.length,0);
 });

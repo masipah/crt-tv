@@ -9,6 +9,12 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
+# Fresh boots show the local station opening, then start the broadcast channel.
+# A manual channel selection writes kiosk.env and always takes precedence.
+if [[ ${CRT_BOOT_MODE:-channel} == channel && ! -e /run/crt-tv/kiosk.env ]]; then
+  URL="http://127.0.0.1:${CRT_REMOTE_PORT:-8090}/boot.html"
+fi
+
 # Where the weather is: a ws4kp search string (ZIP code, or "City, ST"),
 # default San Francisco 94102. Forced on every launch — the location belongs
 # to the appliance, not to whatever a browser profile remembers or an old
@@ -81,9 +87,8 @@ if [[ ${CRT_VIDEO_DELAY_SECONDS:-0} =~ ^[0-9]+$ ]] && (( ${CRT_VIDEO_DELAY_SECON
   URL="$URL&crtWeatherIntro=1"
 fi
 
-# A fresh boot has no channel override in /run. Let WeatherStar load behind
-# the ident for at least this long; later manual channel switches stay fast.
-if [[ $URL == *:8080* && ! -e /run/crt-tv/kiosk.env ]]; then
+# Hold the opening on fresh boots; manual channel switches stay fast.
+if [[ ($URL == *:8080* || $URL == */boot.html*) && ! -e /run/crt-tv/kiosk.env ]]; then
   splash_seconds=${CRT_SPLASH_MIN_SECONDS:-12}
   [[ $splash_seconds =~ ^[0-9]+$ ]] || splash_seconds=12
   (( splash_seconds > 60 )) && splash_seconds=60
@@ -108,8 +113,7 @@ until curl -fsS --max-time 2 -o /dev/null "$URL"; do
   sleep 2
 done
 
-# Keep the boot animation running throughout the readiness wait. Stop it and
-# hand tty1 to X only when the local weather server is available.
+# Keep the console animation until the local opening/weather page is available.
 sudo -n /usr/local/lib/crt-tv/handoff-console.sh
 
 exec xinit /usr/local/lib/crt-tv/kiosk-x.sh -- :0 vt1 -nolisten tcp -nocursor
