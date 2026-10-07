@@ -137,17 +137,19 @@ still cuts to the weather manually and resumes the video where it left off.
 **On boot** a lightweight signal-lock animation takes over tty1: the raster
 snaps into place, RGB channels converge, and a compact MASIPAH TV station ident
 runs through color bursts, raster tunnels, vertical roll, chromatic echoes, and
-signal breakup. Chromium continues the same animation over the loading weather
-page. On a fresh boot, that overlay plays for at least 12 seconds
-(`CRT_SPLASH_MIN_SECONDS`) and stays until a real weather screen is loaded and
-playing. It then disappears directly into weather. System and weather loading
-continue underneath; manual channel switches do not repeat the minimum hold.
-There is no timeout that exposes an unfinished loading screen.
+signal breakup. Chromium continues the same animation on a local opening page
+for at least 12 seconds (`CRT_SPLASH_MIN_SECONDS`), finishes on the full station
+ident, and holds it until the player takes over.
 
-The default boot sequence is animation → weather → shuffled videos with the
-normal commercial rotation. `CRT_VIDEO_DELAY_SECONDS=120` starts the playlist
-two minutes after the animation hands off to visible weather, not after power-on.
-Set it to 0 to keep weather on until a channel is selected manually.
+The default boot sequence is animation → shuffled **Channel**, with the normal
+commercial rotation. Weather is selected manually using the remote or `tv weather`.
+Starting Channel needs only the local media and web remote, with no weather or
+internet data dependency. Manual Videos never join this boot rotation.
+
+For the optional weather-first sequence, set `CRT_BOOT_MODE=weather` and
+`CRT_VIDEO_DELAY_SECONDS=120`. This counts two minutes after visible weather;
+set the delay to 0 to keep weather on until a channel is selected manually.
+Manual channel switches do not replay the opening.
 
 Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (75% by default). Set
 `CRT_BOOT_MUTED=1` for silent startup or `CRT_BOOT_VOLUME=100` when controlling
@@ -198,15 +200,17 @@ No authentication — it's meant for your LAN. Don't port-forward it.
 
 ### Boot sequence and local audio
 
-Set `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather presentation followed
-by the video library. The kiosk signals when the first real weather screen is
+Boot opens directly into Channel after the MASIPAH ident. Weather can be selected
+manually at any time. For the optional weather-first startup, set
+`CRT_BOOT_MODE=weather` and `CRT_VIDEO_DELAY_SECONDS=120` for two minutes of weather
+presentation followed by Channel. The kiosk signals when the first real weather screen is
 visible and playing, after the boot animation is removed; animation time,
 loading time and the progress screen do not count. The animation finishes on
 the complete station logo, then cuts to weather after its visible images, fonts
 and layout have settled. Chromium opens at the X display size so its default
 window cannot leave unused strips along the bottom and right. If
-weather never becomes ready, it stays on weather. Without the setting, weather
-stays on until someone selects Videos.
+weather never becomes ready, it stays on weather. With a delay of 0, weather
+stays on until someone selects Channel.
 Choosing a channel manually cancels the pending boot transition.
 Weather music uses the TV's analogue jack and starts unmuted at boot. Set
 `CRT_BOOT_MUTED=1` to request silent boot.

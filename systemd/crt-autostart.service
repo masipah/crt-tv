@@ -1,5 +1,5 @@
 [Unit]
-Description=crt-tv boot audio and optional weather-to-video startup
+Description=crt-tv boot audio and opening-to-channel startup
 After=weather-kiosk.service
 
 [Service]

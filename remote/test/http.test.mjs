@@ -42,6 +42,12 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     }
     assert.equal((await post('/api/airplay/claim')).status, 404);
     assert.equal((await post('/api/weather/started')).status, 403);
+    assert.equal((await post('/api/boot/channel')).status, 403);
+    assert.equal((await fetch(base + '/api/boot/channel', {method:'POST', headers:{Origin:base}})).status, 202);
+    assert.equal((await fetch(base + '/api/boot/channel', {method:'POST', headers:{Origin:base,'X-Forwarded-For':'10.0.0.123'}})).status, 403);
+    for (const asset of ['/boot.html','/boot/start.mjs','/boot/splash.mjs','/boot/splash-frames.mjs']) {
+      assert.equal((await fetch(base + asset)).status, 200);
+    }
     assert.equal((await fetch(base + '/api/weather/started', { method: 'POST', headers: {
       Origin:'http://127.0.0.1:8080', 'X-Forwarded-For':'10.0.0.123',
     }})).status, 403);

@@ -180,6 +180,9 @@ install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webm
   /usr/local/lib/crt-tv/remote/public/
 install -m 644 "$REPO_DIR"/remote/public/icons/* /usr/local/lib/crt-tv/remote/public/icons/
 
+install -d /usr/local/lib/crt-tv/remote/public/boot
+install -m 644 "$REPO_DIR"/remote/public/boot/* /usr/local/lib/crt-tv/remote/public/boot/
+
 install -d /usr/local/lib/crt-tv/remote/public/muni
 install -m 644 "$REPO_DIR"/remote/public/muni/* /usr/local/lib/crt-tv/remote/public/muni/
 

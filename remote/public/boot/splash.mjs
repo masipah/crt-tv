@@ -1,0 +1,1 @@
+../../../scripts/kiosk-ext/splash.js
