@@ -1,11 +1,9 @@
 import { upcomingDepartures, formatWait, serviceLabel } from './display.mjs?v=8';
 const $ = id => document.getElementById(id);
-const q = new URLSearchParams(location.search), clamp = (n,a,b) => Math.min(b,Math.max(a,n));
-const [fx,fy] = (q.get('crtFit') || '1').split('x').map(Number);
-const [sx,sy] = (q.get('crtShift') || '0,0').split(',').map(Number);
+import '../display-fit.mjs';
+const {fitX:x,fitY:y,shiftX:sx,shiftY:sy} = globalThis.crtDisplayFit(location.search);
 function fit() {
-  const x=clamp(fx||1,.5,1), y=clamp(fy||fx||1,.5,1);
-  $('screen').style.transform=`translate(${(innerWidth-innerWidth*x)/2+clamp(sx||0,-100,100)}px,${(innerHeight-innerHeight*y)/2+clamp(sy||0,-100,100)}px) scale(${innerWidth*x/720},${innerHeight*y/480})`;
+  $('screen').style.transform=`translate(${(innerWidth-innerWidth*x)/2+sx}px,${(innerHeight-innerHeight*y)/2+sy}px) scale(${innerWidth*x/720},${innerHeight*y/480})`;
 }
 addEventListener('resize',fit);fit();
 const clock = new Intl.DateTimeFormat('ja-JP',{timeZone:'America/Los_Angeles',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});

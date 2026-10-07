@@ -24,14 +24,7 @@
   // tubes never crop the two axes alike, plus a raster-pixel nudge for
   // off-centre scans. Position against the viewport so upstream wrapper padding
   // cannot move the weather canvas or leave an uneven vertical gap.
-  const q = new URLSearchParams(window.location.search);
-  const clampFit = (v) => Math.min(1, Math.max(0.5, v || 1));
-  const [rawFx, rawFy] = (q.get('crtFit') || '1').split('x').map(parseFloat);
-  const fitX = clampFit(rawFx);
-  const fitY = clampFit(rawFy ?? rawFx);
-  const clampShift = (v) => Math.min(100, Math.max(-100, v || 0));
-  const [shiftX, shiftY] = (q.get('crtShift') || '0,0').split(',')
-    .map((v) => clampShift(parseFloat(v)));
+  const {fitX,fitY,shiftX,shiftY} = globalThis.crtDisplayFit(location.search);
 
   const apply = () => {
     if (!document.body || !document.body.classList.contains('kiosk')) return;

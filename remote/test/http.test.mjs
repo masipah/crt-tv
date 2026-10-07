@@ -31,8 +31,10 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     const commands = await fs.readFile(process.env.CRT_TEST_LOG, 'utf8');
     assert.match(commands, /\/usr\/local\/bin\/tv pause/);
     assert.match(commands, /\/usr\/local\/bin\/tv next/);
-    assert.match(commands, /Headphones sset PCM 25%/);
+    assert.match(commands, /tv volume 25/);
     assert.equal((await post('/api/audio/volume', {volume:101})).status, 400);
+    assert.equal((await post('/api/audio/volume', {volume:1.5})).status, 400);
+    for(const asset of ['/remote.css','/remote.mjs','/display-fit.mjs'])assert.equal((await fetch(base+asset)).status,200);
     assert.equal((await post('/api/player/seek', {seconds:-1})).status, 400);
     assert.equal((await post('/api/play', {paths:[]})).status, 400);
     assert.equal((await post('/api/tv/not-a-command')).status, 404);

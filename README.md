@@ -36,11 +36,21 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
    sudo reboot
    ```
 
-   **Updating later is the same command** — it re-syncs `/opt/crt-tv` to the
-   latest `main` and reinstalls, from any directory.
+   **Updating the TV app later** uses a separate command:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/masipah/crt-tv/main/setup/update.sh | sudo bash
+   ```
+
+   This updates the app and units, preserves the selected display, and creates
+   a runtime backup with rollback if deployment or the remote's readiness check
+   fails. It leaves OS packages, networking, boot configuration and WeatherStar
+   untouched. Use `install.sh` for initial provisioning or intentional system
+   setup changes. System package updates are a separate maintenance task.
 
    Developers can run `sudo setup/install.sh` from their own checkout
-   instead; that installs the checkout as-is, without syncing.
+   instead; that installs the checkout as-is, without syncing. `sudo bash setup/update.sh`
+   from a developer checkout deploys just its app files.
 
 3. After reboot the Pi switches to composite out and the PVM shows the
    MASIPAH loading sequence followed by Channel.
@@ -347,3 +357,15 @@ No personal API key or account is required. The agency's public browser
 configuration is discovered on the server and never included in API responses.
 The board honors CRT fit/overscan settings. Selecting it cancels the pending
 weather-to-video transition. Boot starts with the MASIPAH loader followed by Channel.
+
+### Development checks
+
+Run `node --test remote/test/*.test.mjs`, `lua tools/test/startup.lua`, and
+`bash -n scripts/*.sh setup/*.sh setup/migrations/*.sh`. Regenerate loader assets
+with `python3 tools/build-splash-frames.py`; committed assets should remain
+unchanged. GitHub Actions runs these checks for pull requests.
+
+Full provisioning records the installed WeatherStar commit in
+`/etc/crt-tv/ws4kp-revision` and uses its lockfile with `npm ci`. To intentionally
+change it, run provisioning with `WS4KP_REVISION` set to a full tested commit SHA.
+App-only updates do not access the WeatherStar checkout.

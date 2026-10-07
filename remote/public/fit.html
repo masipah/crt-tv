@@ -11,7 +11,8 @@
 </head>
 <body>
 <canvas id="pattern"></canvas>
-<script>
+<script type="module">
+import '/display-fit.mjs';
 // Overscan calibration pattern (`tv pattern`). Two things on screen:
 //
 //  - Rulers, drawn on the FULL raster: ticks every 0.5% in from each edge,
@@ -30,14 +31,7 @@
 (() => {
   'use strict';
 
-  const q = new URLSearchParams(window.location.search);
-  const clampFit = (v) => Math.min(1, Math.max(0.5, v || 1));
-  const [rawFx, rawFy] = (q.get('crtFit') || '1').split('x').map(parseFloat);
-  const FIT_X = clampFit(rawFx);
-  const FIT_Y = clampFit(rawFy ?? rawFx);
-  const clampShift = (v) => Math.min(100, Math.max(-100, v || 0));
-  const [SHIFT_X, SHIFT_Y] = (q.get('crtShift') || '0,0').split(',')
-    .map((v) => clampShift(parseFloat(v)));
+  const {fitX:FIT_X,fitY:FIT_Y,shiftX:SHIFT_X,shiftY:SHIFT_Y} = globalThis.crtDisplayFit(location.search);
 
   const canvas = document.getElementById('pattern');
   const ctx = canvas.getContext('2d', { alpha: false });
