@@ -15,29 +15,31 @@ function fixture(search='?crtSplashMin=0', port='8080', pathname='/') {
   for(const name of ['splash-frames.js','splash.js'])vm.runInContext(readFileSync(new URL(`../../scripts/kiosk-ext/${name}`,import.meta.url),'utf8'),context);
   const advance=()=>{const [key,timer]=[...timers][0];now+=timer.ms;timers.delete(key);timer.fn();};
   return {context,timers,paints,advance,removed:()=>removed,rectangles:()=>rectangles,setTime:t=>{now=t;},
-    park:()=>{for(let n=0;timers.size&&n<250;n++)advance();assert.equal(timers.size,0);},
     paint:()=>{while(paints.length)paints.shift()();}};
 }
-test('every original frame renders, then the ident parks on the final logo before the cut',()=>{
-  const f=fixture();assert.ok(f.context.crtSplashFrames.length>50);
-  for(let i=0;i<f.context.crtSplashFrames.length;i++)f.advance();
-  assert.ok(f.rectangles()>1000);assert.equal(f.context.crtFinishSplash(),false);
-  f.park();assert.equal(f.removed(),0);
-  f.setTime(30000);assert.equal(f.context.crtFinishSplash(),false);
-  assert.equal(f.removed(),0);f.paint();assert.equal(f.removed(),1);
+test('the logo stays lit through repeated seamless cycles until readiness',()=>{
+  const f=fixture();assert.equal(f.context.crtSplashFrames.length,96);
+  for(const [ansi, seconds] of f.context.crtSplashFrames) {
+    assert.ok(ansi.includes('█'));assert.ok(!ansi.includes('\x1b[2J'));
+    assert.equal(seconds,0.04);
+  }
+  for(let i=0;i<300;i++)f.advance();
+  assert.ok(f.rectangles()>1000);assert.equal(f.removed(),0);
+  assert.equal(f.context.crtFinishSplash(),false);
+  f.paint();assert.equal(f.removed(),1);
   assert.equal(f.context.crtFinishSplash(),true);
 });
-test('twelve-second minimum cannot end in the middle of an animation frame',()=>{
+test('twelve-second minimum continues animating instead of parking',()=>{
   const f=fixture('?crtSplashMin=12');
   f.setTime(11999);assert.equal(f.context.crtFinishSplash(),false);
-  f.advance();assert.equal(f.timers.size,1);
+  assert.equal(f.paints.length,0);assert.equal(f.timers.size,1);
   f.setTime(12000);assert.equal(f.context.crtFinishSplash(),false);
-  f.park();assert.equal(f.context.crtFinishSplash(),false);assert.equal(f.paints.length,0);
-  f.setTime(30000);f.context.crtFinishSplash();f.paint();assert.equal(f.removed(),1);
+  assert.equal(f.timers.size,1);f.paint();assert.equal(f.removed(),1);
 });
-test('lost weather readiness cancels a queued cut and holds the final card',()=>{
-  const f=fixture();f.context.crtFinishSplash();f.park();f.setTime(30000);
-  f.context.crtFinishSplash();f.context.crtFinishSplash(false);f.paint();assert.equal(f.removed(),0);
+test('lost weather readiness cancels a queued cut and keeps animating',()=>{
+  const f=fixture();f.context.crtFinishSplash();
+  f.context.crtFinishSplash(false);f.paint();assert.equal(f.removed(),0);
+  assert.equal(f.timers.size,1);
   f.context.crtFinishSplash();f.paint();assert.equal(f.removed(),1);
 });
 test('slow loading never auto-dismisses the ident',()=>{
@@ -53,12 +55,11 @@ test('manual Weather switches never create the station opening',()=>{
   assert.equal(f.context.crtFinishSplash,undefined);
 });
 
-// The same ident runs on the standalone local boot page without revealing weather.
-test('channel opening holds its final station card for the player handoff',()=>{
+test('legacy opening keeps moving during its player handoff',()=>{
   const f=fixture('?crtSplashMin=12','8090','/boot.html');
   assert.ok(f.rectangles()>0);
-  f.setTime(12000);assert.equal(f.context.crtFinishSplash(true,true),false);
-  f.park();f.setTime(30000);
-  assert.equal(f.context.crtFinishSplash(true,true),true);
+  f.setTime(11999);assert.equal(f.context.crtFinishSplash(true,true),false);
+  f.setTime(12000);assert.equal(f.context.crtFinishSplash(true,true),true);
+  assert.equal(f.timers.size,1);f.advance();
   assert.equal(f.removed(),0);assert.equal(f.paints.length,0);
 });

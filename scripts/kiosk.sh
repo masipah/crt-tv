@@ -9,10 +9,11 @@ set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
 
-# Fresh boots show the local station opening, then start the broadcast channel.
+# Channel boots start directly in mpv, avoiding a browser/X restart at the cut.
 # A manual channel selection writes kiosk.env and always takes precedence.
 if [[ ${CRT_BOOT_MODE:-channel} == channel && ! -e /run/crt-tv/kiosk.env ]]; then
-  URL="http://127.0.0.1:${CRT_REMOTE_PORT:-8090}/boot.html"
+  echo "kiosk: Channel boot uses the native player loader"
+  exec sleep infinity
 fi
 
 # Where the weather is: a ws4kp search string (ZIP code, or "City, ST"),

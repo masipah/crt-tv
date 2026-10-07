@@ -20,7 +20,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await fs.writeFile(path.join(media, '.playorder.m3u'), channel.join('\n') + '\n');
     await fs.writeFile(path.join(run, 'shuffle'), '');
     await fs.writeFile(path.join(dir, 'env'), `MEDIA_DIR=${media}\n`);
-    for (const cmd of ['systemctl', 'xset', 'socat']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
+    for (const cmd of ['systemctl', 'xset', 'xsetroot', 'socat', 'amixer']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
     // Deterministic shuf double (macOS has no coreutils shuf).
     await fs.writeFile(path.join(bin, 'shuf'), '#!/bin/sh\nawk \'{a[NR]=$0} END {for(i=NR;i>0;i--) print a[i]}\' "$@"\n', {mode:0o755});
     await fs.writeFile(path.join(bin, 'mpv'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', {mode:0o755});
@@ -55,6 +55,19 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await play(channel[1]);
     assert.equal((await playlist())[0], channel[1]);
     assert.deepEqual(new Set(await playlist()), new Set(channel));
+    // Autostart queues Channel behind a native loader. The flag is consumed
+    // once; subsequent manual playback/resumes must not replay the opening.
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
+    assert.deepEqual(new Set(await playlist()), new Set(channel));
+    const bootFlags = await flags();
+    assert.match(bootFlags, /--pause/);
+    assert.match(bootFlags, /--force-window=immediate/);
+    assert.match(bootFlags, /crt-tv\/startup/);
+    assert.doesNotMatch(await flags(), /crt-tv\/startup|--pause/);
+    await fs.writeFile(path.join(run, 'kiosk.env'), 'manual Weather');
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
+    assert.doesNotMatch(await flags(), /crt-tv\/startup/);
+    await fs.rm(path.join(run, 'kiosk.env'));
     // Boot completes into the channel only while armed. Manual Weather wins
     // over a delayed/retried ready signal from an old opening page.
     await fs.writeFile(path.join(run, 'channel-intro'), 'pending');

@@ -1,4 +1,4 @@
-// Continue the original opening on the local boot page or loading WeatherStar.
+// Keep a seamless loader visible until WeatherStar is ready.
 (() => {
   if ((location.port !== '8080' && location.pathname !== '/boot.html') || window.top !== window) return;
   const params = new URLSearchParams(location.search);
@@ -15,7 +15,7 @@
   const started = performance.now();
   const seconds = Number(params.get('crtSplashMin'));
   const minimum = Number.isFinite(seconds) ? Math.min(60, Math.max(0, seconds)) * 1000 : 12000;
-  let frame = 0, timer, finished = false, requested = false, parkedAt = null, revealing = false;
+  let frame = 0, timer, finished = false, requested = false, revealing = false;
   function draw() {
     const [ansi, seconds] = globalThis.crtSplashFrames[frame];
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 720, 480);
@@ -42,11 +42,6 @@
         }
       }
     }
-    // Finish the running sequence on its complete station ident, never a glitch.
-    if (requested && ansi === globalThis.crtSplashFinal) {
-      parkedAt = performance.now();
-      return;
-    }
     frame = (frame + 1) % globalThis.crtSplashFrames.length;
     timer = setTimeout(draw, seconds * 1000);
   }
@@ -55,8 +50,8 @@
   globalThis.crtFinishSplash = (ready = true, hold = false) => {
     if (finished) return true;
     requested = ready && performance.now() - started >= minimum;
-    if (!requested || parkedAt === null || performance.now() - parkedAt < 650) return false;
-    // Channel boot keeps the final ident visible until the player claims X.
+    if (!requested) return false;
+    // Legacy boot pages keep animating during their handoff.
     if (hold) return true;
     if (!revealing) {
       revealing = true;
