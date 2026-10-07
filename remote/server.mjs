@@ -5,6 +5,7 @@ import { createMuniFeed } from './muni.mjs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { createWriteStream, promises as fs } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
@@ -200,10 +201,23 @@ async function loadOrder() {
   catch { return {}; }
 }
 
+// Serialize file commits and metadata edits, including analysis results.
+let libraryQueue = Promise.resolve();
+function libraryChange(action) {
+  const result = libraryQueue.then(action);
+  libraryQueue = result.catch(() => {});
+  return result;
+}
+async function atomicJson(file, value) {
+  const tmp = `${file}.${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(tmp, JSON.stringify(value, null, 1));
+    await fs.rename(tmp, file);
+  } finally { await fs.rm(tmp, {force:true}); }
+}
+
 async function saveOrder(order) {
-  const tmp = `${ORDER_FILE}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(order, null, 1));
-  await fs.rename(tmp, ORDER_FILE);
+  await atomicJson(ORDER_FILE, order);
 }
 
 async function orderedChildNames(order, dirAbs, dirRel) {
@@ -233,7 +247,7 @@ async function listBucket(bucket) {
 async function regeneratePlaylist() {
   const files = (await listBucket('videos'))
     .map((n) => path.join(MEDIA_DIR, 'videos', n));
-  const tmp = `${PLAYORDER_FILE}.tmp`;
+  const tmp = `${PLAYORDER_FILE}.${randomUUID()}.tmp`;
   await fs.writeFile(tmp, files.length ? `${files.join('\n')}\n` : '');
   await fs.rename(tmp, PLAYORDER_FILE);
 }
@@ -249,9 +263,7 @@ async function loadLoudness() {
 }
 
 async function saveLoudness(map) {
-  const tmp = `${LOUDNESS_FILE}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(map, null, 1));
-  await fs.rename(tmp, LOUDNESS_FILE);
+  await atomicJson(LOUDNESS_FILE, map);
 }
 
 // integrated loudness (LUFS) + true peak (dBTP) from ffmpeg's ebur128
@@ -273,12 +285,17 @@ let analysisChain = Promise.resolve();
 function queueAnalysis(rel) {
   analysisChain = analysisChain.then(async () => {
     if ((await loadLoudness())[rel]) return;
-    const r = await analyzeFile(path.join(MEDIA_DIR, rel));
-    if (r) {
+    const abs = path.join(MEDIA_DIR, rel);
+    const before = await fs.stat(abs).catch(() => null);
+    if (!before) return;
+    const r = await analyzeFile(abs);
+    if (r) await libraryChange(async () => {
+      const after = await fs.stat(abs).catch(() => null);
+      if (!after || after.ino !== before.ino || after.mtimeMs !== before.mtimeMs || after.size !== before.size) return;
       const map = await loadLoudness();
       map[rel] = r;
       await saveLoudness(map);
-    }
+    });
   }).catch(() => {});
 }
 
@@ -349,12 +366,24 @@ async function uniqueMediaPath(dirAbs, name) {
   }
 }
 
+// A hard link commits a complete file without ever replacing an existing name,
+// even if another process adds a file between the name check and the commit.
+async function commitFile(from, dir, name) {
+  while (true) {
+    const dest = await uniqueMediaPath(dir, name);
+    try { await fs.link(from, dest); }
+    catch (error) { if (error.code === 'EEXIST') continue; throw error; }
+    await fs.unlink(from);
+    return dest;
+  }
+}
+
 // Raw-body upload (PUT with ?name=): streamed to a hidden .part file first so
-// in-flight uploads never show up in the library, renamed into place when done.
+// in-flight uploads never show up in the library, committed without replacing another file when done.
 async function handleUpload(req, res, url) {
   const name = path.basename(url.searchParams.get('name') ?? '').trim();
   const ext = path.extname(name).toLowerCase();
-  if (!name || !VIDEO_EXT.has(ext)) {
+  if (!name || name.startsWith('.') || /[\r\n]/.test(name) || !VIDEO_EXT.has(ext)) {
     return sendJson(res, 400, {
       error: `need a video filename (${[...VIDEO_EXT].join(' ')})`,
     });
@@ -365,8 +394,7 @@ async function handleUpload(req, res, url) {
   }
   const destDir = path.join(MEDIA_DIR, dirRel);
   await fs.mkdir(destDir, { recursive: true });
-  const dest = await uniqueMediaPath(destDir, name);
-  const tmp = path.join(MEDIA_DIR, `.upload-${process.pid}-${Date.now()}.part`);
+  const tmp = path.join(MEDIA_DIR, `.upload-${randomUUID()}.part`);
   try {
     await pipeline(req, createWriteStream(tmp, { flags: 'wx' }));
     // Flush to the SD card before the rename makes it visible — a power cut
@@ -374,15 +402,18 @@ async function handleUpload(req, res, url) {
     const fh = await fs.open(tmp, 'r+');
     await fh.sync();
     await fh.close();
-    await fs.rename(tmp, dest);
+    const dest = await libraryChange(async () => {
+      const committed = await commitFile(tmp, destDir, name);
+      await appendToDirOrder(dirRel, path.basename(committed));
+      await regeneratePlaylist();
+      queueAnalysis(`${dirRel}/${path.basename(committed)}`);
+      return committed;
+    });
+    sendJson(res, 200, { ok: true, name: path.basename(dest) });
   } catch (err) {
     await fs.rm(tmp, { force: true });
     throw err;
   }
-  await appendToDirOrder(dirRel, path.basename(dest));
-  await regeneratePlaylist();
-  queueAnalysis(`${dirRel}/${path.basename(dest)}`);
-  sendJson(res, 200, { ok: true, name: path.basename(dest) });
 }
 
 // The web UI only touches what lives under MEDIA_DIR (the CLI has no such
@@ -562,11 +593,11 @@ async function handleRequest(req, res) {
       if (!st?.isFile()) return sendJson(res, 400, { error: 'only files can be moved' });
       const toAbs = path.join(MEDIA_DIR, to);
       await fs.mkdir(toAbs, { recursive: true });
-      const dest = await uniqueMediaPath(toAbs, path.basename(from));
-      await fs.rename(fromAbs, dest);
+      const dest = await commitFile(fromAbs, toAbs, path.basename(from));
       await removeFromOrder(parentOf(from), path.basename(from));
       await appendToDirOrder(to, path.basename(dest));
       await rekeyLoudness(from, `${to}/${path.basename(dest)}`);
+      queueAnalysis(`${to}/${path.basename(dest)}`);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/rename') {
@@ -596,11 +627,11 @@ async function handleRequest(req, res) {
       // its exact slot in the schedule under its new name
       const order = await loadOrder();
       const { names } = await orderedChildNames(order, dirAbs, dirRel);
-      const dest = await uniqueMediaPath(dirAbs, newName);
-      await fs.rename(fromAbs, dest);
+      const dest = await commitFile(fromAbs, dirAbs, newName);
       order[dirRel] = names.map((n) => (n === oldName ? path.basename(dest) : n));
       await saveOrder(order);
       await rekeyLoudness(from, `${dirRel}/${path.basename(dest)}`);
+      queueAnalysis(`${dirRel}/${path.basename(dest)}`);
       await regeneratePlaylist();
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/order') {
@@ -645,6 +676,9 @@ const server = http.createServer((req, res) => {
   const action = () => handleRequest(req, res);
   if (req.method === 'POST' && (changesPlayback(pathname) || pathname === '/api/weather/started' || pathname === '/api/boot/channel')) {
     commandQueue = commandQueue.then(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
+  } else if ((req.method === 'DELETE' && pathname === '/api/media')
+    || (req.method === 'POST' && ['/api/order','/api/move','/api/rename'].includes(pathname))) {
+    libraryChange(action).catch(error => sendJson(res, 500, {error:error.message}));
   } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });
 
@@ -668,14 +702,13 @@ fs.readdir(MEDIA_DIR)
 
 // Make sure the buckets exist, then sync the persistent play order with
 // reality (files added/removed over ssh, etc.)
-Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: true })))
+const libraryReady = libraryChange(() => Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: true })))
   .then(() => regeneratePlaylist())
-  .then(() => syncLoudness())
-  .catch(() => {});
+  .then(() => syncLoudness()));
 
-server.listen(PORT, () => {
+libraryReady.then(() => server.listen(PORT, () => {
   console.log(`crt-tv remote listening on :${PORT}, media dir ${MEDIA_DIR}`);
-});
+})).catch(error => { console.error('Library initialization failed:', error); process.exit(1); });
 
 // Exported for HTTP integration tests; the runtime remains a single server.
 export { server };

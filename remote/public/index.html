@@ -883,7 +883,10 @@
 
       const move = (ev) => { clientY = ev.clientY; };
       const finish = () => {
+        if (!active) return;
         active = false;
+        h.removeEventListener('pointerup', finish);
+        h.removeEventListener('pointercancel', finish);
         render();
         h.removeEventListener('pointermove', move);
         li.classList.remove('dragging');
@@ -960,11 +963,11 @@
     }
   });
 
-  function uploadOne(file, label) {
+  function uploadOne(file, label, bucket) {
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name)
-        + '&dir=' + encodeURIComponent(uploadBucket));
+        + '&dir=' + encodeURIComponent(bucket));
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable) {
           const pct = Math.round(100 * ev.loaded / ev.total);
@@ -976,7 +979,7 @@
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch {}
         $('upload-status').textContent = xhr.status === 200
-          ? `Uploaded ${data.name} to ${uploadBucket}`
+          ? `Uploaded ${data.name} to ${bucket}`
           : `Upload failed: ${data.error || xhr.statusText}`;
         resolve();
       };
@@ -991,10 +994,11 @@
   $('file-input').addEventListener('change', async (e) => {
     const files = [...e.target.files];
     if (!files.length) return;
+    const bucket = uploadBucket;
     $('file-input').disabled = true;
     $('upload-bar').hidden = false;
     for (let i = 0; i < files.length; i += 1) {
-      await uploadOne(files[i], `${i + 1} of ${files.length}`);
+      await uploadOne(files[i], `${i + 1} of ${files.length}`, bucket);
       await loadMedia();
     }
     $('upload-bar').hidden = true;
