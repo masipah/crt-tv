@@ -11,9 +11,6 @@ ENV_FILE=/etc/crt-tv/crt-tv.env
 cancel_boot_video() {
   rm -f "$RUN_DIR/startup-loader"
   systemctl stop crt-start-videos.timer 2>/dev/null || true
-  if [[ $(cat "$RUN_DIR/channel-intro" 2>/dev/null || true) == pending ]]; then
-    printf 'cancelled\n' >"$RUN_DIR/channel-intro"
-  fi
   if [[ -e $RUN_DIR/weather-intro ]]; then printf 'cancelled\n' >"$RUN_DIR/weather-intro"; fi
 }
 
@@ -215,19 +212,6 @@ cmd=${1:-status}
 [[ $# -gt 0 ]] && shift
 
 case $cmd in
-  boot-channel-ready)
-    as_root
-    [[ $(cat "$RUN_DIR/channel-intro" 2>/dev/null || true) == pending ]] || exit 0
-    [[ ! -e $KIOSK_ENV ]] || exit 0
-    systemctl is-active --quiet weather-kiosk.service || exit 0
-    printf 'launching\n' >"$RUN_DIR/channel-intro"
-    if "$0" play; then
-      printf 'started\n' >"$RUN_DIR/channel-intro"
-    else
-      printf 'pending\n' >"$RUN_DIR/channel-intro"
-      exit 1
-    fi
-    ;;
   weather-ready)
     as_root
     # Called by the local kiosk only after its first weather screen is visible.
