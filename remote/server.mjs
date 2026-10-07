@@ -456,6 +456,18 @@ async function handleRequest(req, res) {
   const { pathname } = url;
   try {
     if (req.method === 'GET' && pathname === '/api/muni') return sendJson(res, 200, await muniFeed());
+    if (req.method === 'POST' && pathname === '/api/boot/channel') {
+      // Only the local opening may complete an armed boot handoff.
+      const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+      const origins = ['127.0.0.1', 'localhost'].map(host => `http://${host}:${server.address().port}`);
+      if (!local || req.headers['x-forwarded-for'] || !origins.includes(req.headers.origin)) {
+        return sendJson(res, 403, { error: 'Local boot kiosk only' });
+      }
+      const intro = await fs.readFile('/run/crt-tv/channel-intro', 'utf8').catch(() => '');
+      if (intro.trim() === 'pending') await tv('boot-channel-ready');
+      const state = await fs.readFile('/run/crt-tv/channel-intro', 'utf8').catch(() => '');
+      return sendJson(res, /started|cancelled/.test(state) ? 200 : 202, {state:state.trim() || 'waiting'});
+    }
     if (req.method === 'POST' && pathname === '/api/weather/started') {
       // The embedded kiosk is on :8080; never accept a LAN/proxied signal.
       const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
@@ -631,7 +643,7 @@ let commandQueue = Promise.resolve();
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const action = () => handleRequest(req, res);
-  if (req.method === 'POST' && (changesPlayback(pathname) || pathname === '/api/weather/started')) {
+  if (req.method === 'POST' && (changesPlayback(pathname) || pathname === '/api/weather/started' || pathname === '/api/boot/channel')) {
     commandQueue = commandQueue.then(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
   } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });
