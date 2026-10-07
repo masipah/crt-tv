@@ -31,7 +31,8 @@ usage: tv <command>
   pattern            show the overscan calibration grid (tune KIOSK_FIT_*)
   play [path]...     play the videos bucket in order (no args), or the given
                      files/folders; a single bucket video continues through
-                     the bucket from there. Commercials cut in automatically.
+                     the bucket from there, with commercials. Files in
+                     on-demand play once, in order, without commercials.
   break [secs]       cut to the weather now, then back to the video (default 120s)
   autostart          (run at boot) level audio; optionally start videos after weather
   pause              toggle pause
@@ -188,6 +189,8 @@ find_media() { # <dir>
   local dir lib m3u f matched=0
   dir=$(realpath "$1")
   lib=$(realpath "$MEDIA_DIR" 2>/dev/null) || lib=""
+  # A media-root request means the channel, never the other libraries.
+  if [[ -n $lib && $dir == "$lib" ]]; then dir="$lib/videos"; fi
   m3u="$lib/.playorder.m3u"
   if [[ -n $lib && -f $m3u && ($dir == "$lib" || $dir == "$lib"/*) ]]; then
     while IFS= read -r f; do
@@ -282,11 +285,18 @@ case $cmd in
       rm -f "$tmp"
       exit 1
     fi
+    # Library membership determines playback, never a title/filename exception.
+    # Any explicitly queued on-demand clip makes this a finite, ad-free session.
+    manual=0
+    manual_root=$(realpath "$MEDIA_DIR/on-demand" 2>/dev/null || true)
+    while IFS= read -r file; do
+      if [[ -n $manual_root && $file == "$manual_root"/* ]]; then manual=1; fi
+    done <"$tmp"
     # A single bucket video plays like a channel: continue through the whole
     # videos bucket from that point (a multi-path list — e.g. the web queue —
     # plays exactly as given).
     selected=0
-    if [[ $# -eq 1 && $(wc -l <"$tmp") -eq 1 ]]; then
+    if [[ $manual -eq 0 && $# -eq 1 && $(wc -l <"$tmp") -eq 1 ]]; then
       only=$(<"$tmp")
       lib_root=$(realpath "$MEDIA_DIR/videos" 2>/dev/null || true)
       if [[ -n $lib_root && $only == "$lib_root"/* ]]; then
@@ -304,7 +314,7 @@ case $cmd in
     # --shuffle, which would scramble away the video the user just picked.
     # A picked video stays first; whole-bucket plays shuffle fully;
     # explicit lists (the queue) are literal and stay untouched.
-    if [[ -f $RUN_DIR/shuffle ]]; then
+    if [[ $manual -eq 0 && -f $RUN_DIR/shuffle ]]; then
       if [[ $selected -eq 1 ]]; then
         { head -n 1 "$tmp"; tail -n +2 "$tmp" | shuf; } >"$tmp.s"
         mv "$tmp.s" "$tmp"
@@ -314,6 +324,11 @@ case $cmd in
       fi
     fi
     cancel_break
+    if [[ $manual -eq 1 ]]; then
+      : >"$RUN_DIR/manual-playback"
+    else
+      rm -f "$RUN_DIR/manual-playback"
+    fi
     install -m 644 "$tmp" "$PLAYLIST"
     rm -f "$tmp"
     systemctl restart crt-player.service
@@ -411,11 +426,11 @@ case $cmd in
     # plays until toggled off or reboot.
     if [[ -f $RUN_DIR/shuffle ]]; then
       rm -f "$RUN_DIR/shuffle"
-      mpv_try 'playlist-unshuffle'
+      [[ -f $RUN_DIR/manual-playback ]] || mpv_try 'playlist-unshuffle'
       echo "shuffle: OFF"
     else
       : >"$RUN_DIR/shuffle"
-      mpv_try 'playlist-shuffle'
+      [[ -f $RUN_DIR/manual-playback ]] || mpv_try 'playlist-shuffle'
       echo "shuffle: ON"
     fi
     ;;

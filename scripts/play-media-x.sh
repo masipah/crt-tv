@@ -6,16 +6,26 @@ xset s off -dpms || true
 
 # After a weather break, `tv break` leaves a resume point (playlist index +
 # seconds) so the video picks up where it left off.
-RESUME_ARGS=()
+PLAYER_ARGS=(--script=/usr/local/lib/crt-tv/loudness.lua)
 if [[ -f /run/crt-tv/resume ]]; then
   read -r pos start _ </run/crt-tv/resume || true
   rm -f /run/crt-tv/resume
-  if [[ -n ${pos:-} ]]; then RESUME_ARGS+=("--playlist-start=$pos"); fi
-  if [[ -n ${start:-} ]]; then RESUME_ARGS+=("--start=$start"); fi
+  if [[ -n ${pos:-} ]]; then PLAYER_ARGS+=("--playlist-start=$pos"); fi
+  if [[ -n ${start:-} ]]; then PLAYER_ARGS+=("--start=$start"); fi
 fi
 # Note: shuffle mode is baked into the playlist file by `tv play` — no
 # --shuffle here, so the first entry is always what the user picked and
 # weather-break resumes line up with the file.
+
+# Channel sessions loop, reshuffle and insert ads. Manual Videos end after the
+# selected clips; keep loudness normalization but load no broadcast scripts.
+if [[ ! -f /run/crt-tv/manual-playback ]]; then
+  PLAYER_ARGS+=(
+    --script=/usr/local/lib/crt-tv/commercials.lua
+    --script=/usr/local/lib/crt-tv/reshuffle.lua
+    --loop-playlist=inf
+  )
+fi
 
 # --volume=100: mpv's own softvol stays out of the way — the sink volume
 # (remote slider / tv volume) is the one volume control
@@ -35,9 +45,5 @@ exec mpv \
   --panscan="${CRT_PANSCAN:-1.0}" \
   --log-file=/run/crt-tv/mpv.log \
   --input-ipc-server=/run/crt-tv/mpv.sock \
-  --script=/usr/local/lib/crt-tv/commercials.lua \
-  --script=/usr/local/lib/crt-tv/loudness.lua \
-  --script=/usr/local/lib/crt-tv/reshuffle.lua \
-  --loop-playlist=inf \
   --playlist=/run/crt-tv/playlist.m3u \
-  "${RESUME_ARGS[@]}"
+  "${PLAYER_ARGS[@]}"
