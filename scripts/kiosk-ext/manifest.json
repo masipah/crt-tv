@@ -15,7 +15,7 @@
         "http://localhost/fit.html*"
       ],
       "css": ["hide.css"],
-      "js": ["splash-frames.js", "splash.js", "fill.js", "ready.js"],
+      "js": ["display-fit.js", "splash-frames.js", "splash.js", "fill.js", "ready.js"],
       "run_at": "document_start",
       "all_frames": true
     }

@@ -66,3 +66,12 @@ for p in pipewire-alsa; do
 done
 systemctl daemon-reload
 
+
+install -d /srv/media/videos
+# Migrate a pre-bucket layout: loose videos at the top level belong to the
+# videos bucket now
+[[ ! -d /srv/media ]] || find /srv/media -maxdepth 1 -type f \( \
+  -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o -iname '*.mov' -o \
+  -iname '*.m4v' -o -iname '*.mpg' -o -iname '*.mpeg' -o -iname '*.ts' -o \
+  -iname '*.webm' \) -exec mv -n {} /srv/media/videos/ \;
+

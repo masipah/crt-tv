@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# crt-tv installer — install AND update, always via the same one-liner:
+# crt-tv initial provisioning; use setup/update.sh for app-only updates:
 #   curl -fsSL https://raw.githubusercontent.com/masipah/crt-tv/main/setup/install.sh | sudo bash
 # It syncs /opt/crt-tv to the latest main and installs from there.
 # Developers with their own checkout elsewhere: sudo setup/install.sh installs
@@ -79,18 +79,21 @@ echo "==> Installing WeatherStar 4000+ to /opt/ws4kp"
 # ("dubious ownership"), and the service runs as crt anyway.
 if [[ -d /opt/ws4kp/.git ]]; then
   chown -R crt:crt /opt/ws4kp
-  # fetch + hard reset, same as the /opt/crt-tv self-update: npm install
-  # rewrites package-lock.json in place, which made a plain `git pull` refuse
-  # to merge and abort the whole installer on re-runs. A managed clone has no
-  # local edits worth keeping.
-  sudo -u crt git -C /opt/ws4kp fetch origin
-  sudo -u crt git -C /opt/ws4kp remote set-head origin --auto
-  sudo -u crt git -C /opt/ws4kp reset --hard origin/HEAD
+  # Keep the tested installed revision unless an explicit revision is supplied.
 else
   install -d -o crt -g crt /opt/ws4kp
   sudo -u crt git clone https://github.com/netbymatt/ws4kp /opt/ws4kp
 fi
-(cd /opt/ws4kp && sudo -u crt npm install --no-audit --no-fund)
+install -d /etc/crt-tv
+ws_revision=${WS4KP_REVISION:-$(cat /etc/crt-tv/ws4kp-revision 2>/dev/null || true)}
+ws_revision=${ws_revision:-$(sudo -u crt git -C /opt/ws4kp rev-parse HEAD)}
+[[ $ws_revision =~ ^[a-fA-F0-9]{40}$ ]] || { echo 'WS4KP_REVISION must be a full commit SHA' >&2; exit 1; }
+if ! sudo -u crt git -C /opt/ws4kp cat-file -e "$ws_revision^{commit}" 2>/dev/null; then
+  sudo -u crt git -C /opt/ws4kp fetch origin "$ws_revision"
+fi
+sudo -u crt git -C /opt/ws4kp reset --hard "$ws_revision"
+(cd /opt/ws4kp && sudo -u crt npm ci --no-audit --no-fund)
+printf '%s\n' "$ws_revision" >/etc/crt-tv/ws4kp-revision
 
 echo "==> Hardening for hard power-off"
 # This appliance gets unplugged, not shut down. ext4's journal plus the
@@ -126,62 +129,7 @@ alsactl store 2>/dev/null || true
 echo "==> Restoring appliance startup settings"
 bash "$REPO_DIR/setup/fast-boot.sh"
 
-echo "==> Installing config, scripts, and systemd units"
-install -d /etc/crt-tv
-if [[ ! -f /etc/crt-tv/crt-tv.env ]]; then
-  install -m 644 "$REPO_DIR/setup/crt-tv.env" /etc/crt-tv/crt-tv.env
-fi
-
-install -m 644 "$REPO_DIR/setup/tmpfiles-crt-tv.conf" /etc/tmpfiles.d/crt-tv.conf
-systemd-tmpfiles --create /etc/tmpfiles.d/crt-tv.conf
-
-install -d /usr/local/lib/crt-tv
-install -m 755 "$REPO_DIR/scripts/kiosk.sh" /usr/local/lib/crt-tv/kiosk.sh
-install -m 755 "$REPO_DIR/scripts/kiosk-x.sh" /usr/local/lib/crt-tv/kiosk-x.sh
-install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-media.sh
-install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
-install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
-install -d /usr/local/lib/crt-tv/startup
-install -m 644 "$REPO_DIR"/scripts/startup/*.lua /usr/local/lib/crt-tv/startup/
-install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
-install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
-rm -f /usr/local/lib/crt-tv/weather-break.lua
-install -m 755 "$REPO_DIR/scripts/clear-console.sh" /usr/local/lib/crt-tv/clear-console.sh
-install -m 755 "$REPO_DIR/scripts/handoff-console.sh" /usr/local/lib/crt-tv/handoff-console.sh
-install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh
-rm -f /usr/local/lib/crt-tv/splash.txt
-install -d /usr/local/lib/crt-tv/kiosk-ext
-install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
-install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
-
-echo "==> Installing web remote"
-install -d /usr/local/lib/crt-tv/remote/public/icons
-install -m 644 "$REPO_DIR/remote/server.mjs" "$REPO_DIR/remote/muni.mjs" "$REPO_DIR/remote/muni-stops.json" /usr/local/lib/crt-tv/remote/
-# the whole public tree: the remote itself, the oscilloscope channel page,
-# and the web-app manifest/icons
-install -m 644 "$REPO_DIR"/remote/public/*.html "$REPO_DIR"/remote/public/*.webmanifest \
-  /usr/local/lib/crt-tv/remote/public/
-install -m 644 "$REPO_DIR"/remote/public/icons/* /usr/local/lib/crt-tv/remote/public/icons/
-
-rm -rf /usr/local/lib/crt-tv/remote/public/boot
-rm -f /usr/local/lib/crt-tv/remote/public/boot.html
-
-install -d /usr/local/lib/crt-tv/remote/public/muni
-install -m 644 "$REPO_DIR"/remote/public/muni/* /usr/local/lib/crt-tv/remote/public/muni/
-
-# The remote runs unprivileged as 'crt'; this lets it (and the crt user
-# generally) run the tv command without a password.
-visudo -cf "$REPO_DIR/setup/sudoers-crt-tv"
-install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
-
-install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service crt-splash.service
-# No login prompt over the splash: tty1 is the display, not a terminal. Log in
-# via SSH, or Ctrl+Alt+F2 for a console (logind still spawns getty on tty2+).
-systemctl disable getty@tty1.service 2>/dev/null || true
-systemctl restart ws4kp.service crt-remote.service
-bash "$REPO_DIR/setup/restart-display.sh" "$display_mode"
+CRT_PROVISION=1 bash "$REPO_DIR/setup/deploy.sh" "$display_mode"
 
 echo "==> HTTPS for the web remote (Let's Encrypt via Cloudflare DNS-01)"
 # Opt-in: needs HTTPS_DOMAIN in /etc/crt-tv/crt-tv.env and a Cloudflare
@@ -210,7 +158,10 @@ if [[ -n $https_domain && -f $cf_ini ]]; then
     install -d /etc/letsencrypt/renewal-hooks/deploy
     printf '#!/bin/sh\nsystemctl reload nginx\n' >/etc/letsencrypt/renewal-hooks/deploy/crt-tv-nginx
     chmod 755 /etc/letsencrypt/renewal-hooks/deploy/crt-tv-nginx
-    sed "s/__DOMAIN__/$https_domain/g" "$REPO_DIR/setup/nginx-crt-tv.conf" \
+    remote_port=$(sed -n 's/^CRT_REMOTE_PORT=//p' /etc/crt-tv/crt-tv.env | tail -n1)
+    remote_port=${remote_port:-8090}
+    [[ $remote_port =~ ^[0-9]+$ ]] && ((remote_port > 0 && remote_port < 65536)) || { echo 'Invalid CRT_REMOTE_PORT' >&2; exit 1; }
+    sed -e "s/__DOMAIN__/$https_domain/g" -e "s/__PORT__/$remote_port/g" "$REPO_DIR/setup/nginx-crt-tv.conf" \
       >/etc/nginx/sites-available/crt-tv
     ln -sf /etc/nginx/sites-available/crt-tv /etc/nginx/sites-enabled/crt-tv
     rm -f /etc/nginx/sites-enabled/default
@@ -226,14 +177,6 @@ else
   echo "  skipped — set HTTPS_DOMAIN in /etc/crt-tv/crt-tv.env and create"
   echo "  $cf_ini (from setup/cloudflare.ini.example) to enable"
 fi
-
-install -d -m 775 -o crt -g crt /srv/media /srv/media/videos /srv/media/commercials /srv/media/on-demand
-# Migrate a pre-bucket layout: loose videos at the top level belong to the
-# videos bucket now
-find /srv/media -maxdepth 1 -type f \( \
-  -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.avi' -o -iname '*.mov' -o \
-  -iname '*.m4v' -o -iname '*.mpg' -o -iname '*.mpeg' -o -iname '*.ts' -o \
-  -iname '*.webm' \) -exec mv -n {} /srv/media/videos/ \;
 
 echo "==> Configuring composite video output (480i NTSC)"
 "$REPO_DIR/setup/enable-composite.sh"

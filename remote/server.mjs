@@ -3,7 +3,7 @@ import { createMuniFeed } from './muni.mjs';
 // Runs as user 'crt'; privileged actions go through `sudo -n tv ...`
 // (see setup/sudoers-crt-tv), so the CLI and the web UI share one code path.
 import http from 'node:http';
-import net from 'node:net';
+import { tv, mpvSet, status } from './control.mjs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.CRT_REMOTE_PORT ?? 8090);
 const MEDIA_DIR = path.resolve(process.env.MEDIA_DIR ?? '/srv/media');
-const MPV_SOCK = '/run/crt-tv/mpv.sock';
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
@@ -25,166 +24,7 @@ const TV_COMMANDS = new Set([
 // Keep the existing channel directory; on-demand clips never enter its schedule.
 const BUCKETS = ['videos', 'commercials', 'on-demand'];
 
-const tv = (...args) => new Promise((resolve, reject) => {
-  execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
-    (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message));
-      else resolve(stdout);
-    });
-});
-
-const isActive = (unit) => new Promise((resolve) => {
-  execFile('systemctl', ['is-active', unit],
-    (err, stdout) => resolve(stdout.trim() === 'active'));
-});
-
-const mixerGet = () => new Promise((resolve) => {
-  const attempts = [
-    ['-c', 'Headphones', 'sget', 'PCM'],
-    ['sget', 'Headphone'],
-    ['sget', 'PCM'],
-  ];
-  const run = (i) => {
-    if (i >= attempts.length) return resolve(null);
-    execFile('amixer', ['-M', ...attempts[i]], (err, stdout) => (err ? run(i + 1) : resolve(stdout)));
-  };
-  run(0);
-});
-
-const mixerSet = (...args) => new Promise((resolve) => {
-  const attempts = [
-    ['-q', '-c', 'Headphones', 'sset', 'PCM'],
-    ['-q', 'sset', 'Headphone'],
-    ['-q', 'sset', 'PCM'],
-  ];
-  const run = (i) => {
-    if (i >= attempts.length) return resolve(false);
-    execFile('amixer', ['-M', ...attempts[i], ...args], (err) => (err ? run(i + 1) : resolve(true)));
-  };
-  run(0);
-});
-
-const audioState = async () => {
-  const out = String(await mixerGet() ?? '');
-  const p = out.match(/\[(\d+)%\]/);
-  return {
-    muted: out.includes('[off]'),
-    volume: p ? Number(p[1]) : null,
-  };
-};
-
-// The TV's mute intent of record — created by tv mute (and boot), removed
-// by unmute. Status reads this alongside the hardware mixer state.
-const MUTED_FLAG = '/run/crt-tv/muted';
-
-// The user's volume choice of record — once it exists, unmute returns to
-// the user's level instead of re-landing at the defaults (see tv's mixer)
-const VOLUME_SET_FLAG = '/run/crt-tv/volume-set';
-
-// Which page the Chromium kiosk is showing. `tv weather` and `tv scope`
-// write the URL here, so the file — not the unit — is the channel of record;
-// no file (fresh boot) means the unit's own default, the weather.
 const muniFeed = createMuniFeed();
-
-const KIOSK_ENV = '/run/crt-tv/kiosk.env';
-
-const kioskPage = async () => {
-  const env = await fs.readFile(KIOSK_ENV, 'utf8').catch(() => '');
-  if (/oscilloscope/.test(env)) return 'scope';
-  if (/muni\.html/.test(env)) return 'muni';
-  if (/fit\.html/.test(env)) return 'pattern';
-  return 'weather';
-};
-
-const mpvSet = (prop, value) => new Promise((resolve) => {
-  const sock = net.createConnection(MPV_SOCK);
-  sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
-  sock.on('error', () => resolve(false)); // player not running — fine
-  sock.on('connect', () => {
-    sock.write(`${JSON.stringify({ command: ['set_property', prop, value] })}\n`);
-    sock.end();
-    resolve(true);
-  });
-});
-
-// Ask mpv for properties over its IPC socket; null if the player isn't up.
-function mpvQuery(props) {
-  return new Promise((resolve) => {
-    const sock = net.createConnection(MPV_SOCK);
-    const out = {};
-    let buf = '';
-    let pending = props.length;
-    let settled = false;
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      sock.destroy();
-      resolve(value);
-    };
-    sock.setTimeout(1000, () => finish(out));
-    sock.on('error', () => finish(null));
-    sock.on('connect', () => {
-      props.forEach((p, i) => {
-        sock.write(`${JSON.stringify({ command: ['get_property', p], request_id: i })}\n`);
-      });
-    });
-    sock.on('data', (chunk) => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
-        let msg;
-        try { msg = JSON.parse(line); } catch { continue; }
-        if (msg.request_id === undefined) continue; // event, not a reply
-        if (msg.error === 'success') out[props[msg.request_id]] = msg.data;
-        if (--pending === 0) finish(out);
-      }
-    });
-  });
-}
-
-async function status() {
-  const [ws4kp, kiosk, player, audio, shuffled, noCommercials] = await Promise.all([
-    isActive('ws4kp.service'),
-    isActive('weather-kiosk.service'),
-    isActive('crt-player.service'),
-    audioState(),
-    fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
-    fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
-  ]);
-  let mode = 'off';
-  if (player) mode = 'video';
-  else if (kiosk) mode = await kioskPage(); // 'weather' or 'scope'
-
-  let playing = null;
-  if (player) {
-    const p = await mpvQuery([
-      'media-title', 'pause', 'time-pos', 'duration', 'playlist-pos-1', 'playlist-count',
-    ]);
-    if (p) {
-      playing = {
-        title: p['media-title'] ?? '',
-        paused: p.pause ?? false,
-        timePos: p['time-pos'] ?? null,
-        duration: p.duration ?? null,
-        playlistPos: p['playlist-pos-1'] ?? null,
-        playlistCount: p['playlist-count'] ?? null,
-      };
-    }
-  }
-  return {
-    units: { ws4kp, kiosk, player },
-    mode,
-    playing,
-    manualPlayback: player && await fs.access('/run/crt-tv/manual-playback').then(() => true, () => false),
-    muted: audio.muted
-      || await fs.access(MUTED_FLAG).then(() => true, () => false),
-    volume: audio.volume,
-    shuffled,
-    noCommercials,
-  };
-}
 
 // ---- persistent library order ------------------------------------------
 // .order.json holds, per directory, the explicit ordering of its children;
@@ -202,9 +42,13 @@ async function loadOrder() {
 }
 
 // Serialize file commits and metadata edits, including analysis results.
+let libraryVersion = randomUUID();
 let libraryQueue = Promise.resolve();
-function libraryChange(action) {
-  const result = libraryQueue.then(action);
+function libraryChange(action, mediaChanged = false) {
+  const result = libraryQueue.then(action).then(value => {
+    if(mediaChanged)libraryVersion=randomUUID();
+    return value;
+  });
   libraryQueue = result.catch(() => {});
   return result;
 }
@@ -408,7 +252,7 @@ async function handleUpload(req, res, url) {
       await regeneratePlaylist();
       queueAnalysis(`${dirRel}/${path.basename(committed)}`);
       return committed;
-    });
+    }, true);
     sendJson(res, 200, { ok: true, name: path.basename(dest) });
   } catch (err) {
     await fs.rm(tmp, { force: true });
@@ -440,8 +284,8 @@ function readBody(req) {
       if (error) reject(error);
       else resolve(body);
     };
-    // Speaker changes are serialized. A stalled JSON body must not hold the
-    // reservation queue forever (large uploads use a separate streaming path).
+    // Control changes are serialized. A stalled JSON body must not hold the
+    // command queue forever (large uploads use a separate streaming path).
     const timer = setTimeout(() => finish(Object.assign(new Error('request body timed out'), { status: 408 })), 10_000);
     req.on('data', (chunk) => {
       if (finished) return;
@@ -467,6 +311,7 @@ const STATIC_TYPES = {
   '.svg': 'image/svg+xml',
   '.json': 'application/json',
   '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
 };
 
 async function serveStatic(res, pathname) {
@@ -478,7 +323,7 @@ async function serveStatic(res, pathname) {
   }
   const data = await fs.readFile(file).catch(() => null);
   if (!data) return sendJson(res, 404, { error: 'not found' });
-  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': /\.(html|mjs)$/.test(file) ? 'no-cache' : 'max-age=3600' });
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': /\.(html|mjs|css)$/.test(file) ? 'no-cache' : 'max-age=3600' });
   res.end(data);
 }
 
@@ -505,7 +350,7 @@ async function handleRequest(req, res) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else if (req.method === 'GET' && pathname === '/api/status') {
-      sendJson(res, 200, await status());
+      sendJson(res, 200, {...await status(), libraryVersion});
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {
         mediaDir: MEDIA_DIR,
@@ -515,14 +360,10 @@ async function handleRequest(req, res) {
       });
     } else if (req.method === 'POST' && pathname === '/api/audio/volume') {
       const { volume } = JSON.parse(await readBody(req) || '{}');
-      if (typeof volume !== 'number' || volume < 0 || volume > 100) {
+      if (!Number.isInteger(volume) || volume < 0 || volume > 100) {
         return sendJson(res, 400, { error: 'volume: number 0-100 required' });
       }
-      const ok = await mixerSet(`${volume}%`);
-      if (!ok) {
-        return sendJson(res, 500, { error: 'could not set mixer volume' });
-      }
-      await fs.writeFile(VOLUME_SET_FLAG, '').catch(() => {});
+      await tv('volume', String(volume));
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
@@ -666,7 +507,7 @@ const server = http.createServer((req, res) => {
     commandQueue = commandQueue.then(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
   } else if ((req.method === 'DELETE' && pathname === '/api/media')
     || (req.method === 'POST' && ['/api/order','/api/move','/api/rename'].includes(pathname))) {
-    libraryChange(action).catch(error => sendJson(res, 500, {error:error.message}));
+    libraryChange(action, true).catch(error => sendJson(res, 500, {error:error.message}));
   } else action().catch((error) => sendJson(res, 500, { error: error.message }));
 });
 
