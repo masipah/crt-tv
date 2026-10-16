@@ -310,15 +310,24 @@
     ul.list li { padding: 10px 8px 10px 16px; cursor: default; }
     ul.list li:active { background: none; }
     ul.list li:hover { background: var(--hover); }
-    /* floating toolbar over the row on hover — takes no layout width, so
-       names keep the full row */
+    /* Share a grid cell with the filename, but let wrapped actions size the
+       row even while hidden so revealing them never clips or shifts rows. */
+    ul.list li:has(> .acts) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    ul.list li:has(> .acts) > .name { grid-area: 1 / 1 / 2 / -1; }
+    ul.list li:has(> .drag) > .name { grid-column-end: 2; }
+    ul.list li:has(> .acts) > .drag { grid-area: 1 / 2; }
     .acts {
       display: flex;
+      flex-wrap: wrap;
       gap: 2px;
-      position: absolute;
-      right: 44px;
-      top: 50%;
-      transform: translateY(-50%);
+      grid-area: 1 / 1 / 2 / -1;
+      justify-self: end;
+      width: max-content;
+      max-width: 100%;
+      z-index: 1;
       padding: 4px;
       background: var(--surface);
       border: 1px solid var(--edge-strong);
@@ -328,7 +337,7 @@
       pointer-events: none;
       transition: opacity 0.12s ease;
     }
-    #commercials-list .acts, #on-demand-list .acts { right: 10px; }
+    ul.list li:has(> .drag) > .acts { grid-column-end: 2; }
     ul.list li:hover .acts, ul.list li:focus-within .acts {
       opacity: 1;
       pointer-events: auto;
