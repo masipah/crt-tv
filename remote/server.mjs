@@ -73,9 +73,12 @@ async function readHatEyes() {
     ? (typeof request === 'string' ? request : request.style)
     : state.selection;
   return {
-    styles: state.styles,
-    current: state.current,
-    selection: state.styles.includes(selection) ? selection : 'auto',
+    status: {
+      styles: state.styles,
+      current: state.current,
+      selection: state.styles.includes(selection) ? selection : 'auto',
+    },
+    timedRotation: 'requestId' in state,
   };
 }
 
@@ -370,15 +373,17 @@ async function handleRequest(req, res) {
       res.end(html);
     } else if (req.method === 'GET' && pathname === '/api/status') {
       const [tvStatus, hatEyes] = await Promise.all([status(), readHatEyes()]);
-      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes });
+      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes: hatEyes?.status ?? null });
     } else if (req.method === 'POST' && pathname === '/api/hat/eye-style') {
       const hatEyes = await readHatEyes();
       if (!hatEyes) return sendJson(res, 409, { error: 'The HAT is not running' });
       const style = JSON.parse(await readBody(req) || '{}')?.style;
-      if (style !== 'auto' && !hatEyes.styles.includes(style)) {
+      if (style !== 'auto' && !hatEyes.status.styles.includes(style)) {
         return sendJson(res, 400, { error: 'Unknown HAT eye style' });
       }
-      await atomicJson(HAT_EYE_SELECTION_FILE, { id: randomUUID(), style });
+      // The remote can be updated before the separately installed HAT service.
+      const request = hatEyes.timedRotation ? { id: randomUUID(), style } : style;
+      await atomicJson(HAT_EYE_SELECTION_FILE, request);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {

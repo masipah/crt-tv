@@ -45,8 +45,12 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     await fs.writeFile(hatStatusFile, JSON.stringify(hatState));
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
     assert.equal((await post('/api/hat/eye-style', { style: 'Unknown' })).status, 400);
-    await fs.writeFile(hatSelectionFile, JSON.stringify('Winged liner'));
+    assert.equal((await post('/api/hat/eye-style', { style: 'Winged liner' })).status, 200);
+    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Winged liner');
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Winged liner' });
+    await fs.writeFile(hatStatusFile, JSON.stringify({
+      ...hatState, selection: 'auto', requestId: null, switchAt: 600,
+    }));
     assert.equal((await post('/api/hat/eye-style', { style: 'Spirals' })).status, 200);
     const firstEyeRequest = JSON.parse(await fs.readFile(hatSelectionFile, 'utf8'));
     assert.equal(firstEyeRequest.style, 'Spirals');
