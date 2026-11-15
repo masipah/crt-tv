@@ -18,6 +18,10 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
   process.env.PATH = `${bin}:${oldPath}`;
   process.env.MEDIA_DIR = dir;
   process.env.CRT_REMOTE_PORT = '0';
+  const hatStatusFile = path.join(dir, 'hat-status.json');
+  const hatSelectionFile = path.join(dir, 'hat-selection.json');
+  process.env.CRT_HAT_EYE_STATUS_FILE = hatStatusFile;
+  process.env.CRT_HAT_EYE_SELECTION_FILE = hatSelectionFile;
   const { server } = await import('../server.mjs');
   if (!server.listening) await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -34,6 +38,18 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.match(commands, /tv volume 25/);
     assert.equal((await post('/api/audio/volume', {volume:101})).status, 400);
     assert.equal((await post('/api/audio/volume', {volume:1.5})).status, 400);
+    const hatEyes = async () => (await (await fetch(base + '/api/status')).json()).hatEyes;
+    assert.equal(await hatEyes(), null);
+    assert.equal((await post('/api/hat/eye-style', { style: 'Original' })).status, 409);
+    const hatState = { current: 'Star pupils', styles: ['Original', 'Inverted spirals', 'Star pupils'] };
+    await fs.writeFile(hatStatusFile, JSON.stringify(hatState));
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
+    assert.equal((await post('/api/hat/eye-style', { style: 'Unknown' })).status, 400);
+    assert.equal((await post('/api/hat/eye-style', { style: 'Inverted spirals' })).status, 200);
+    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Inverted spirals');
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Inverted spirals' });
+    assert.equal((await post('/api/hat/eye-style', { style: 'auto' })).status, 200);
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
     for(const asset of ['/remote.css','/remote.mjs','/display-fit.mjs'])assert.equal((await fetch(base+asset)).status,200);
     assert.equal((await post('/api/player/seek', {seconds:-1})).status, 400);
     assert.equal((await post('/api/play', {paths:[]})).status, 400);
@@ -85,6 +101,8 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     await new Promise(resolve => server.close(resolve));
     process.env.PATH = oldPath;
     delete process.env.CRT_TEST_LOG;
+    delete process.env.CRT_HAT_EYE_STATUS_FILE;
+    delete process.env.CRT_HAT_EYE_SELECTION_FILE;
     await fs.rm(dir, {recursive:true,force:true});
   }
 });

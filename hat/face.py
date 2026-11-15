@@ -4,6 +4,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
+import json
 import math
 from pathlib import Path
 import random
@@ -22,6 +23,8 @@ MOUTH_HEIGHT = 180
 MOUTH_FPS = 20
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
+EYE_SELECTION_FILE = Path("/run/crt-tv/hat-eye-style.json")
+EYE_STATUS_FILE = Path("/run/crt-face/eyes.json")
 
 
 class EyeMotion:
@@ -149,11 +152,29 @@ EYE_RENDERERS = {
     "Inverted spirals": draw_spiral,
     "Star pupils": draw_star_pupils,
 }
+EYE_STYLES = ("Original", *EYE_RENDERERS)
 
 
 def boot_eye_style(boot_id):
     # The kernel's boot ID stays stable through service restarts.
-    return random.Random(boot_id).choice(("Original", *EYE_RENDERERS))
+    return random.Random(boot_id).choice(EYE_STYLES)
+
+
+def selected_eye_style(boot_style):
+    try:
+        selection = json.loads(EYE_SELECTION_FILE.read_text())
+    except (OSError, ValueError):
+        return boot_style
+    return selection if selection in EYE_STYLES else boot_style
+
+
+def publish_eye_style(style):
+    temporary = EYE_STATUS_FILE.with_suffix(".tmp")
+    try:
+        temporary.write_text(json.dumps({"styles": EYE_STYLES, "current": style}))
+        temporary.replace(EYE_STATUS_FILE)
+    except OSError as error:
+        print(f"Could not publish the HAT eye style: {error}", file=sys.stderr)
 
 
 def draw_eye_pair(style, x, y, openness, elapsed):
@@ -176,12 +197,18 @@ def draw_eye_pair(style, x, y, openness, elapsed):
     return tuple(eyes)
 
 
-def animate_eyes(displays, stop, style):
+def animate_eyes(displays, stop, boot_style):
     motion = EyeMotion()
     start = monotonic()
+    next_selection_check = start
+    last_style = None
+    style = boot_style
     last_frames = [None] * len(displays)
     while not stop.is_set():
         now = monotonic()
+        if now >= next_selection_check:
+            style = selected_eye_style(boot_style)
+            next_selection_check = now + 0.25
         elapsed = now - start
         eyes = draw_eye_pair(style, *motion.sample(elapsed), elapsed)
         for index, (display, eye) in enumerate(zip(displays, eyes)):
@@ -189,6 +216,10 @@ def animate_eyes(displays, stop, style):
             if frame != last_frames[index]:
                 display.display(eye)
                 last_frames[index] = frame
+        if style != last_style:
+            publish_eye_style(style)
+            print(f"HAT eye style: {style}", flush=True)
+            last_style = style
         stop.wait(max(0, 1 / 24 - (monotonic() - now)))
 
 
@@ -276,12 +307,12 @@ def mouth_decoder(path):
     ]
 
 
-def play(displays, lcd, clip, stop, style):
+def play(displays, lcd, clip, stop, boot_style):
     frame_bytes = MOUTH_WIDTH * MOUTH_HEIGHT * 2
     command = mouth_decoder(clip)
     with subprocess.Popen(command, stdout=subprocess.PIPE) as decoder:
         with ThreadPoolExecutor(max_workers=1) as pool:
-            eyes = pool.submit(animate_eyes, displays, stop, style)
+            eyes = pool.submit(animate_eyes, displays, stop, boot_style)
             try:
                 lcd.backlight.on()
                 while not stop.is_set():
@@ -330,9 +361,9 @@ def main():
             displays.append(display)
         lcd = MouthDisplay(stack)
         boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
-        style = boot_eye_style(boot_id)
-        print(f"Playing the Waveshare HAT face with {style} eyes", flush=True)
-        play(displays, lcd, args.clip, stop, style)
+        boot_style = boot_eye_style(boot_id)
+        print(f"Playing the Waveshare HAT face with {selected_eye_style(boot_style)} eyes", flush=True)
+        play(displays, lcd, args.clip, stop, boot_style)
 
 
 if __name__ == "__main__":

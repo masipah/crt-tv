@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 const PORT = Number(process.env.CRT_REMOTE_PORT ?? 8090);
 const MEDIA_DIR = path.resolve(process.env.MEDIA_DIR ?? '/srv/media');
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
+const HAT_EYE_STATUS_FILE = process.env.CRT_HAT_EYE_STATUS_FILE ?? '/run/crt-face/eyes.json';
+const HAT_EYE_SELECTION_FILE = process.env.CRT_HAT_EYE_SELECTION_FILE ?? '/run/crt-tv/hat-eye-style.json';
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
@@ -58,6 +60,15 @@ async function atomicJson(file, value) {
     await fs.writeFile(tmp, JSON.stringify(value, null, 1));
     await fs.rename(tmp, file);
   } finally { await fs.rm(tmp, {force:true}); }
+}
+
+async function readHatEyes() {
+  const [state, selection] = await Promise.all(
+    [HAT_EYE_STATUS_FILE, HAT_EYE_SELECTION_FILE].map(file =>
+      fs.readFile(file, 'utf8').then(JSON.parse).catch(() => null)),
+  );
+  if (!Array.isArray(state?.styles) || !state.styles.includes(state.current)) return null;
+  return { ...state, selection: state.styles.includes(selection) ? selection : 'auto' };
 }
 
 async function saveOrder(order) {
@@ -350,7 +361,17 @@ async function handleRequest(req, res) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else if (req.method === 'GET' && pathname === '/api/status') {
-      sendJson(res, 200, {...await status(), libraryVersion});
+      const [tvStatus, hatEyes] = await Promise.all([status(), readHatEyes()]);
+      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes });
+    } else if (req.method === 'POST' && pathname === '/api/hat/eye-style') {
+      const hatEyes = await readHatEyes();
+      if (!hatEyes) return sendJson(res, 409, { error: 'The HAT is not running' });
+      const style = JSON.parse(await readBody(req) || '{}')?.style;
+      if (style !== 'auto' && !hatEyes.styles.includes(style)) {
+        return sendJson(res, 400, { error: 'Unknown HAT eye style' });
+      }
+      await atomicJson(HAT_EYE_SELECTION_FILE, style);
+      sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {
         mediaDir: MEDIA_DIR,
