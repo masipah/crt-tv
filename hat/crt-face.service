@@ -9,6 +9,9 @@ ConditionPathExists=/var/lib/crt-face/mouth.mp4
 User=crt
 SupplementaryGroups=gpio spi i2c
 Nice=8
+# lgpio creates its notification pipe in the current directory.
+RuntimeDirectory=crt-face
+WorkingDirectory=/run/crt-face
 ExecStart=/usr/bin/python3 /usr/local/lib/crt-face/face.py /var/lib/crt-face/mouth.mp4
 Restart=on-failure
 RestartSec=5
