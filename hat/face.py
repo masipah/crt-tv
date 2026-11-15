@@ -14,7 +14,7 @@ import sys
 from threading import Event
 from time import monotonic, sleep
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 
 MOUTH_WIDTH = 320
@@ -75,18 +75,120 @@ def draw_eye(x, y, openness):
     return eye
 
 
-def animate_eyes(displays, stop):
+def draw_winged_liner(x, y, _elapsed, side):
+    eye = Image.new("1", EYE_SIZE)
+    draw = ImageDraw.Draw(eye)
+    draw.polygon(
+        [(9, 17), (21, 25), (36, 28), (56, 29), (79, 30), (99, 34),
+         (114, 39), (100, 45), (83, 50), (63, 52), (43, 49), (25, 40), (15, 28)],
+        fill=1,
+    )
+    mask = eye.copy()
+    direction = 1 if side < 0 else -1
+    cx, cy = 63 + direction * x * 0.72, 37 + y * 0.45
+    draw.ellipse((cx - 14, cy - 14, cx + 14, cy + 14), fill=0)
+    draw.ellipse((cx - 8, cy - 7, cx - 2, cy - 1), fill=1)
+    sclera = Image.new("1", EYE_SIZE)
+    sclera.paste(eye, mask=mask)
+    draw = ImageDraw.Draw(sclera)
+    draw.polygon(
+        [(16, 16), (28, 10), (43, 8), (60, 9), (76, 12), (87, 16),
+         (70, 14), (53, 15), (33, 18), (20, 21)],
+        fill=1,
+    )
+    draw.line([(13, 12), (19, 22), (26, 29)], fill=1, width=3)
+    draw.line([(28, 17), (33, 26), (39, 30)], fill=1, width=3)
+    draw.line([(42, 19), (46, 27), (50, 30)], fill=1, width=3)
+    return sclera if side < 0 else ImageOps.mirror(sclera)
+
+
+def draw_spiral(x, y, elapsed, side):
+    eye = Image.new("1", EYE_SIZE)
+    draw = ImageDraw.Draw(eye)
+    draw.ellipse((22, 7, 105, 57), outline=255, width=2)
+    cx, cy = 64 + x * 0.18, 32 + y * 0.22
+    turn = side * (0.51 + elapsed * 2.25)
+    points = []
+    for step in range(241):
+        angle = step * 0.071
+        radius = 1 + angle * 1.05
+        rotation = turn + side * angle
+        points.append(
+            (cx + math.cos(rotation) * radius * 1.55, cy + math.sin(rotation) * radius)
+        )
+    draw.line(points, fill=255, width=3)
+    return eye
+
+
+def draw_star(draw, x, y, radius_x, radius_y):
+    points = []
+    for tip in range(8):
+        angle = tip * math.pi / 4
+        length = 0.29 if tip % 2 else 1
+        points.append(
+            (x + radius_x * length * math.cos(angle), y + radius_y * length * math.sin(angle))
+        )
+    draw.polygon(points, fill=1)
+
+
+def draw_star_pupils(x, y, elapsed, side):
+    eye = Image.new("1", EYE_SIZE)
+    draw = ImageDraw.Draw(eye)
+    upper = [(column, 11 + (column - 64) ** 2 / 96) for column in range(16, 114, 2)]
+    lower = [(column, 54 - (column - 64) ** 2 / 140) for column in range(24, 106, 2)]
+    draw.line(upper, fill=1, width=3)
+    draw.line(lower, fill=1, width=3)
+    shine = 1 + math.sin(elapsed * 3 + side) * 0.11
+    draw_star(draw, 63 + x * 0.68, 33 + y * 0.5, 19 * shine, 20 * shine)
+    draw_star(draw, 21 if side < 0 else 107, 17, 5, 6)
+    return eye
+
+
+EYE_RENDERERS = {
+    "Winged liner": draw_winged_liner,
+    "Inverted spirals": draw_spiral,
+    "Star pupils": draw_star_pupils,
+}
+
+
+def boot_eye_style(boot_id):
+    # The kernel's boot ID stays stable through service restarts.
+    return random.Random(boot_id).choice(("Original", *EYE_RENDERERS))
+
+
+def draw_eye_pair(style, x, y, openness, elapsed):
+    if style == "Original":
+        eye = draw_eye(x, y, openness)
+        return eye, eye
+
+    renderer = EYE_RENDERERS[style]
+    eyes = []
+    for side in (-1, 1):
+        eye = renderer(x, y, elapsed, side)
+        if openness < 1:
+            height = max(2, round(EYE_SIZE[1] * openness))
+            closed = Image.new("1", EYE_SIZE)
+            closed.paste(eye.resize((EYE_SIZE[0], height)), (0, (EYE_SIZE[1] - height) // 2))
+            eye = closed
+        if style == "Inverted spirals":
+            eye = ImageOps.invert(eye)
+        eyes.append(eye)
+    return tuple(eyes)
+
+
+def animate_eyes(displays, stop, style):
     motion = EyeMotion()
     start = monotonic()
-    last_frame = None
+    last_frames = [None] * len(displays)
     while not stop.is_set():
         now = monotonic()
-        eye = draw_eye(*motion.sample(now - start))
-        frame = eye.tobytes()
-        if frame != last_frame:
-            for display in displays:
+        elapsed = now - start
+        eyes = draw_eye_pair(style, *motion.sample(elapsed), elapsed)
+        for index, (display, eye) in enumerate(zip(displays, eyes)):
+            frame = eye.tobytes()
+            if frame != last_frames[index]:
                 display.display(eye)
-            last_frame = frame
+                last_frames[index] = frame
         stop.wait(max(0, 1 / 24 - (monotonic() - now)))
 
 
@@ -174,12 +276,12 @@ def mouth_decoder(path):
     ]
 
 
-def play(displays, lcd, clip, stop):
+def play(displays, lcd, clip, stop, style):
     frame_bytes = MOUTH_WIDTH * MOUTH_HEIGHT * 2
     command = mouth_decoder(clip)
     with subprocess.Popen(command, stdout=subprocess.PIPE) as decoder:
         with ThreadPoolExecutor(max_workers=1) as pool:
-            eyes = pool.submit(animate_eyes, displays, stop)
+            eyes = pool.submit(animate_eyes, displays, stop, style)
             try:
                 lcd.backlight.on()
                 while not stop.is_set():
@@ -227,8 +329,10 @@ def main():
             stack.callback(display.cleanup)
             displays.append(display)
         lcd = MouthDisplay(stack)
-        print("Playing the Waveshare HAT face", flush=True)
-        play(displays, lcd, args.clip, stop)
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        style = boot_eye_style(boot_id)
+        print(f"Playing the Waveshare HAT face with {style} eyes", flush=True)
+        play(displays, lcd, args.clip, stop, style)
 
 
 if __name__ == "__main__":
