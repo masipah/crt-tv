@@ -19,6 +19,31 @@ const $ = (id) => document.getElementById(id);
 
   const play = (path) => post('/api/play', { paths: [path] });
 
+  const eyeStyleSelect = $('hat-eye-style');
+  function renderHatEyes(hatEyes) {
+    $('hat-eyes').hidden = !hatEyes;
+    if (!hatEyes) return;
+    const choices = ['auto', ...hatEyes.styles];
+    if (choices.length !== eyeStyleSelect.options.length
+        || choices.some((style, i) => style !== eyeStyleSelect.options[i].value)) {
+      eyeStyleSelect.replaceChildren(
+        new Option('Random at boot', 'auto'),
+        ...hatEyes.styles.map(style => new Option(style, style)),
+      );
+    }
+    if (!eyeStyleSelect.disabled) eyeStyleSelect.value = hatEyes.selection;
+    const current = $('hat-eye-current');
+    current.hidden = hatEyes.selection === hatEyes.current;
+    const label = `Showing ${hatEyes.current}`;
+    if (current.textContent !== label) current.textContent = label;
+  }
+
+  eyeStyleSelect.addEventListener('change', async () => {
+    eyeStyleSelect.disabled = true;
+    await post('/api/hat/eye-style', { style: eyeStyleSelect.value });
+    eyeStyleSelect.disabled = false;
+  });
+
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
     scope: 'Now showing: oscilloscope',
@@ -49,6 +74,7 @@ const $ = (id) => document.getElementById(id);
       try { await loadMedia(); libraryVersion = st.libraryVersion; }
       catch (e) { err(e.message); }
     }
+    renderHatEyes(st.hatEyes);
     $('mode').textContent = st.mode === 'video'
       ? (st.manualPlayback ? 'Now showing: Videos' : 'Now showing: Channel') : MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');

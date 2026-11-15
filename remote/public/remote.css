@@ -38,7 +38,7 @@
   }
   button, input, select { font: inherit; touch-action: manipulation; }
   button { border: 0; background: none; color: inherit; padding: 0; cursor: pointer; }
-  button:focus-visible, input:focus-visible, label.btn-primary:focus-within {
+  button:focus-visible, input:focus-visible, select:focus-visible, label.btn-primary:focus-within {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
@@ -111,6 +111,24 @@
   }
   /* selected reads as a flat inverted chip, same as the site's .segmented */
   .seg button.active { background: var(--text); color: var(--bg); font-weight: 700; }
+
+  .hat-eyes label {
+    display: block;
+    margin-bottom: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+  .hat-eyes select {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--edge-strong);
+    border-radius: 8px;
+    color: var(--text);
+    background: var(--surface-2);
+    color-scheme: dark;
+  }
+  .hat-eyes .hint { margin: 8px 0 0; }
 
   /* transport + mode chips */
   .transport { display: flex; justify-content: center; gap: 22px; margin: 2px 0 14px; }

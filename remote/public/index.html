@@ -36,6 +36,14 @@
         <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
       </div>
 
+      <div class="card hat-eyes" id="hat-eyes" hidden>
+        <label for="hat-eye-style">HAT eyes</label>
+        <select id="hat-eye-style">
+          <option value="auto">Random at boot</option>
+        </select>
+        <p id="hat-eye-current" class="hint" aria-live="polite" hidden></p>
+      </div>
+
       <div class="card">
         <div class="transport">
           <button id="btn-prev" onclick="post('/api/tv/prev')" aria-label="Previous">&#9198;</button>
