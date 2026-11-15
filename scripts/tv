@@ -19,29 +19,6 @@ cancel_boot_video() {
 env_get() {
   { [[ -f $ENV_FILE ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -n1 | tr -d '"'; } || true
 }
-
-save_boot_mute() {
-  local temporary
-  temporary=$(mktemp "$ENV_FILE.XXXXXX")
-  if cp -p -- "$ENV_FILE" "$temporary" &&
-    awk -v muted="$1" '
-      /^CRT_BOOT_MUTED=/ {
-        if (!written) print "CRT_BOOT_MUTED=" muted
-        written = 1
-        next
-      }
-      { print }
-      END { if (!written) print "CRT_BOOT_MUTED=" muted }
-    ' "$ENV_FILE" > "$temporary" &&
-    mv -f -- "$temporary" "$ENV_FILE"; then
-    sync -f "$ENV_FILE"
-    return
-  fi
-  rm -f -- "$temporary"
-  echo "tv: could not save boot audio" >&2
-  return 1
-}
-
 MEDIA_DIR=$(env_get MEDIA_DIR)
 MEDIA_DIR=${MEDIA_DIR:-/srv/media}
 
@@ -61,7 +38,6 @@ usage: tv <command>
   autostart          (run at boot) level audio and start Channel behind the station loader
   pause              toggle pause
   mute               toggle mute (whole TV: weather music and videos)
-  boot-mute 0|1      save startup audio (0 = sound on, 1 = muted)
   volume [0-100]     show or set the TV jack volume
   normalize          reset the TV jack volume to 75%
   shuffle            toggle shuffled playback (videos only; on at boot)
@@ -436,14 +412,6 @@ case $cmd in
   mute)
     as_root
     mixer toggle
-    ;;
-  boot-mute)
-    if [[ $# -ne 1 || ! ${1:-} =~ ^[01]$ ]]; then
-      echo "tv: expected boot-mute 0 or 1" >&2
-      exit 1
-    fi
-    as_root
-    save_boot_mute "$1"
     ;;
   volume)
     as_root

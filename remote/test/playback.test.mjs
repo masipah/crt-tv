@@ -19,9 +19,8 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     for (const f of [...channel, ...manual, path.join(media, 'commercials', 'Ad.mp4')]) await fs.writeFile(f, 'fixture');
     await fs.writeFile(path.join(media, '.playorder.m3u'), channel.join('\n') + '\n');
     await fs.writeFile(path.join(run, 'shuffle'), '');
-    const configFile = path.join(dir, 'env');
-    await fs.writeFile(configFile, `MEDIA_DIR=${media}\n# Keep this comment\n`, {mode:0o640});
-    for (const cmd of ['xset', 'xsetroot', 'socat', 'amixer', 'sync']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
+    await fs.writeFile(path.join(dir, 'env'), `MEDIA_DIR=${media}\n`);
+    for (const cmd of ['xset', 'xsetroot', 'socat', 'amixer']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
     await fs.writeFile(path.join(bin, 'systemctl'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CRT_TEST_SYSTEMCTL"\n', {mode:0o755});
     // Deterministic shuf double (macOS has no coreutils shuf).
     await fs.writeFile(path.join(bin, 'shuf'), '#!/bin/sh\nawk \'{a[NR]=$0} END {for(i=NR;i>0;i--) print a[i]}\' "$@"\n', {mode:0o755});
@@ -38,8 +37,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await fs.writeFile(path.join(dir, 'player'), player);
     const systemctlLog = path.join(dir, 'systemctl.log');
     const env = {...process.env, PATH:`${bin}:${process.env.PATH}`, CRT_TEST_SYSTEMCTL:systemctlLog};
-    const command = (...args) => execFile('bash', [path.join(dir, 'tv'), ...args], {env});
-    const play = (...args) => command('play', ...args);
+    const play = (...args) => execFile('bash', [path.join(dir, 'tv'), 'play', ...args], {env});
     const playlist = async () => (await fs.readFile(path.join(run, 'playlist.m3u'), 'utf8')).trim().split('\n');
     const flags = async () => (await execFile('bash', [path.join(dir, 'player')], {env})).stdout;
     await play(manual[0]);
@@ -61,13 +59,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     assert.deepEqual(new Set(await playlist()), new Set(channel));
     // Autostart queues Channel behind a native loader. The flag is consumed
     // once; subsequent manual playback/resumes must not replay the opening.
-    await assert.rejects(command('boot-mute', '2'));
-    await command('boot-mute', '1');
-    assert.equal(await fs.readFile(configFile, 'utf8'), `MEDIA_DIR=${media}\n# Keep this comment\nCRT_BOOT_MUTED=1\n`);
-    assert.equal((await fs.stat(configFile)).mode & 0o777, 0o640);
-    await assert.rejects(fs.access(path.join(run, 'muted')));
-    await command('autostart');
-    await fs.access(path.join(run, 'muted'));
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
     assert.deepEqual(new Set(await playlist()), new Set(channel));
     assert.doesNotMatch(await fs.readFile(systemctlLog, 'utf8'), /^(start|restart) weather-kiosk\.service$/m);
     const bootFlags = await flags();
@@ -75,15 +67,12 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     assert.match(bootFlags, /--force-window=immediate/);
     assert.match(bootFlags, /crt-tv\/startup/);
     assert.doesNotMatch(await flags(), /crt-tv\/startup|--pause/);
-    await command('boot-mute', '0');
-    await fs.access(path.join(run, 'muted'));
     await fs.writeFile(path.join(run, 'kiosk.env'), 'manual Weather');
-    await command('autostart');
-    await assert.rejects(fs.access(path.join(run, 'muted')));
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
     assert.doesNotMatch(await flags(), /crt-tv\/startup/);
     await fs.rm(path.join(run, 'kiosk.env'));
-    await fs.appendFile(configFile, 'CRT_BOOT_MODE=weather\nCRT_VIDEO_DELAY_SECONDS=120\n');
-    await command('autostart');
+    await fs.appendFile(path.join(dir, 'env'), 'CRT_BOOT_MODE=weather\nCRT_VIDEO_DELAY_SECONDS=120\n');
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
     assert.match(await fs.readFile(systemctlLog, 'utf8'), /^start weather-kiosk\.service$/m);
     assert.equal((await fs.readFile(path.join(run, 'weather-intro'), 'utf8')).trim(), 'pending');
     // Even a broad media-root request must not sweep in manual clips or ads.
