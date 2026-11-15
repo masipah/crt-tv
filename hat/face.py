@@ -149,7 +149,7 @@ def draw_star_pupils(x, y, elapsed, side):
 
 EYE_RENDERERS = {
     "Winged liner": draw_winged_liner,
-    "Inverted spirals": draw_spiral,
+    "Spirals": draw_spiral,
     "Star pupils": draw_star_pupils,
 }
 EYE_STYLES = ("Original", *EYE_RENDERERS)
@@ -191,8 +191,6 @@ def draw_eye_pair(style, x, y, openness, elapsed):
             closed = Image.new("1", EYE_SIZE)
             closed.paste(eye.resize((EYE_SIZE[0], height)), (0, (EYE_SIZE[1] - height) // 2))
             eye = closed
-        if style == "Inverted spirals":
-            eye = ImageOps.invert(eye)
         eyes.append(eye)
     return tuple(eyes)
 

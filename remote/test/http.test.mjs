@@ -41,13 +41,13 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     const hatEyes = async () => (await (await fetch(base + '/api/status')).json()).hatEyes;
     assert.equal(await hatEyes(), null);
     assert.equal((await post('/api/hat/eye-style', { style: 'Original' })).status, 409);
-    const hatState = { current: 'Star pupils', styles: ['Original', 'Inverted spirals', 'Star pupils'] };
+    const hatState = { current: 'Star pupils', styles: ['Original', 'Winged liner', 'Spirals', 'Star pupils'] };
     await fs.writeFile(hatStatusFile, JSON.stringify(hatState));
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
     assert.equal((await post('/api/hat/eye-style', { style: 'Unknown' })).status, 400);
-    assert.equal((await post('/api/hat/eye-style', { style: 'Inverted spirals' })).status, 200);
-    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Inverted spirals');
-    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Inverted spirals' });
+    assert.equal((await post('/api/hat/eye-style', { style: 'Spirals' })).status, 200);
+    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Spirals');
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Spirals' });
     assert.equal((await post('/api/hat/eye-style', { style: 'auto' })).status, 200);
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
     for(const asset of ['/remote.css','/remote.mjs','/display-fit.mjs'])assert.equal((await fetch(base+asset)).status,200);

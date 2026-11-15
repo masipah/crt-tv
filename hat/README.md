@@ -3,8 +3,8 @@
 The Waveshare OLED/LCD HAT (A) rides on the Pi 4's 40-pin header. Its color
 LCD loops the local mouth clip. Both blue OLEDs blink and follow a shared
 random gaze. Each boot picks one matching pair from Original, Winged liner,
-Inverted spirals, and Star pupils. Use **HAT eyes** in the TV remote to switch
-styles while the mouth plays. The selection lasts until the Pi reboots.
+Spirals, and Star pupils. Use **Betty Davis' Eyes** in the TV remote to
+switch styles while the mouth plays. The selection lasts until the Pi reboots.
 **Random at boot** switches back to the pair picked for the current boot.
 The HAT uses SPI and I²C. The Sony PVM uses composite and its existing
 Masipah TV remote.
