@@ -344,6 +344,29 @@ class MouthDisplay:
         self.spi.writebytes2(frame)
 
 
+def mouth_playlist(clip):
+    directory = clip.with_name("mouth-clips")
+    groups = [
+        sorted(path.resolve() for path in directory.glob(f"{kind}-*.mp4") if path.is_file())
+        for kind in ("closed", "lick", "idle", "talk")
+    ]
+    if not all(groups):
+        return clip
+    closed, *gestures = groups
+    playlist = Path("mouth.ffconcat")
+    last_rest = last_gesture = None
+    with playlist.open("w", encoding="utf-8") as output:
+        output.write("ffconcat version 1.0\n")
+        for group in random.choices(gestures, weights=(82, 12, 6), k=240):
+            rest = random.choice([path for path in closed if path != last_rest] or closed)
+            gesture = random.choice([path for path in group if path != last_gesture] or group)
+            for path in (rest, gesture):
+                escaped = str(path).replace("'", "'\\''")
+                output.write(f"file '{escaped}'\n")
+            last_rest, last_gesture = rest, gesture
+    return playlist
+
+
 def mouth_decoder(path):
     # ROTATE_270 in the Waveshare demo is a 90° counterclockwise frame rotation.
     filters = (
@@ -351,9 +374,10 @@ def mouth_decoder(path):
         "force_original_aspect_ratio=decrease:force_divisible_by=2,"
         f"pad={MOUTH_WIDTH}:{MOUTH_HEIGHT}:(ow-iw)/2:(oh-ih)/2,transpose=cclock"
     )
+    concat = ["-f", "concat", "-safe", "0"] if path.suffix == ".ffconcat" else []
     return [
         "/usr/bin/ffmpeg", "-nostdin", "-loglevel", "error",
-        "-stream_loop", "-1", "-re", "-threads", "1", "-i", str(path),
+        "-stream_loop", "-1", "-re", "-threads", "1", *concat, "-i", str(path),
         "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1", "-vf", filters,
         "-pix_fmt", "rgb565be", "-c:v", "rawvideo", "-threads:v", "1",
         "-f", "rawvideo", "pipe:1",
@@ -362,7 +386,10 @@ def mouth_decoder(path):
 
 def play(displays, lcd, clip, stop, boot_style):
     frame_bytes = MOUTH_WIDTH * MOUTH_HEIGHT * 2
-    command = mouth_decoder(clip)
+    source = mouth_playlist(clip)
+    if source != clip:
+        print("Playing shuffled mouth clips", flush=True)
+    command = mouth_decoder(source)
     with subprocess.Popen(command, stdout=subprocess.PIPE) as decoder:
         with ThreadPoolExecutor(max_workers=1) as pool:
             eyes = pool.submit(animate_eyes, displays, stop, boot_style)
