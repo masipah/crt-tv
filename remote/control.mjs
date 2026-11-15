@@ -3,6 +3,7 @@ import net from 'node:net';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 const MPV_SOCK = '/run/crt-tv/mpv.sock';
+const CONFIG_FILE = process.env.CRT_TV_CONFIG_FILE ?? '/etc/crt-tv/crt-tv.env';
 const tv = (...args) => new Promise((resolve, reject) => {
   execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
     (err, stdout, stderr) => {
@@ -36,6 +37,13 @@ const audioState = async () => {
     muted: out.includes('[off]'),
     volume: p ? Number(p[1]) : null,
   };
+};
+
+const readBootMuted = async () => {
+  const config = await fs.readFile(CONFIG_FILE, 'utf8').catch(() => null);
+  if (config === null) return null;
+  const entry = config.match(/^CRT_BOOT_MUTED=[^\n]*/gm)?.at(-1);
+  return entry?.replaceAll('"', '') === 'CRT_BOOT_MUTED=1';
 };
 
 // The TV's mute intent of record — created by tv mute (and boot), removed
@@ -119,13 +127,14 @@ function mpvQuery(props) {
 }
 
 async function readStatus() {
-  const [ws4kp, kiosk, player, audio, shuffled, noCommercials] = await Promise.all([
+  const [ws4kp, kiosk, player, audio, shuffled, noCommercials, bootMuted] = await Promise.all([
     isActive('ws4kp.service'),
     isActive('weather-kiosk.service'),
     isActive('crt-player.service'),
     audioState(),
     fs.access('/run/crt-tv/shuffle').then(() => true, () => false),
     fs.access('/run/crt-tv/no-commercials').then(() => true, () => false),
+    readBootMuted(),
   ]);
   let mode = 'off';
   if (player) mode = 'video';
@@ -154,6 +163,7 @@ async function readStatus() {
     manualPlayback: player && await fs.access('/run/crt-tv/manual-playback').then(() => true, () => false),
     muted: audio.muted
       || await fs.access(MUTED_FLAG).then(() => true, () => false),
+    bootMuted,
     volume: audio.volume,
     shuffled,
     noCommercials,
