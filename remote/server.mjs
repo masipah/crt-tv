@@ -63,12 +63,20 @@ async function atomicJson(file, value) {
 }
 
 async function readHatEyes() {
-  const [state, selection] = await Promise.all(
+  const [state, request] = await Promise.all(
     [HAT_EYE_STATUS_FILE, HAT_EYE_SELECTION_FILE].map(file =>
       fs.readFile(file, 'utf8').then(JSON.parse).catch(() => null)),
   );
   if (!Array.isArray(state?.styles) || !state.styles.includes(state.current)) return null;
-  return { ...state, selection: state.styles.includes(selection) ? selection : 'auto' };
+  const requestId = typeof request === 'string' ? request : request?.id;
+  const selection = typeof requestId === 'string' && requestId !== state.requestId
+    ? (typeof request === 'string' ? request : request.style)
+    : state.selection;
+  return {
+    styles: state.styles,
+    current: state.current,
+    selection: state.styles.includes(selection) ? selection : 'auto',
+  };
 }
 
 async function saveOrder(order) {
@@ -370,7 +378,7 @@ async function handleRequest(req, res) {
       if (style !== 'auto' && !hatEyes.styles.includes(style)) {
         return sendJson(res, 400, { error: 'Unknown HAT eye style' });
       }
-      await atomicJson(HAT_EYE_SELECTION_FILE, style);
+      await atomicJson(HAT_EYE_SELECTION_FILE, { id: randomUUID(), style });
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {
