@@ -17,5 +17,6 @@ jobs:
       - run: node --test remote/test/*.test.mjs
       - run: lua tools/test/startup.lua
       - run: luac -p scripts/*.lua scripts/startup/*.lua
-      - run: for file in scripts/tv scripts/*.sh setup/*.sh setup/migrations/*.sh; do bash -n "$file" || exit; done
+      - run: for file in scripts/tv scripts/*.sh setup/*.sh setup/migrations/*.sh hat/*.sh; do bash -n "$file" || exit; done
+      - run: python3 -m py_compile hat/face.py
       - run: python3 tools/build-splash-frames.py && git diff --exit-code
