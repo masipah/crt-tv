@@ -23,6 +23,7 @@ MOUTH_HEIGHT = 180
 MOUTH_FPS = 20
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
+EYE_STYLE_INTERVAL = 10 * 60
 EYE_SELECTION_FILE = Path("/run/crt-tv/hat-eye-style.json")
 EYE_STATUS_FILE = Path("/run/crt-face/eyes.json")
 
@@ -160,18 +161,70 @@ def boot_eye_style(boot_id):
     return random.Random(boot_id).choice(EYE_STYLES)
 
 
-def selected_eye_style(boot_style):
+def read_runtime_json(path):
     try:
-        selection = json.loads(EYE_SELECTION_FILE.read_text())
+        return json.loads(path.read_text())
     except (OSError, ValueError):
-        return boot_style
-    return selection if selection in EYE_STYLES else boot_style
+        return None
 
 
-def publish_eye_style(style):
+def requested_eye_style():
+    request = read_runtime_json(EYE_SELECTION_FILE)
+    # Earlier remotes stored only the chosen style.
+    if isinstance(request, str):
+        request = {"id": request, "style": request}
+    if (
+        isinstance(request, dict)
+        and isinstance(request.get("id"), str)
+        and request.get("style") in ("auto", *EYE_STYLES)
+    ):
+        return request
+    return None
+
+
+def initial_eye_rotation(boot_style, now):
+    previous = read_runtime_json(EYE_STATUS_FILE)
+    if (
+        isinstance(previous, dict)
+        and previous.get("current") in EYE_STYLES
+        and previous.get("selection") in ("auto", *EYE_STYLES)
+        and isinstance(previous.get("switchAt"), (int, float))
+        and 0 <= previous["switchAt"] <= now + EYE_STYLE_INTERVAL
+        and "requestId" in previous
+    ):
+        return previous
+    return {
+        "current": boot_style,
+        "selection": "auto",
+        "requestId": None,
+        "switchAt": now + EYE_STYLE_INTERVAL,
+    }
+
+
+def update_eye_rotation(rotation, request, boot_style, now):
+    if request is not None and request["id"] != rotation["requestId"]:
+        selection = request["style"]
+        return {
+            "current": boot_style if selection == "auto" else selection,
+            "selection": selection,
+            "requestId": request["id"],
+            "switchAt": now + EYE_STYLE_INTERVAL,
+        }
+    if now >= rotation["switchAt"]:
+        alternatives = [style for style in EYE_STYLES if style != rotation["current"]]
+        return {
+            **rotation,
+            "current": random.choice(alternatives),
+            "selection": "auto",
+            "switchAt": now + EYE_STYLE_INTERVAL,
+        }
+    return rotation
+
+
+def publish_eye_style(rotation):
     temporary = EYE_STATUS_FILE.with_suffix(".tmp")
     try:
-        temporary.write_text(json.dumps({"styles": EYE_STYLES, "current": style}))
+        temporary.write_text(json.dumps({**rotation, "styles": EYE_STYLES}))
         temporary.replace(EYE_STATUS_FILE)
     except OSError as error:
         print(f"Could not publish the HAT eye style: {error}", file=sys.stderr)
@@ -198,15 +251,16 @@ def draw_eye_pair(style, x, y, openness, elapsed):
 def animate_eyes(displays, stop, boot_style):
     motion = EyeMotion()
     start = monotonic()
+    rotation = initial_eye_rotation(boot_style, start)
     next_selection_check = start
-    last_style = None
-    style = boot_style
+    last_rotation = None
     last_frames = [None] * len(displays)
     while not stop.is_set():
         now = monotonic()
         if now >= next_selection_check:
-            style = selected_eye_style(boot_style)
+            rotation = update_eye_rotation(rotation, requested_eye_style(), boot_style, now)
             next_selection_check = now + 0.25
+        style = rotation["current"]
         elapsed = now - start
         eyes = draw_eye_pair(style, *motion.sample(elapsed), elapsed)
         for index, (display, eye) in enumerate(zip(displays, eyes)):
@@ -214,10 +268,11 @@ def animate_eyes(displays, stop, boot_style):
             if frame != last_frames[index]:
                 display.display(eye)
                 last_frames[index] = frame
-        if style != last_style:
-            publish_eye_style(style)
-            print(f"HAT eye style: {style}", flush=True)
-            last_style = style
+        if rotation is not last_rotation:
+            publish_eye_style(rotation)
+            if last_rotation is None or style != last_rotation["current"]:
+                print(f"HAT eye style: {style}", flush=True)
+            last_rotation = rotation
         stop.wait(max(0, 1 / 24 - (monotonic() - now)))
 
 
@@ -360,7 +415,7 @@ def main():
         lcd = MouthDisplay(stack)
         boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
         boot_style = boot_eye_style(boot_id)
-        print(f"Playing the Waveshare HAT face with {selected_eye_style(boot_style)} eyes", flush=True)
+        print("Playing the Waveshare HAT face", flush=True)
         play(displays, lcd, args.clip, stop, boot_style)
 
 

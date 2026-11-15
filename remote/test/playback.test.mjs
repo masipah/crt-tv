@@ -20,7 +20,8 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await fs.writeFile(path.join(media, '.playorder.m3u'), channel.join('\n') + '\n');
     await fs.writeFile(path.join(run, 'shuffle'), '');
     await fs.writeFile(path.join(dir, 'env'), `MEDIA_DIR=${media}\n`);
-    for (const cmd of ['systemctl', 'xset', 'xsetroot', 'socat', 'amixer']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
+    for (const cmd of ['xset', 'xsetroot', 'socat', 'amixer']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
+    await fs.writeFile(path.join(bin, 'systemctl'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CRT_TEST_SYSTEMCTL"\n', {mode:0o755});
     // Deterministic shuf double (macOS has no coreutils shuf).
     await fs.writeFile(path.join(bin, 'shuf'), '#!/bin/sh\nawk \'{a[NR]=$0} END {for(i=NR;i>0;i--) print a[i]}\' "$@"\n', {mode:0o755});
     await fs.writeFile(path.join(bin, 'mpv'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', {mode:0o755});
@@ -34,7 +35,8 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
       .replaceAll('/run/crt-tv', run);
     await fs.writeFile(path.join(dir, 'tv'), tv, {mode:0o755});
     await fs.writeFile(path.join(dir, 'player'), player);
-    const env = {...process.env, PATH:`${bin}:${process.env.PATH}`};
+    const systemctlLog = path.join(dir, 'systemctl.log');
+    const env = {...process.env, PATH:`${bin}:${process.env.PATH}`, CRT_TEST_SYSTEMCTL:systemctlLog};
     const play = (...args) => execFile('bash', [path.join(dir, 'tv'), 'play', ...args], {env});
     const playlist = async () => (await fs.readFile(path.join(run, 'playlist.m3u'), 'utf8')).trim().split('\n');
     const flags = async () => (await execFile('bash', [path.join(dir, 'player')], {env})).stdout;
@@ -59,6 +61,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     // once; subsequent manual playback/resumes must not replay the opening.
     await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
     assert.deepEqual(new Set(await playlist()), new Set(channel));
+    assert.doesNotMatch(await fs.readFile(systemctlLog, 'utf8'), /^(start|restart) weather-kiosk\.service$/m);
     const bootFlags = await flags();
     assert.match(bootFlags, /--pause/);
     assert.match(bootFlags, /--force-window=immediate/);
@@ -68,6 +71,10 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
     assert.doesNotMatch(await flags(), /crt-tv\/startup/);
     await fs.rm(path.join(run, 'kiosk.env'));
+    await fs.appendFile(path.join(dir, 'env'), 'CRT_BOOT_MODE=weather\nCRT_VIDEO_DELAY_SECONDS=120\n');
+    await execFile('bash', [path.join(dir, 'tv'), 'autostart'], {env});
+    assert.match(await fs.readFile(systemctlLog, 'utf8'), /^start weather-kiosk\.service$/m);
+    assert.equal((await fs.readFile(path.join(run, 'weather-intro'), 'utf8')).trim(), 'pending');
     // Even a broad media-root request must not sweep in manual clips or ads.
     await fs.rm(path.join(media, '.playorder.m3u'));
     await play(media);

@@ -14,7 +14,7 @@ test('updating Channel preserves player mode and updating Off keeps the display 
   assert.equal((await run('player')).stdout.trim(),'restart crt-player.service');
   assert.equal((await run('off')).stdout,'');
   assert.equal((await run('kiosk')).stdout.trim(),'restart weather-kiosk.service');
-  assert.match((await run('boot')).stdout,/restart crt-autostart.service/);
+  assert.equal((await run('boot')).stdout.trim(),'restart crt-autostart.service');
  } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
 test('historical migrations run once and failed migrations remain retryable',async()=>{
@@ -82,12 +82,15 @@ test('deployment preserves config and rolls back the complete runtime after fail
   assert.equal(await fs.readFile(path.join(root,'usr/local/bin/tv'),'utf8'),'old command');
   assert.equal(await fs.readFile(path.join(root,'etc/systemd/system/crt-remote.service'),'utf8'),'old unit');
   await assert.rejects(fs.access(path.join(root,'etc/systemd/system/weather-kiosk.service')));
+  assert.doesNotMatch(await fs.readFile(path.join(dir,'commands'),'utf8'),/^disable /m);
   await run('1');
   await fs.access(path.join(root,'usr/local/lib/crt-tv/remote/control.mjs'));
   assert.equal((await fs.lstat(path.join(root,'usr/local/lib/crt-tv/remote/public/display-fit.mjs'))).isFile(),true);
   assert.equal(await fs.readFile(path.join(root,'etc/crt-tv/crt-tv.env'),'utf8'),'CRT_REMOTE_PORT=8091\n# local config\n');
   assert.equal(await fs.readFile(path.join(root,'srv/media/videos/keep.mp4'),'utf8'),'keep media');
   const commands=await fs.readFile(path.join(dir,'commands'),'utf8');
-  assert.match(commands,/restart crt-player.service/);assert.doesNotMatch(commands,/ws4kp|enable/);
+  assert.match(commands,/restart crt-player.service/);
+  assert.match(commands,/^disable weather-kiosk\.service$/m);
+  assert.doesNotMatch(commands,/ws4kp|^enable /m);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

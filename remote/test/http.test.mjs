@@ -45,8 +45,24 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     await fs.writeFile(hatStatusFile, JSON.stringify(hatState));
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
     assert.equal((await post('/api/hat/eye-style', { style: 'Unknown' })).status, 400);
+    assert.equal((await post('/api/hat/eye-style', { style: 'Winged liner' })).status, 200);
+    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Winged liner');
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Winged liner' });
+    await fs.writeFile(hatStatusFile, JSON.stringify({
+      ...hatState, selection: 'auto', requestId: null, switchAt: 600,
+    }));
     assert.equal((await post('/api/hat/eye-style', { style: 'Spirals' })).status, 200);
-    assert.equal(JSON.parse(await fs.readFile(hatSelectionFile, 'utf8')), 'Spirals');
+    const firstEyeRequest = JSON.parse(await fs.readFile(hatSelectionFile, 'utf8'));
+    assert.equal(firstEyeRequest.style, 'Spirals');
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Spirals' });
+    // The HAT has rotated. Reading the old request must not select it again.
+    await fs.writeFile(hatStatusFile, JSON.stringify({
+      ...hatState, selection: 'auto', requestId: firstEyeRequest.id, switchAt: 1200,
+    }));
+    assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
+    assert.equal((await post('/api/hat/eye-style', { style: 'Spirals' })).status, 200);
+    const secondEyeRequest = JSON.parse(await fs.readFile(hatSelectionFile, 'utf8'));
+    assert.notEqual(secondEyeRequest.id, firstEyeRequest.id);
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Spirals' });
     assert.equal((await post('/api/hat/eye-style', { style: 'auto' })).status, 200);
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });

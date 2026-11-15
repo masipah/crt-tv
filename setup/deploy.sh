@@ -81,7 +81,7 @@ install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 install -m 644 "$REPO_DIR"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
 if [[ ${CRT_PROVISION:-0} == 1 ]]; then
-  systemctl enable ws4kp.service weather-kiosk.service crt-remote.service crt-autostart.service crt-splash.service
+  systemctl enable ws4kp.service crt-remote.service crt-autostart.service crt-splash.service
   systemctl disable getty@tty1.service 2>/dev/null || true
   systemctl restart ws4kp.service
 fi
@@ -97,5 +97,9 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 (( ready == 1 )) || { echo 'Updated web remote failed its readiness check' >&2; rollback; }
+# On-demand display: tv autostart starts it for Weather-first boot.
+if systemctl is-enabled --quiet weather-kiosk.service; then
+  systemctl disable weather-kiosk.service
+fi
 trap - ERR
 printf 'App installed. Runtime backup: %s\n' "$backup"
