@@ -20,11 +20,8 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
   process.env.CRT_REMOTE_PORT = '0';
   const hatStatusFile = path.join(dir, 'hat-status.json');
   const hatSelectionFile = path.join(dir, 'hat-selection.json');
-  const configFile = path.join(dir, 'crt-tv.env');
-  await fs.writeFile(configFile, 'CRT_BOOT_MUTED=0\nCRT_BOOT_MUTED="1"\n');
   process.env.CRT_HAT_EYE_STATUS_FILE = hatStatusFile;
   process.env.CRT_HAT_EYE_SELECTION_FILE = hatSelectionFile;
-  process.env.CRT_TV_CONFIG_FILE = configFile;
   const { server } = await import('../server.mjs');
   if (!server.listening) await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -41,12 +38,6 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.match(commands, /tv volume 25/);
     assert.equal((await post('/api/audio/volume', {volume:101})).status, 400);
     assert.equal((await post('/api/audio/volume', {volume:1.5})).status, 400);
-    assert.equal((await (await fetch(base + '/api/status')).json()).bootMuted, true);
-    assert.equal((await post('/api/boot/mute', { muted: '0' })).status, 400);
-    assert.equal((await post('/api/boot/mute', { muted: false })).status, 200);
-    assert.match(await fs.readFile(process.env.CRT_TEST_LOG, 'utf8'), /tv boot-mute 0/);
-    await fs.writeFile(configFile, 'CRT_BOOT_MUTED=0\n');
-    assert.equal((await (await fetch(base + '/api/status')).json()).bootMuted, false);
     const hatEyes = async () => (await (await fetch(base + '/api/status')).json()).hatEyes;
     assert.equal(await hatEyes(), null);
     assert.equal((await post('/api/hat/eye-style', { style: 'Original' })).status, 409);
@@ -128,7 +119,6 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     delete process.env.CRT_TEST_LOG;
     delete process.env.CRT_HAT_EYE_STATUS_FILE;
     delete process.env.CRT_HAT_EYE_SELECTION_FILE;
-    delete process.env.CRT_TV_CONFIG_FILE;
     await fs.rm(dir, {recursive:true,force:true});
   }
 });

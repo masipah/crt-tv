@@ -118,8 +118,8 @@
     font-family: var(--mono);
     font-size: 0.8rem;
   }
-  .select-wrap { position: relative; }
-  .select-wrap select {
+  .hat-eye-picker { position: relative; }
+  .hat-eye-picker select {
     -webkit-appearance: none;
     appearance: none;
     display: block;
@@ -137,8 +137,8 @@
     cursor: pointer;
     transition: border-color 140ms ease;
   }
-  .select-wrap select:hover { border-color: var(--edge-strong); }
-  .select-wrap::after {
+  .hat-eye-picker select:hover { border-color: var(--edge-strong); }
+  .hat-eye-picker::after {
     content: "";
     position: absolute;
     right: 14px;
@@ -205,15 +205,6 @@
     color: var(--muted);
     margin: 0;
     flex: 1;
-  }
-  .channel-boot-audio {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    white-space: nowrap;
   }
   .link {
     font-family: var(--mono);

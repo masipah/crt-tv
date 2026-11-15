@@ -42,13 +42,6 @@ const $ = (id) => document.getElementById(id);
     eyeStyleSelect.disabled = false;
   });
 
-  const bootMuteSelect = $('boot-mute');
-  bootMuteSelect.addEventListener('change', async () => {
-    bootMuteSelect.disabled = true;
-    await post('/api/boot/mute', { muted: bootMuteSelect.value === '1' });
-    bootMuteSelect.disabled = false;
-  });
-
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
     scope: 'Now showing: oscilloscope',
@@ -80,8 +73,6 @@ const $ = (id) => document.getElementById(id);
       catch (e) { err(e.message); }
     }
     renderHatEyes(st.hatEyes);
-    $('channel-boot-audio').hidden = typeof st.bootMuted !== 'boolean';
-    if (!bootMuteSelect.disabled) bootMuteSelect.value = st.bootMuted ? '1' : '0';
     $('mode').textContent = st.mode === 'video'
       ? (st.manualPlayback ? 'Now showing: Videos' : 'Now showing: Channel') : MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');
