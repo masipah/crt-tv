@@ -164,9 +164,10 @@ For the optional weather-first sequence, set `CRT_BOOT_MODE=weather` and
 set the delay to 0 to keep weather on until a channel is selected manually.
 Manual channel switches do not replay the opening.
 
-Boot starts **unmuted**, at `CRT_BOOT_VOLUME` (75% by default). Set
-`CRT_BOOT_MUTED=1` for silent startup or `CRT_BOOT_VOLUME=100` when controlling
-the listening level on the TV itself. The current setup pairs 75% Pi output
+The remote's **Boot audio** selector under **Channel** saves **Sound on** or
+**Muted** for the next startup (`CRT_BOOT_MUTED`). Boot uses `CRT_BOOT_VOLUME`
+(75% by default). Set it to 100% when controlling the listening level on the TV
+itself. The current setup pairs 75% Pi output
 with the TV at 80%. One mute toggle covers weather and video audio. Once you move the slider, your level stays in effect until the next boot.
 
 `tv play` accepts bare names relative to `MEDIA_DIR` (default `/srv/media`,
@@ -225,8 +226,7 @@ window cannot leave unused strips along the bottom and right. If
 weather never becomes ready, it stays on weather. With a delay of 0, weather
 stays on until someone selects Channel.
 Choosing a channel manually cancels the pending boot transition.
-Weather music uses the TV's analogue jack and starts unmuted at boot. Set
-`CRT_BOOT_MUTED=1` to request silent boot.
+Weather music uses the TV's analogue jack and follows the saved boot audio setting.
 Local volume uses ALSA's perceptual (`amixer -M`) scale, so the default 75%
 is an audible level rather than the Pi mixer's almost-silent raw midpoint.
 Set `CRT_BOOT_VOLUME=100` in `/etc/crt-tv/crt-tv.env` to start the TV jack at

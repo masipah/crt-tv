@@ -399,6 +399,13 @@ async function handleRequest(req, res) {
       }
       await tv('volume', String(volume));
       sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/boot/mute') {
+      const { muted } = JSON.parse(await readBody(req) || '{}') ?? {};
+      if (typeof muted !== 'boolean') {
+        return sendJson(res, 400, { error: 'muted: boolean required' });
+      }
+      await tv('boot-mute', muted ? '1' : '0');
+      sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
       const out = await new Promise((resolve) => {
@@ -537,7 +544,8 @@ let commandQueue = Promise.resolve();
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const action = () => handleRequest(req, res);
-  if (req.method === 'POST' && (changesPlayback(pathname) || pathname === '/api/weather/started')) {
+  if (req.method === 'POST' && (changesPlayback(pathname)
+    || pathname === '/api/boot/mute' || pathname === '/api/weather/started')) {
     commandQueue = commandQueue.then(action).catch((error) => sendJson(res, error.status || 500, { error: error.message }));
   } else if ((req.method === 'DELETE' && pathname === '/api/media')
     || (req.method === 'POST' && ['/api/order','/api/move','/api/rename'].includes(pathname))) {
