@@ -23,19 +23,17 @@ const $ = (id) => document.getElementById(id);
   function renderHatEyes(hatEyes) {
     $('hat-eyes').hidden = !hatEyes;
     if (!hatEyes) return;
-    const choices = ['auto', ...hatEyes.styles];
-    if (choices.length !== eyeStyleSelect.options.length
-        || choices.some((style, i) => style !== eyeStyleSelect.options[i].value)) {
-      eyeStyleSelect.replaceChildren(
-        new Option('Random at boot', 'auto'),
-        ...hatEyes.styles.map(style => new Option(style, style)),
-      );
+    const { styles, current, selection } = hatEyes;
+    if (styles.length !== eyeStyleSelect.options.length
+        || styles.some((style, i) => style !== eyeStyleSelect.options[i].value)) {
+      eyeStyleSelect.replaceChildren(...styles.map(style => new Option(style, style)));
     }
-    if (!eyeStyleSelect.disabled) eyeStyleSelect.value = hatEyes.selection;
-    const current = $('hat-eye-current');
-    current.hidden = hatEyes.selection === hatEyes.current;
-    const label = `Showing ${hatEyes.current}`;
-    if (current.textContent !== label) current.textContent = label;
+    const selectedStyle = selection === 'auto' ? current : selection;
+    if (!eyeStyleSelect.disabled) eyeStyleSelect.value = selectedStyle;
+    const showing = $('hat-eye-current');
+    showing.hidden = selectedStyle === current;
+    const label = `Showing ${current}`;
+    if (showing.textContent !== label) showing.textContent = label;
   }
 
   eyeStyleSelect.addEventListener('change', async () => {
