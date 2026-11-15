@@ -1,0 +1,22 @@
+[Unit]
+Description=Masipah TV Waveshare OLED/LCD HAT face
+After=systemd-modules-load.service
+ConditionPathExists=/dev/spidev0.0
+ConditionPathExists=/dev/i2c-1
+ConditionPathExists=/var/lib/crt-face/mouth.mp4
+
+[Service]
+User=crt
+SupplementaryGroups=gpio spi i2c
+Nice=8
+ExecStart=/usr/bin/python3 /usr/local/lib/crt-face/face.py /var/lib/crt-face/mouth.mp4
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

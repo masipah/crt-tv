@@ -55,6 +55,9 @@ is composite-only until you revert (see [docs/composite-video.md](docs/composite
 3. After reboot the Pi switches to composite out and the PVM shows the
    MASIPAH loading sequence followed by Channel.
 
+The optional [Waveshare face](hat/README.md) runs on the Pi's GPIO header
+alongside the composite output.
+
 ### Setting your location
 
 The weather is at **San Francisco (94102)**. Set `KIOSK_LOCATION` in
@@ -321,6 +324,12 @@ makes the whole root filesystem read-only — but that freezes uploads and
 config changes until you turn it off, so it's not enabled by default.
 
 ## Docs
+
+If Weather, Scope, and Muni immediately fall back to Off, check
+`sudo tv doctor` and the Pi's Chromium logs. When Chromium repeatedly fails
+to start with its current profile, run
+`sudo bash /opt/crt-tv/setup/reset-kiosk-profile.sh`. This archives the old
+kiosk profile under `/var/backups` and creates a clean one.
 
 - [docs/hardware.md](docs/hardware.md) — TRRS pinout, PVM hookup, wrong-cable symptoms
 - [docs/composite-video.md](docs/composite-video.md) — how 480i output works on
