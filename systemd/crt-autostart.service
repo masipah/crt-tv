@@ -1,6 +1,6 @@
 [Unit]
 Description=crt-tv boot audio and opening-to-channel startup
-After=weather-kiosk.service
+After=crt-splash.service systemd-user-sessions.service
 
 [Service]
 Type=oneshot

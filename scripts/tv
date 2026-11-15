@@ -395,6 +395,7 @@ case $cmd in
       if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
         printf 'pending\n' >"$RUN_DIR/weather-intro"
       fi
+      systemctl start weather-kiosk.service
     fi
     ;;
   normalize)
