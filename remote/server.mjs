@@ -19,6 +19,11 @@ const HAT_EYE_SELECTION_FILE = process.env.CRT_HAT_EYE_SELECTION_FILE ?? '/run/c
 const HAT_MOUTH_STATUS_FILE = process.env.CRT_HAT_MOUTH_STATUS_FILE ?? '/run/crt-face/mouth.json';
 const HAT_MOUTH_SELECTION_FILE = process.env.CRT_HAT_MOUTH_SELECTION_FILE ?? '/run/crt-tv/hat-mouth-mode.json';
 const HAT_MOUTH_MODES = new Set(['random', 'more-licking', 'more-talking', 'less-idle', 'idle']);
+const HAT_BRIGHTNESS_STATUS_FILE = process.env.CRT_HAT_BRIGHTNESS_STATUS_FILE ?? '/run/crt-face/brightness.json';
+const HAT_BRIGHTNESS_FILES = new Map([
+  ['eyes', process.env.CRT_HAT_EYE_BRIGHTNESS_FILE ?? '/run/crt-tv/hat-eye-brightness.json'],
+  ['mouth', process.env.CRT_HAT_MOUTH_BRIGHTNESS_FILE ?? '/run/crt-tv/hat-mouth-brightness.json'],
+]);
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
@@ -87,6 +92,15 @@ async function readHatEyes() {
 async function readHatMouth() {
   const [available, mode] = await Promise.all([HAT_MOUTH_STATUS_FILE, HAT_MOUTH_SELECTION_FILE].map(readRuntimeJson));
   return available === true ? { mode: HAT_MOUTH_MODES.has(mode) ? mode : 'random' } : null;
+}
+
+const isBrightness = (level) => Number.isInteger(level) && level >= 1 && level <= 100;
+
+async function readHatBrightness() {
+  const applied = await readRuntimeJson(HAT_BRIGHTNESS_STATUS_FILE);
+  const eyes = isBrightness(applied?.eyes) ? applied.eyes : null;
+  const mouth = isBrightness(applied?.mouth) ? applied.mouth : null;
+  return eyes === null && mouth === null ? null : { eyes, mouth };
 }
 
 async function saveOrder(order) {
@@ -379,8 +393,10 @@ async function handleRequest(req, res) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else if (req.method === 'GET' && pathname === '/api/status') {
-      const [tvStatus, hatEyes, hatMouth] = await Promise.all([status(), readHatEyes(), readHatMouth()]);
-      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes: hatEyes?.status ?? null, hatMouth });
+      const [tvStatus, hatEyes, hatMouth, hatBrightness] = await Promise.all([
+        status(), readHatEyes(), readHatMouth(), readHatBrightness(),
+      ]);
+      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes: hatEyes?.status ?? null, hatMouth, hatBrightness });
     } else if (req.method === 'POST' && pathname === '/api/hat/eye-style') {
       const hatEyes = await readHatEyes();
       if (!hatEyes) return sendJson(res, 409, { error: 'The HAT is not running' });
@@ -401,6 +417,17 @@ async function handleRequest(req, res) {
         return sendJson(res, 400, { error: 'Unknown HAT mouth mode' });
       }
       await atomicJson(HAT_MOUTH_SELECTION_FILE, mode);
+      sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/hat/brightness') {
+      const { screen, brightness } = JSON.parse(await readBody(req) || '{}') ?? {};
+      const file = HAT_BRIGHTNESS_FILES.get(screen);
+      if (!file || !isBrightness(brightness)) {
+        return sendJson(res, 400, { error: 'Choose eyes or mouth and a brightness from 1 to 100' });
+      }
+      if ((await readHatBrightness())?.[screen] == null) {
+        return sendJson(res, 409, { error: 'That HAT display is not running' });
+      }
+      await atomicJson(file, brightness);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {

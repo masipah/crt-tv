@@ -33,9 +33,13 @@ MOUTH_WEIGHTS = {
 }
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
+DEFAULT_EYE_CONTRAST = 0x68
 EYE_STYLE_INTERVAL = 10 * 60
 EYE_SELECTION_FILE = Path("/run/crt-tv/hat-eye-style.json")
 EYE_STATUS_FILE = Path("/run/crt-face/eyes.json")
+EYE_BRIGHTNESS_FILE = Path("/run/crt-tv/hat-eye-brightness.json")
+MOUTH_BRIGHTNESS_FILE = Path("/run/crt-tv/hat-mouth-brightness.json")
+BRIGHTNESS_STATUS_FILE = Path("/run/crt-face/brightness.json")
 
 
 class EyeMotion:
@@ -187,6 +191,30 @@ def publish_runtime_json(path, value):
         print(f"Could not publish HAT status ({path.name}): {error}", file=sys.stderr)
 
 
+def requested_brightness(path):
+    level = read_runtime_json(path)
+    return level if type(level) is int and 1 <= level <= 100 else None
+
+
+def apply_brightness(displays, backlight, previous):
+    eyes = requested_brightness(EYE_BRIGHTNESS_FILE)
+    contrast = DEFAULT_EYE_CONTRAST if eyes is None else round(eyes * 255 / 100)
+    mouth = requested_brightness(MOUTH_BRIGHTNESS_FILE) or 100
+    levels = (contrast, mouth)
+    if levels != previous:
+        if previous is None or contrast != previous[0]:
+            for display in displays:
+                display.contrast(contrast)
+        if previous is None or mouth != previous[1]:
+            # LGPIO truncates the normalized value to a whole duty percentage.
+            backlight.value = math.nextafter(mouth / 100, 1)
+        publish_runtime_json(BRIGHTNESS_STATUS_FILE, {
+            "eyes": round(contrast * 100 / 255),
+            "mouth": round(backlight.value * 100),
+        })
+    return levels
+
+
 def requested_eye_style():
     request = read_runtime_json(EYE_SELECTION_FILE)
     # Earlier remotes stored only the chosen style.
@@ -262,17 +290,19 @@ def draw_eye_pair(style, x, y, openness, elapsed):
     return tuple(eyes)
 
 
-def animate_eyes(displays, stop, boot_style):
+def animate_eyes(displays, backlight, stop, boot_style):
     motion = EyeMotion()
     start = monotonic()
     rotation = initial_eye_rotation(boot_style, start)
     next_selection_check = start
     last_rotation = None
+    brightness = None
     last_frames = [None] * len(displays)
     while not stop.is_set():
         now = monotonic()
         if now >= next_selection_check:
             rotation = update_eye_rotation(rotation, requested_eye_style(), boot_style, now)
+            brightness = apply_brightness(displays, backlight, brightness)
             next_selection_check = now + 0.25
         style = rotation["current"]
         elapsed = now - start
@@ -294,7 +324,7 @@ class MouthDisplay:
     """ST7789 on SPI0 CE0, in the panel's native 240 × 320 orientation."""
 
     def __init__(self, stack):
-        from gpiozero import OutputDevice
+        from gpiozero import OutputDevice, PWMOutputDevice
         from gpiozero.pins.lgpio import LGPIOFactory
         import spidev
 
@@ -302,7 +332,7 @@ class MouthDisplay:
         stack.callback(factory.close)
         self.dc = stack.enter_context(OutputDevice(22, pin_factory=factory))
         reset = stack.enter_context(OutputDevice(27, initial_value=True, pin_factory=factory))
-        self.backlight = stack.enter_context(OutputDevice(18, pin_factory=factory))
+        self.backlight = stack.enter_context(PWMOutputDevice(18, frequency=1000, pin_factory=factory))
         stack.callback(self.backlight.off)
 
         self.spi = spidev.SpiDev(0, 0)
@@ -395,7 +425,11 @@ def mouth_decoder(path, *, loop):
     filters = (
         f"fps={MOUTH_FPS},scale={MOUTH_WIDTH}:{MOUTH_HEIGHT}:"
         "force_original_aspect_ratio=decrease:force_divisible_by=2,"
-        f"pad={MOUTH_WIDTH}:{MOUTH_HEIGHT}:(ow-iw)/2:(oh-ih)/2,transpose=cclock"
+        f"pad={MOUTH_WIDTH}:{MOUTH_HEIGHT}:(ow-iw)/2:(oh-ih)/2,"
+        # Lift the illuminated parts of the image and preserve near-black luma.
+        "lutyuv=y='if(lte(val,24),val,clip(val+38*(1-exp(-(val-24)/45))*(235-val)/211,16,235))'"
+        ":u='clip((val-128)*1.1+128,16,240)':v='clip((val-128)*1.1+128,16,240)',"
+        "transpose=cclock"
     )
     playback = ["-stream_loop", "-1"] if loop else ["-xerror"]
     return [
@@ -454,9 +488,8 @@ def animate_mouth(lcd, clip, stop, eyes):
 
 def play(displays, lcd, clip, stop, boot_style):
     with ThreadPoolExecutor(max_workers=1) as pool:
-        eyes = pool.submit(animate_eyes, displays, stop, boot_style)
+        eyes = pool.submit(animate_eyes, displays, lcd.backlight, stop, boot_style)
         try:
-            lcd.backlight.on()
             animate_mouth(lcd, clip, stop, eyes)
         finally:
             stop.set()
@@ -481,12 +514,13 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     with ExitStack() as stack:
+        publish_runtime_json(BRIGHTNESS_STATUS_FILE, None)
+        stack.callback(publish_runtime_json, BRIGHTNESS_STATUS_FILE, None)
         displays = []
         for address in EYE_ADDRESSES:
             try:
                 serial = i2c(port=1, address=address)
                 display = ssd1306(serial, width=128, height=64)
-                display.contrast(0x68)
             except DeviceNotFoundError:
                 print(f"Waveshare HAT OLED at {address:#04x} did not respond", file=sys.stderr)
                 return
