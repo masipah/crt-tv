@@ -26,8 +26,9 @@ MOUTH_STATUS_FILE = Path("/run/crt-face/mouth.json")
 MOUTH_KINDS = ("closed", "lick", "idle", "talk")
 MOUTH_WEIGHTS = {
     "random": (48, 42, 7, 3),
-    "more-licking": (22, 74, 3, 1),
-    "more-talking": (22, 10, 3, 65),
+    "more-licking": (6, 92, 1, 1),
+    "more-talking": (6, 1, 1, 92),
+    "less-idle": (0, 47, 0, 53),  # Licks run longer than talks on average.
     "idle": (68, 0, 32, 0),
 }
 EYE_SIZE = (128, 64)

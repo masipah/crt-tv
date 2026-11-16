@@ -50,7 +50,8 @@ python3 hat/prepare-mouth-clips.py source.mp4 mouth-clips
 The Pi boots in **Random**, favoring closed-mouth rests and licks. Every
 clip starts and ends at the same closed pose, so it can join any other
 clip. **Mouth** below **Betty Davis' Eyes** selects **More licking**,
-**More talking**, or **Idle** for the current boot. Changes apply at a
+**More talking**, **Less idle**, or **Idle** for the current boot. Less idle
+mixes licking and talking clips continuously. Changes apply at a
 closed-mouth join. Playback uses every clip in a category before reshuffling
 that category. The original clip plays when the set is absent or incomplete.
 

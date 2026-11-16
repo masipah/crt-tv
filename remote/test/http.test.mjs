@@ -75,7 +75,7 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.equal((await post('/api/hat/mouth-mode', { mode: 'idle' })).status, 409);
     await fs.writeFile(mouthStatusFile, 'true');
     assert.deepEqual(await hatMouth(), { mode: 'random' });
-    for (const mode of ['more-licking', 'more-talking', 'idle', 'random']) {
+    for (const mode of ['more-licking', 'more-talking', 'less-idle', 'idle', 'random']) {
       assert.equal((await post('/api/hat/mouth-mode', { mode })).status, 200);
       assert.equal(JSON.parse(await fs.readFile(mouthSelectionFile, 'utf8')), mode);
       assert.deepEqual(await hatMouth(), { mode });
