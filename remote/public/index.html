@@ -37,23 +37,37 @@
       </div>
 
       <div class="card hat-control" id="hat-eyes" hidden>
-        <label for="hat-eye-style">Betty Davis' Eyes</label>
-        <div class="hat-picker">
-          <select id="hat-eye-style"></select>
+        <div id="hat-eye-style-control">
+          <label for="hat-eye-style">Betty Davis' Eyes</label>
+          <div class="hat-picker">
+            <select id="hat-eye-style"></select>
+          </div>
+          <p id="hat-eye-current" class="hint" aria-live="polite" hidden></p>
         </div>
-        <p id="hat-eye-current" class="hint" aria-live="polite" hidden></p>
+        <div class="hat-brightness" id="hat-eyes-brightness-control" hidden>
+          <label for="hat-eyes-brightness">Eyes brightness</label>
+          <span id="hat-eyes-brightness-value" aria-hidden="true"></span>
+          <input type="range" id="hat-eyes-brightness" min="1" max="100" step="1" value="41">
+        </div>
       </div>
 
       <div class="card hat-control" id="hat-mouth" hidden>
-        <label for="hat-mouth-mode">Mouth</label>
-        <div class="hat-picker">
-          <select id="hat-mouth-mode">
-            <option value="random">Random</option>
-            <option value="more-licking">More licking</option>
-            <option value="more-talking">More talking</option>
-            <option value="less-idle">Less idle</option>
-            <option value="idle">Idle</option>
-          </select>
+        <div id="hat-mouth-mode-control">
+          <label for="hat-mouth-mode">Mouth</label>
+          <div class="hat-picker">
+            <select id="hat-mouth-mode">
+              <option value="random">Random</option>
+              <option value="more-licking">More licking</option>
+              <option value="more-talking">More talking</option>
+              <option value="less-idle">Less idle</option>
+              <option value="idle">Idle</option>
+            </select>
+          </div>
+        </div>
+        <div class="hat-brightness" id="hat-mouth-brightness-control" hidden>
+          <label for="hat-mouth-brightness">Mouth brightness</label>
+          <span id="hat-mouth-brightness-value" aria-hidden="true"></span>
+          <input type="range" id="hat-mouth-brightness" min="1" max="100" step="1" value="100">
         </div>
       </div>
 
@@ -110,20 +124,20 @@
       </section>
 
       <section>
+        <div class="sec-head"><h2>Videos</h2></div>
+        <p class="hint">Play when you choose. Never included in the channel rotation;
+          no commercials, shuffle or looping.</p>
+        <ul class="list" id="on-demand-list"></ul>
+        <p id="on-demand-empty" class="hint" hidden>No videos yet — upload here or move clips from Channel.</p>
+      </section>
+
+      <section>
         <div class="sec-head">
           <h2>Commercials</h2>
         </div>
         <p class="hint">One plays at random after every 4th video.</p>
         <ul class="list" id="commercials-list"></ul>
         <p id="commercials-empty" class="hint" hidden>No commercials yet — the channel plays uninterrupted.</p>
-      </section>
-
-      <section>
-        <div class="sec-head"><h2>Videos</h2></div>
-        <p class="hint">Play when you choose. Never included in the channel rotation;
-          no commercials, shuffle or looping.</p>
-        <ul class="list" id="on-demand-list"></ul>
-        <p id="on-demand-empty" class="hint" hidden>No videos yet — upload here or move clips from Channel.</p>
       </section>
 
       <section id="queue-sec" hidden>

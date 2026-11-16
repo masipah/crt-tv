@@ -151,6 +151,24 @@
     pointer-events: none;
   }
   .hat-control .hint { margin: 8px 0 0; }
+  .hat-brightness {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    margin-top: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+  [hidden] + .hat-brightness { margin-top: 0; }
+  .hat-brightness label { margin: 0; }
+  .hat-brightness input {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 30px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
 
   /* transport + mode chips */
   .transport { display: flex; justify-content: center; gap: 22px; margin: 2px 0 14px; }
@@ -330,17 +348,16 @@
     :root { --hover: rgba(255, 255, 255, 0.045); }
     body { padding: 28px 32px; }
     .layout {
-      max-width: 1160px;
+      max-width: 1440px;
       display: grid;
       grid-template-columns: 320px minmax(0, 1fr);
       gap: 28px;
       align-items: start;
     }
-    .side { position: sticky; top: 24px; }
     h1 { font-size: 1rem; margin: 0 2px 16px; }
     .main {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 0 24px;
       align-content: start;
     }

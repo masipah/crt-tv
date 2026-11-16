@@ -21,7 +21,7 @@ const $ = (id) => document.getElementById(id);
 
   const eyeStyleSelect = $('hat-eye-style');
   function renderHatEyes(hatEyes) {
-    $('hat-eyes').hidden = !hatEyes;
+    $('hat-eye-style-control').hidden = !hatEyes;
     if (!hatEyes) return;
     const { styles, current, selection } = hatEyes;
     if (styles.length !== eyeStyleSelect.options.length
@@ -48,6 +48,54 @@ const $ = (id) => document.getElementById(id);
     await post('/api/hat/mouth-mode', { mode: mouthModeSelect.value });
     mouthModeSelect.disabled = false;
   });
+
+  function bindHatBrightness(screen) {
+    const control = $(`hat-${screen}-brightness-control`);
+    const slider = $(`hat-${screen}-brightness`);
+    const readout = $(`hat-${screen}-brightness-value`);
+    let nextLevel = null;
+    let timer = null;
+    let sending = false;
+    let holdUntil = 0;
+
+    function showLevel() {
+      const percent = `${slider.value}%`;
+      if (readout.textContent !== percent) readout.textContent = percent;
+      slider.setAttribute('aria-valuetext', percent);
+    }
+
+    function scheduleSend() {
+      if (!sending && timer === null) timer = setTimeout(send, 125);
+    }
+
+    async function send() {
+      timer = null;
+      sending = true;
+      const brightness = nextLevel;
+      nextLevel = null;
+      await post('/api/hat/brightness', { screen, brightness });
+      sending = false;
+      // Keep the thumb in place while the HAT polls for the request.
+      holdUntil = Date.now() + 350;
+      if (nextLevel !== null) scheduleSend();
+    }
+
+    slider.addEventListener('input', () => {
+      showLevel();
+      nextLevel = Number(slider.value);
+      scheduleSend();
+    });
+
+    return (brightness) => {
+      control.hidden = brightness == null;
+      if (control.hidden || nextLevel !== null || sending || Date.now() < holdUntil) return;
+      slider.value = brightness;
+      showLevel();
+    };
+  }
+
+  const renderEyesBrightness = bindHatBrightness('eyes');
+  const renderMouthBrightness = bindHatBrightness('mouth');
 
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
@@ -80,8 +128,14 @@ const $ = (id) => document.getElementById(id);
       catch (e) { err(e.message); }
     }
     renderHatEyes(st.hatEyes);
-    $('hat-mouth').hidden = !st.hatMouth;
+    const eyeBrightness = st.hatBrightness?.eyes;
+    const mouthBrightness = st.hatBrightness?.mouth;
+    $('hat-eyes').hidden = !st.hatEyes && eyeBrightness == null;
+    $('hat-mouth').hidden = !st.hatMouth && mouthBrightness == null;
+    $('hat-mouth-mode-control').hidden = !st.hatMouth;
     if (st.hatMouth && !mouthModeSelect.disabled) mouthModeSelect.value = st.hatMouth.mode;
+    renderEyesBrightness(eyeBrightness);
+    renderMouthBrightness(mouthBrightness);
     $('mode').textContent = st.mode === 'video'
       ? (st.manualPlayback ? 'Now showing: Videos' : 'Now showing: Channel') : MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');

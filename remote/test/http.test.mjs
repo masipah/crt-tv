@@ -22,10 +22,16 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
   const hatSelectionFile = path.join(dir, 'hat-selection.json');
   const mouthStatusFile = path.join(dir, 'mouth-status.json');
   const mouthSelectionFile = path.join(dir, 'mouth-selection.json');
+  const brightnessStatusFile = path.join(dir, 'brightness-status.json');
+  const eyeBrightnessFile = path.join(dir, 'eye-brightness.json');
+  const mouthBrightnessFile = path.join(dir, 'mouth-brightness.json');
   process.env.CRT_HAT_EYE_STATUS_FILE = hatStatusFile;
   process.env.CRT_HAT_EYE_SELECTION_FILE = hatSelectionFile;
   process.env.CRT_HAT_MOUTH_STATUS_FILE = mouthStatusFile;
   process.env.CRT_HAT_MOUTH_SELECTION_FILE = mouthSelectionFile;
+  process.env.CRT_HAT_BRIGHTNESS_STATUS_FILE = brightnessStatusFile;
+  process.env.CRT_HAT_EYE_BRIGHTNESS_FILE = eyeBrightnessFile;
+  process.env.CRT_HAT_MOUTH_BRIGHTNESS_FILE = mouthBrightnessFile;
   const { server } = await import('../server.mjs');
   if (!server.listening) await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -84,6 +90,26 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.deepEqual(await hatMouth(), { mode: 'random' });
     await fs.writeFile(mouthStatusFile, 'false');
     assert.equal(await hatMouth(), null);
+    const hatBrightness = async () => (await (await fetch(base + '/api/status')).json()).hatBrightness;
+    const setBrightness = (screen, brightness) => post('/api/hat/brightness', { screen, brightness });
+    assert.equal(await hatBrightness(), null);
+    assert.equal((await setBrightness('eyes', 30)).status, 409);
+    await fs.writeFile(brightnessStatusFile, JSON.stringify({ mouth: 100 }));
+    assert.deepEqual(await hatBrightness(), { eyes: null, mouth: 100 });
+    assert.equal((await setBrightness('eyes', 30)).status, 409);
+    // Backlight control remains available during original-loop playback.
+    assert.equal((await setBrightness('mouth', 29)).status, 200);
+    await fs.writeFile(brightnessStatusFile, JSON.stringify({ eyes: 41, mouth: 100 }));
+    assert.equal((await setBrightness('eyes', 30)).status, 200);
+    assert.equal(JSON.parse(await fs.readFile(eyeBrightnessFile, 'utf8')), 30);
+    assert.equal(JSON.parse(await fs.readFile(mouthBrightnessFile, 'utf8')), 29);
+    assert.deepEqual(await hatBrightness(), { eyes: 41, mouth: 100 });
+    for (const invalid of [0, 101, 25.5, '30', true]) {
+      assert.equal((await setBrightness('eyes', invalid)).status, 400);
+    }
+    assert.equal((await setBrightness('crt', 30)).status, 400);
+    await fs.writeFile(brightnessStatusFile, JSON.stringify({ eyes: 30, mouth: 29 }));
+    assert.deepEqual(await hatBrightness(), { eyes: 30, mouth: 29 });
     for(const asset of ['/remote.css','/remote.mjs','/display-fit.mjs'])assert.equal((await fetch(base+asset)).status,200);
     assert.equal((await post('/api/player/seek', {seconds:-1})).status, 400);
     assert.equal((await post('/api/play', {paths:[]})).status, 400);
@@ -139,6 +165,9 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     delete process.env.CRT_HAT_EYE_SELECTION_FILE;
     delete process.env.CRT_HAT_MOUTH_STATUS_FILE;
     delete process.env.CRT_HAT_MOUTH_SELECTION_FILE;
+    delete process.env.CRT_HAT_BRIGHTNESS_STATUS_FILE;
+    delete process.env.CRT_HAT_EYE_BRIGHTNESS_FILE;
+    delete process.env.CRT_HAT_MOUTH_BRIGHTNESS_FILE;
     await fs.rm(dir, {recursive:true,force:true});
   }
 });
