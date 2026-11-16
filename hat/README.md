@@ -47,9 +47,12 @@ from the full source video on a workstation with FFmpeg and Pillow:
 python3 hat/prepare-mouth-clips.py source.mp4 mouth-clips
 ```
 
-The Pi boots in **Random**, favoring closed-mouth rests and licks. Every
-clip starts and ends at the same closed pose, so it can join any other
-clip. **Mouth** below **Betty Davis' Eyes** selects **More licking**,
+**Idle** spends the most time with the mouth closed or making small idle
+movements. **Random**, the boot default, spends about 70% of clip time in
+those two states. The rest is mostly licking, with occasional talking.
+
+Every clip starts and ends at the same closed pose, so it can join any
+other clip. **Mouth** below **Betty Davis' Eyes** selects **More licking**,
 **More talking**, **Less idle**, or **Idle** for the current boot. Less idle
 mixes licking and talking clips continuously. Changes apply at a
 closed-mouth join. Playback uses every clip in a category before reshuffling
