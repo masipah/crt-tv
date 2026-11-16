@@ -16,6 +16,9 @@ const MEDIA_DIR = path.resolve(process.env.MEDIA_DIR ?? '/srv/media');
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const HAT_EYE_STATUS_FILE = process.env.CRT_HAT_EYE_STATUS_FILE ?? '/run/crt-face/eyes.json';
 const HAT_EYE_SELECTION_FILE = process.env.CRT_HAT_EYE_SELECTION_FILE ?? '/run/crt-tv/hat-eye-style.json';
+const HAT_MOUTH_STATUS_FILE = process.env.CRT_HAT_MOUTH_STATUS_FILE ?? '/run/crt-face/mouth.json';
+const HAT_MOUTH_SELECTION_FILE = process.env.CRT_HAT_MOUTH_SELECTION_FILE ?? '/run/crt-tv/hat-mouth-mode.json';
+const HAT_MOUTH_MODES = new Set(['random', 'more-licking', 'more-talking', 'idle']);
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);
@@ -62,11 +65,10 @@ async function atomicJson(file, value) {
   } finally { await fs.rm(tmp, {force:true}); }
 }
 
+const readRuntimeJson = (file) => fs.readFile(file, 'utf8').then(JSON.parse).catch(() => null);
+
 async function readHatEyes() {
-  const [state, request] = await Promise.all(
-    [HAT_EYE_STATUS_FILE, HAT_EYE_SELECTION_FILE].map(file =>
-      fs.readFile(file, 'utf8').then(JSON.parse).catch(() => null)),
-  );
+  const [state, request] = await Promise.all([HAT_EYE_STATUS_FILE, HAT_EYE_SELECTION_FILE].map(readRuntimeJson));
   if (!Array.isArray(state?.styles) || !state.styles.includes(state.current)) return null;
   const requestId = typeof request === 'string' ? request : request?.id;
   const selection = typeof requestId === 'string' && requestId !== state.requestId
@@ -80,6 +82,11 @@ async function readHatEyes() {
     },
     timedRotation: 'requestId' in state,
   };
+}
+
+async function readHatMouth() {
+  const [available, mode] = await Promise.all([HAT_MOUTH_STATUS_FILE, HAT_MOUTH_SELECTION_FILE].map(readRuntimeJson));
+  return available === true ? { mode: HAT_MOUTH_MODES.has(mode) ? mode : 'random' } : null;
 }
 
 async function saveOrder(order) {
@@ -372,8 +379,8 @@ async function handleRequest(req, res) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else if (req.method === 'GET' && pathname === '/api/status') {
-      const [tvStatus, hatEyes] = await Promise.all([status(), readHatEyes()]);
-      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes: hatEyes?.status ?? null });
+      const [tvStatus, hatEyes, hatMouth] = await Promise.all([status(), readHatEyes(), readHatMouth()]);
+      sendJson(res, 200, { ...tvStatus, libraryVersion, hatEyes: hatEyes?.status ?? null, hatMouth });
     } else if (req.method === 'POST' && pathname === '/api/hat/eye-style') {
       const hatEyes = await readHatEyes();
       if (!hatEyes) return sendJson(res, 409, { error: 'The HAT is not running' });
@@ -384,6 +391,16 @@ async function handleRequest(req, res) {
       // The remote can be updated before the separately installed HAT service.
       const request = hatEyes.timedRotation ? { id: randomUUID(), style } : style;
       await atomicJson(HAT_EYE_SELECTION_FILE, request);
+      sendJson(res, 200, { ok: true });
+    } else if (req.method === 'POST' && pathname === '/api/hat/mouth-mode') {
+      if (await readRuntimeJson(HAT_MOUTH_STATUS_FILE) !== true) {
+        return sendJson(res, 409, { error: 'The HAT mouth clips are not running' });
+      }
+      const mode = JSON.parse(await readBody(req) || '{}')?.mode;
+      if (!HAT_MOUTH_MODES.has(mode)) {
+        return sendJson(res, 400, { error: 'Unknown HAT mouth mode' });
+      }
+      await atomicJson(HAT_MOUTH_SELECTION_FILE, mode);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'GET' && pathname === '/api/media') {
       sendJson(res, 200, {

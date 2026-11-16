@@ -21,6 +21,15 @@ from PIL import Image, ImageDraw, ImageOps
 MOUTH_WIDTH = 320
 MOUTH_HEIGHT = 180
 MOUTH_FPS = 20
+MOUTH_SELECTION_FILE = Path("/run/crt-tv/hat-mouth-mode.json")
+MOUTH_STATUS_FILE = Path("/run/crt-face/mouth.json")
+MOUTH_KINDS = ("closed", "lick", "idle", "talk")
+MOUTH_WEIGHTS = {
+    "random": (48, 42, 7, 3),
+    "more-licking": (22, 74, 3, 1),
+    "more-talking": (22, 10, 3, 65),
+    "idle": (68, 0, 32, 0),
+}
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
 EYE_STYLE_INTERVAL = 10 * 60
@@ -168,6 +177,15 @@ def read_runtime_json(path):
         return None
 
 
+def publish_runtime_json(path, value):
+    temporary = path.with_suffix(".tmp")
+    try:
+        temporary.write_text(json.dumps(value))
+        temporary.replace(path)
+    except OSError as error:
+        print(f"Could not publish HAT status ({path.name}): {error}", file=sys.stderr)
+
+
 def requested_eye_style():
     request = read_runtime_json(EYE_SELECTION_FILE)
     # Earlier remotes stored only the chosen style.
@@ -222,12 +240,7 @@ def update_eye_rotation(rotation, request, boot_style, now):
 
 
 def publish_eye_style(rotation):
-    temporary = EYE_STATUS_FILE.with_suffix(".tmp")
-    try:
-        temporary.write_text(json.dumps({**rotation, "styles": EYE_STYLES}))
-        temporary.replace(EYE_STATUS_FILE)
-    except OSError as error:
-        print(f"Could not publish the HAT eye style: {error}", file=sys.stderr)
+    publish_runtime_json(EYE_STATUS_FILE, {**rotation, "styles": EYE_STYLES})
 
 
 def draw_eye_pair(style, x, y, openness, elapsed):
@@ -344,69 +357,108 @@ class MouthDisplay:
         self.spi.writebytes2(frame)
 
 
-def mouth_playlist(clip):
+class MouthClips:
+    def __init__(self, clips):
+        self.clips = clips
+        self.bags = {kind: [] for kind in clips}
+        self.last = {}
+
+    def choose(self, mode):
+        if not isinstance(mode, str) or mode not in MOUTH_WEIGHTS:
+            mode = "random"
+        kind = random.choices(MOUTH_KINDS, weights=MOUTH_WEIGHTS[mode])[0]
+
+        bag = self.bags[kind]
+        if not bag:
+            bag.extend(self.clips[kind])
+            random.shuffle(bag)
+            if len(bag) > 1 and bag[-1] == self.last.get(kind):
+                other = random.randrange(len(bag) - 1)
+                bag[-1], bag[other] = bag[other], bag[-1]
+        path = bag.pop()
+        self.last[kind] = path
+        return path
+
+
+def load_mouth_clips(clip):
     directory = clip.with_name("mouth-clips")
-    groups = [
-        sorted(path.resolve() for path in directory.glob(f"{kind}-*.mp4") if path.is_file())
-        for kind in ("closed", "lick", "idle", "talk")
-    ]
-    if not all(groups):
-        return clip
-    closed, *gestures = groups
-    playlist = Path("mouth.ffconcat")
-    last_rest = last_gesture = None
-    with playlist.open("w", encoding="utf-8") as output:
-        output.write("ffconcat version 1.0\n")
-        for group in random.choices(gestures, weights=(82, 12, 6), k=240):
-            rest = random.choice([path for path in closed if path != last_rest] or closed)
-            gesture = random.choice([path for path in group if path != last_gesture] or group)
-            for path in (rest, gesture):
-                escaped = str(path).replace("'", "'\\''")
-                output.write(f"file '{escaped}'\n")
-            last_rest, last_gesture = rest, gesture
-    return playlist
+    clips = {
+        kind: sorted(path for path in directory.glob(f"{kind}-*.mp4") if path.is_file())
+        for kind in MOUTH_KINDS
+    }
+    return MouthClips(clips) if all(clips.values()) else None
 
 
-def mouth_decoder(path):
+def mouth_decoder(path, *, loop):
     # ROTATE_270 in the Waveshare demo is a 90° counterclockwise frame rotation.
     filters = (
         f"fps={MOUTH_FPS},scale={MOUTH_WIDTH}:{MOUTH_HEIGHT}:"
         "force_original_aspect_ratio=decrease:force_divisible_by=2,"
         f"pad={MOUTH_WIDTH}:{MOUTH_HEIGHT}:(ow-iw)/2:(oh-ih)/2,transpose=cclock"
     )
-    concat = ["-f", "concat", "-safe", "0"] if path.suffix == ".ffconcat" else []
+    playback = ["-stream_loop", "-1"] if loop else ["-xerror"]
     return [
         "/usr/bin/ffmpeg", "-nostdin", "-loglevel", "error",
-        "-stream_loop", "-1", "-re", "-threads", "1", *concat, "-i", str(path),
+        *playback, "-re", "-threads", "1", "-i", str(path),
         "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1", "-vf", filters,
         "-pix_fmt", "rgb565be", "-c:v", "rawvideo", "-threads:v", "1",
         "-f", "rawvideo", "pipe:1",
     ]
 
 
-def play(displays, lcd, clip, stop, boot_style):
+class MouthDecodeError(RuntimeError):
+    pass
+
+
+def play_mouth_clip(lcd, path, stop, eyes, *, loop=False):
     frame_bytes = MOUTH_WIDTH * MOUTH_HEIGHT * 2
-    source = mouth_playlist(clip)
-    if source != clip:
-        print("Playing shuffled mouth clips", flush=True)
-    command = mouth_decoder(source)
+    command = mouth_decoder(path, loop=loop)
     with subprocess.Popen(command, stdout=subprocess.PIPE) as decoder:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            eyes = pool.submit(animate_eyes, displays, stop, boot_style)
-            try:
-                lcd.backlight.on()
-                while not stop.is_set():
-                    frame = decoder.stdout.read(frame_bytes)
-                    if stop.is_set():
-                        break
-                    if eyes.done():
-                        eyes.result()
-                    if len(frame) != frame_bytes:
-                        raise RuntimeError("FFmpeg stopped producing LCD frames")
-                    lcd.display(frame)
-            finally:
-                stop.set()
+        displayed = False
+        try:
+            while not stop.is_set():
+                frame = decoder.stdout.read(frame_bytes)
+                if stop.is_set():
+                    return
+                if eyes.done():
+                    eyes.result()
+                if len(frame) != frame_bytes:
+                    if not loop and not frame and displayed and decoder.wait() == 0:
+                        return
+                    raise MouthDecodeError(f"FFmpeg stopped producing LCD frames for {path.name}")
+                lcd.display(frame)
+                displayed = True
+        finally:
+            if decoder.poll() is None:
                 decoder.terminate()
+
+
+def animate_mouth(lcd, clip, stop, eyes):
+    clips = load_mouth_clips(clip)
+    try:
+        if clips is not None:
+            publish_runtime_json(MOUTH_STATUS_FILE, True)
+            print("Playing shuffled mouth clips", flush=True)
+            while not stop.is_set():
+                # The LCD holds the last closed frame while the next clip opens.
+                mode = read_runtime_json(MOUTH_SELECTION_FILE)
+                play_mouth_clip(lcd, clips.choose(mode), stop, eyes)
+    except MouthDecodeError as error:
+        print(f"{error}; playing the original mouth loop", file=sys.stderr)
+    finally:
+        publish_runtime_json(MOUTH_STATUS_FILE, False)
+    if not stop.is_set():
+        play_mouth_clip(lcd, clip, stop, eyes, loop=True)
+
+
+def play(displays, lcd, clip, stop, boot_style):
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        eyes = pool.submit(animate_eyes, displays, stop, boot_style)
+        try:
+            lcd.backlight.on()
+            animate_mouth(lcd, clip, stop, eyes)
+        finally:
+            stop.set()
 
 
 def main():

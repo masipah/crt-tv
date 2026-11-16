@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut the prepared 2:00–2:40 mouth loop into matching video clips."""
+"""Cut the full source video into matching, silent mouth clips."""
 
 import argparse
 import math
@@ -12,31 +12,55 @@ from face import MOUTH_FPS, MOUTH_HEIGHT, MOUTH_WIDTH
 
 
 SIZE = (MOUTH_WIDTH, MOUTH_HEIGHT)
-NEUTRAL_FRAME = 532
-CLOSED_POSES = [(534, 4.0), (634, 5.2), (797, 6.2)]
-# Source frame bounds are inclusive. The speed is relative to the original.
+NEUTRAL_FRAME = 2932  # 2:26.60, closed lips
+CLOSED_POSES = [(2934, 4.0), (3034, 5.2), (3197, 6.2), (344, 4.8)]
+# Absolute 20 fps source frame bounds are inclusive. Speed is relative to source.
+# These excerpts avoid the black/green and isolated-teeth sequences in the video.
 GESTURES = [
-    ("idle-01", 454, 465, 0.55),
-    ("idle-02", 508, 520, 0.6),
-    ("lick-01", 178, 222, 0.72),
-    ("lick-02", 331, 348, 0.63),
-    ("lick-03", 81, 97, 0.68),
-    ("talk-01", 55, 75, 0.88),
-    ("talk-02", 540, 566, 0.88),
+    ("idle-01", 2854, 2865, 0.55),
+    ("idle-02", 2908, 2920, 0.60),
+    ("idle-03", 608, 616, 0.50),
+    ("lick-01", 2578, 2622, 0.72),
+    ("lick-02", 2731, 2748, 0.63),
+    ("lick-03", 2481, 2497, 0.68),
+    ("lick-04", 616, 643, 0.70),
+    ("lick-05", 1048, 1070, 0.72),
+    ("talk-01", 2455, 2475, 0.88),
+    ("talk-02", 2940, 2966, 0.88),
+    ("talk-03", 344, 370, 0.80),
+    ("talk-04", 910, 940, 0.80),
 ]
 
 
 def decode(source):
+    needed = {NEUTRAL_FRAME, *(number for number, _ in CLOSED_POSES)}
+    for _, first, last, _ in GESTURES:
+        needed.update(range(first, last + 1))
+    numbers = sorted(needed)
+    # Decode once, retaining only selected frames to avoid holding the entire
+    # four-minute video as raw RGB in memory.
+    ranges = []
+    first = last = numbers[0]
+    for number in numbers[1:]:
+        if number == last + 1:
+            last = number
+        else:
+            ranges.append((first, last))
+            first = last = number
+    ranges.append((first, last))
+    selection = "+".join(f"between(n,{first},{last})" for first, last in ranges)
     raw = subprocess.check_output([
         "ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(source),
         "-map", "0:v:0", "-an",
-        "-vf", f"fps={MOUTH_FPS},scale={MOUTH_WIDTH}:{MOUTH_HEIGHT}:flags=lanczos",
+        "-vf", f"fps={MOUTH_FPS},select='{selection}',scale={MOUTH_WIDTH}:{MOUTH_HEIGHT}:flags=lanczos",
+        "-vsync", "0",
         "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
     ])
     stride = MOUTH_WIDTH * MOUTH_HEIGHT * 3
-    if len(raw) != 40 * MOUTH_FPS * stride:
-        raise ValueError("Use the 40-second mouth.mp4 from hat/prepare-mouth.sh")
-    return [Image.frombytes("RGB", SIZE, raw[i:i + stride]) for i in range(0, len(raw), stride)]
+    if len(raw) != len(numbers) * stride:
+        raise ValueError("Use the complete source video, including the passage through 2:40")
+    return {number: Image.frombytes("RGB", SIZE, raw[i * stride:(i + 1) * stride])
+            for i, number in enumerate(numbers)}
 
 
 def lip_box(frame):
@@ -100,7 +124,7 @@ def encode(frames, output):
         "ffmpeg", "-nostdin", "-v", "error", "-xerror", "-y",
         "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{MOUTH_WIDTH}x{MOUTH_HEIGHT}",
         "-r", str(MOUTH_FPS), "-i", "pipe:0", "-an", "-c:v", "libx264",
-        "-preset", "fast", "-crf", "15", "-pix_fmt", "yuv420p", "-bf", "0",
+        "-preset", "fast", "-qp", "0", "-pix_fmt", "yuv420p", "-bf", "0",
         "-video_track_timescale", "20000", "-movflags", "+faststart", str(output),
     ], input=b"".join(frame.tobytes() for frame in frames), check=True)
 
@@ -118,7 +142,8 @@ def main():
         pose = align(frames[number], placement(frames[number], neutral_box))
         encode(closed_frames(neutral, pose, length), args.output_directory / f"closed-{index:02d}.mp4")
     for name, first, last, speed in GESTURES:
-        clip = gesture_frames(frames[first:last + 1], neutral, neutral_box, speed)
+        clip = gesture_frames([frames[number] for number in range(first, last + 1)],
+                              neutral, neutral_box, speed)
         encode(clip, args.output_directory / f"{name}.mp4")
 
 

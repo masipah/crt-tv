@@ -39,18 +39,20 @@ The face reads `/var/lib/crt-face/mouth.mp4` and runs continuously while the Pi
 is on. It starts over at every power-up and requires no network for playback.
 Keep a copy of `mouth.mp4` with your backups for offline restores.
 
-To restore the shuffled mouth animation, keep a copy of the `mouth-clips`
-folder alongside `mouth.mp4` in `/var/lib/crt-face`. You can rebuild the
-clips on a workstation with FFmpeg and Pillow:
+To restore randomized mouth movement, copy the `mouth-clips` folder
+alongside `mouth.mp4` in `/var/lib/crt-face`. You can rebuild the clips
+from the full source video on a workstation with FFmpeg and Pillow:
 
 ```sh
-python3 hat/prepare-mouth-clips.py mouth.mp4 mouth-clips
+python3 hat/prepare-mouth-clips.py source.mp4 mouth-clips
 ```
 
-The service shuffles a roughly 30-minute loop at startup, with closed-mouth rests
-between gestures. It favors licks and includes occasional idle movements
-and brief talking. Each clip starts and ends at the same closed pose. The
-original clip plays when the set is absent or incomplete.
+The Pi boots in **Random**, favoring closed-mouth rests and licks. Every
+clip starts and ends at the same closed pose, so it can join any other
+clip. **Mouth** below **Betty Davis' Eyes** selects **More licking**,
+**More talking**, or **Idle** for the current boot. Changes apply at a
+closed-mouth join. Playback uses every clip in a category before reshuffling
+that category. The original clip plays when the set is absent or incomplete.
 
 ```sh
 systemctl status crt-face.service

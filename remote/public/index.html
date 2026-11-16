@@ -36,12 +36,24 @@
         <button id="btn-off" onclick="post('/api/tv/stop')">Off</button>
       </div>
 
-      <div class="card hat-eyes" id="hat-eyes" hidden>
+      <div class="card hat-control" id="hat-eyes" hidden>
         <label for="hat-eye-style">Betty Davis' Eyes</label>
-        <div class="hat-eye-picker">
+        <div class="hat-picker">
           <select id="hat-eye-style"></select>
         </div>
         <p id="hat-eye-current" class="hint" aria-live="polite" hidden></p>
+      </div>
+
+      <div class="card hat-control" id="hat-mouth" hidden>
+        <label for="hat-mouth-mode">Mouth</label>
+        <div class="hat-picker">
+          <select id="hat-mouth-mode">
+            <option value="random">Random</option>
+            <option value="more-licking">More licking</option>
+            <option value="more-talking">More talking</option>
+            <option value="idle">Idle</option>
+          </select>
+        </div>
       </div>
 
       <div class="card">

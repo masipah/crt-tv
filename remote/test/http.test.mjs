@@ -20,8 +20,12 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
   process.env.CRT_REMOTE_PORT = '0';
   const hatStatusFile = path.join(dir, 'hat-status.json');
   const hatSelectionFile = path.join(dir, 'hat-selection.json');
+  const mouthStatusFile = path.join(dir, 'mouth-status.json');
+  const mouthSelectionFile = path.join(dir, 'mouth-selection.json');
   process.env.CRT_HAT_EYE_STATUS_FILE = hatStatusFile;
   process.env.CRT_HAT_EYE_SELECTION_FILE = hatSelectionFile;
+  process.env.CRT_HAT_MOUTH_STATUS_FILE = mouthStatusFile;
+  process.env.CRT_HAT_MOUTH_SELECTION_FILE = mouthSelectionFile;
   const { server } = await import('../server.mjs');
   if (!server.listening) await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -66,6 +70,20 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'Spirals' });
     assert.equal((await post('/api/hat/eye-style', { style: 'auto' })).status, 200);
     assert.deepEqual(await hatEyes(), { ...hatState, selection: 'auto' });
+    const hatMouth = async () => (await (await fetch(base + '/api/status')).json()).hatMouth;
+    assert.equal(await hatMouth(), null);
+    assert.equal((await post('/api/hat/mouth-mode', { mode: 'idle' })).status, 409);
+    await fs.writeFile(mouthStatusFile, 'true');
+    assert.deepEqual(await hatMouth(), { mode: 'random' });
+    for (const mode of ['more-licking', 'more-talking', 'idle', 'random']) {
+      assert.equal((await post('/api/hat/mouth-mode', { mode })).status, 200);
+      assert.equal(JSON.parse(await fs.readFile(mouthSelectionFile, 'utf8')), mode);
+      assert.deepEqual(await hatMouth(), { mode });
+    }
+    assert.equal((await post('/api/hat/mouth-mode', { mode: 'unknown' })).status, 400);
+    assert.deepEqual(await hatMouth(), { mode: 'random' });
+    await fs.writeFile(mouthStatusFile, 'false');
+    assert.equal(await hatMouth(), null);
     for(const asset of ['/remote.css','/remote.mjs','/display-fit.mjs'])assert.equal((await fetch(base+asset)).status,200);
     assert.equal((await post('/api/player/seek', {seconds:-1})).status, 400);
     assert.equal((await post('/api/play', {paths:[]})).status, 400);
@@ -119,6 +137,8 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     delete process.env.CRT_TEST_LOG;
     delete process.env.CRT_HAT_EYE_STATUS_FILE;
     delete process.env.CRT_HAT_EYE_SELECTION_FILE;
+    delete process.env.CRT_HAT_MOUTH_STATUS_FILE;
+    delete process.env.CRT_HAT_MOUTH_SELECTION_FILE;
     await fs.rm(dir, {recursive:true,force:true});
   }
 });
