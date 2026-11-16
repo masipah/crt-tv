@@ -33,7 +33,7 @@ MOUTH_WEIGHTS = {
 }
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
-DEFAULT_EYE_CONTRAST = 0x68
+DEFAULT_BRIGHTNESS = 50
 EYE_STYLE_INTERVAL = 10 * 60
 EYE_SELECTION_FILE = Path("/run/crt-tv/hat-eye-style.json")
 EYE_STATUS_FILE = Path("/run/crt-face/eyes.json")
@@ -193,13 +193,13 @@ def publish_runtime_json(path, value):
 
 def requested_brightness(path):
     level = read_runtime_json(path)
-    return level if type(level) is int and 1 <= level <= 100 else None
+    return level if type(level) is int and 1 <= level <= 100 else DEFAULT_BRIGHTNESS
 
 
 def apply_brightness(displays, backlight, previous):
     eyes = requested_brightness(EYE_BRIGHTNESS_FILE)
-    contrast = DEFAULT_EYE_CONTRAST if eyes is None else round(eyes * 255 / 100)
-    mouth = requested_brightness(MOUTH_BRIGHTNESS_FILE) or 100
+    contrast = round(eyes * 255 / 100)
+    mouth = requested_brightness(MOUTH_BRIGHTNESS_FILE)
     levels = (contrast, mouth)
     if levels != previous:
         if previous is None or contrast != previous[0]:
@@ -426,9 +426,9 @@ def mouth_decoder(path, *, loop):
         f"fps={MOUTH_FPS},scale={MOUTH_WIDTH}:{MOUTH_HEIGHT}:"
         "force_original_aspect_ratio=decrease:force_divisible_by=2,"
         f"pad={MOUTH_WIDTH}:{MOUTH_HEIGHT}:(ow-iw)/2:(oh-ih)/2,"
-        # Lift the illuminated parts of the image and preserve near-black luma.
-        "lutyuv=y='if(lte(val,24),val,clip(val+38*(1-exp(-(val-24)/45))*(235-val)/211,16,235))'"
-        ":u='clip((val-128)*1.1+128,16,240)':v='clip((val-128)*1.1+128,16,240)',"
+        # Deepen near-black shadows, lift midtones, and taper the lift toward white.
+        "lutyuv=y='if(lte(val,24),max(16,2*val-24),clip(val+54*(1-exp(-(val-24)/45))*(235-val)/211,16,235))'"
+        ":u='clip((val-128)*1.12+128,16,240)':v='clip((val-128)*1.12+128,16,240)',"
         "transpose=cclock"
     )
     playback = ["-stream_loop", "-1"] if loop else ["-xerror"]

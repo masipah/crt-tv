@@ -59,7 +59,8 @@ closed-mouth join. Playback uses every clip in a category before reshuffling
 that category. The original clip plays when the set is absent or incomplete.
 
 The **Brightness** sliders adjust both eye OLEDs together and the mouth LCD
-backlight separately. The selected levels last until the Pi reboots.
+backlight separately. Both start at 50% on boot. The selected levels last until
+the Pi reboots.
 
 ```sh
 systemctl status crt-face.service
