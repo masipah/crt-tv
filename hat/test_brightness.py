@@ -35,13 +35,13 @@ class HatBrightnessTests(unittest.TestCase):
         eyes = [Mock(), Mock()]
         backlight = TestBacklight()
         current = face.apply_brightness(eyes, backlight, None)
-        self.assertEqual(json.loads(self.status.read_text()), {"eyes": 50, "mouth": 50})
+        self.assertEqual(json.loads(self.status.read_text()), {"eyes": 50, "mouth": 75})
         for display in eyes:
             display.contrast.assert_called_once_with(128)
 
         self.mouth_request.write_text("29")
         current = face.apply_brightness(eyes, backlight, current)
-        self.assertEqual(backlight.applied, [50, 29])
+        self.assertEqual(backlight.applied, [75, 29])
         for display in eyes:
             display.contrast.assert_called_once_with(128)
 
@@ -50,7 +50,7 @@ class HatBrightnessTests(unittest.TestCase):
         self.assertEqual(json.loads(self.status.read_text()), {"eyes": 20, "mouth": 29})
         for display in eyes:
             display.contrast.assert_called_with(51)
-        self.assertEqual(backlight.applied, [50, 29])
+        self.assertEqual(backlight.applied, [75, 29])
 
     def test_service_restart_reapplies_requests_and_empty_run_uses_defaults(self):
         self.eye_request.write_text("1")
@@ -67,7 +67,7 @@ class HatBrightnessTests(unittest.TestCase):
         self.eye_request.unlink()
         self.mouth_request.unlink()
         face.apply_brightness([Mock(), Mock()], TestBacklight(), None)
-        self.assertEqual(json.loads(self.status.read_text()), {"eyes": 50, "mouth": 50})
+        self.assertEqual(json.loads(self.status.read_text()), {"eyes": 50, "mouth": 75})
 
 
 if __name__ == "__main__":
