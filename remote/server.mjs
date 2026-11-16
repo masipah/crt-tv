@@ -18,7 +18,7 @@ const HAT_EYE_STATUS_FILE = process.env.CRT_HAT_EYE_STATUS_FILE ?? '/run/crt-fac
 const HAT_EYE_SELECTION_FILE = process.env.CRT_HAT_EYE_SELECTION_FILE ?? '/run/crt-tv/hat-eye-style.json';
 const HAT_MOUTH_STATUS_FILE = process.env.CRT_HAT_MOUTH_STATUS_FILE ?? '/run/crt-face/mouth.json';
 const HAT_MOUTH_SELECTION_FILE = process.env.CRT_HAT_MOUTH_SELECTION_FILE ?? '/run/crt-tv/hat-mouth-mode.json';
-const HAT_MOUTH_MODES = new Set(['random', 'more-licking', 'more-talking', 'idle']);
+const HAT_MOUTH_MODES = new Set(['random', 'more-licking', 'more-talking', 'less-idle', 'idle']);
 const VIDEO_EXT = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.m4v', '.mpg', '.mpeg', '.ts', '.webm',
 ]);

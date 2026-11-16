@@ -25,6 +25,14 @@ class MouthClipsTests(unittest.TestCase):
         self.assertIn(("lick", "lick"), joins)
         self.assertIn(("closed", "closed"), joins)
 
+    def test_less_idle_plays_only_licking_and_talking_clips(self):
+        clips = {kind: [f"{kind}-{i}" for i in range(3)] for kind in face.MOUTH_KINDS}
+        player = face.MouthClips(clips)
+        with patch.object(face, "random", random.Random(553)):
+            played = [player.choose("less-idle") for _ in range(120)]
+        self.assertEqual(set(played), set(clips["lick"] + clips["talk"]))
+        self.assertTrue(all(first != second for first, second in zip(played, played[1:])))
+
     def test_mode_changes_at_clip_boundary_and_fallback_hides_selector(self):
         with TemporaryDirectory() as temp:
             root = Path(temp)
