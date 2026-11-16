@@ -33,7 +33,6 @@ MOUTH_WEIGHTS = {
 }
 EYE_SIZE = (128, 64)
 EYE_ADDRESSES = (0x3C, 0x3D)
-DEFAULT_BRIGHTNESS = 50
 EYE_STYLE_INTERVAL = 10 * 60
 EYE_SELECTION_FILE = Path("/run/crt-tv/hat-eye-style.json")
 EYE_STATUS_FILE = Path("/run/crt-face/eyes.json")
@@ -191,15 +190,15 @@ def publish_runtime_json(path, value):
         print(f"Could not publish HAT status ({path.name}): {error}", file=sys.stderr)
 
 
-def requested_brightness(path):
+def requested_brightness(path, default):
     level = read_runtime_json(path)
-    return level if type(level) is int and 1 <= level <= 100 else DEFAULT_BRIGHTNESS
+    return level if type(level) is int and 1 <= level <= 100 else default
 
 
 def apply_brightness(displays, backlight, previous):
-    eyes = requested_brightness(EYE_BRIGHTNESS_FILE)
+    eyes = requested_brightness(EYE_BRIGHTNESS_FILE, 50)
     contrast = round(eyes * 255 / 100)
-    mouth = requested_brightness(MOUTH_BRIGHTNESS_FILE)
+    mouth = requested_brightness(MOUTH_BRIGHTNESS_FILE, 75)
     levels = (contrast, mouth)
     if levels != previous:
         if previous is None or contrast != previous[0]:
