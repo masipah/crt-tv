@@ -42,6 +42,13 @@ const $ = (id) => document.getElementById(id);
     eyeStyleSelect.disabled = false;
   });
 
+  const mouthModeSelect = $('hat-mouth-mode');
+  mouthModeSelect.addEventListener('change', async () => {
+    mouthModeSelect.disabled = true;
+    await post('/api/hat/mouth-mode', { mode: mouthModeSelect.value });
+    mouthModeSelect.disabled = false;
+  });
+
   const MODE_LABEL = {
     weather: 'Now showing: WeatherStar 4000+',
     scope: 'Now showing: oscilloscope',
@@ -73,6 +80,8 @@ const $ = (id) => document.getElementById(id);
       catch (e) { err(e.message); }
     }
     renderHatEyes(st.hatEyes);
+    $('hat-mouth').hidden = !st.hatMouth;
+    if (st.hatMouth && !mouthModeSelect.disabled) mouthModeSelect.value = st.hatMouth.mode;
     $('mode').textContent = st.mode === 'video'
       ? (st.manualPlayback ? 'Now showing: Videos' : 'Now showing: Channel') : MODE_LABEL[st.mode];
     $('btn-weather').classList.toggle('active', st.mode === 'weather');

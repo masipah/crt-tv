@@ -112,14 +112,14 @@
   /* selected reads as a flat inverted chip, same as the site's .segmented */
   .seg button.active { background: var(--text); color: var(--bg); font-weight: 700; }
 
-  .hat-eyes label {
+  .hat-control label {
     display: block;
     margin-bottom: 8px;
     font-family: var(--mono);
     font-size: 0.8rem;
   }
-  .hat-eye-picker { position: relative; }
-  .hat-eye-picker select {
+  .hat-picker { position: relative; }
+  .hat-picker select {
     -webkit-appearance: none;
     appearance: none;
     display: block;
@@ -137,8 +137,8 @@
     cursor: pointer;
     transition: border-color 140ms ease;
   }
-  .hat-eye-picker select:hover { border-color: var(--edge-strong); }
-  .hat-eye-picker::after {
+  .hat-picker select:hover { border-color: var(--edge-strong); }
+  .hat-picker::after {
     content: "";
     position: absolute;
     right: 14px;
@@ -150,7 +150,7 @@
     transform: translateY(-70%) rotate(45deg);
     pointer-events: none;
   }
-  .hat-eyes .hint { margin: 8px 0 0; }
+  .hat-control .hint { margin: 8px 0 0; }
 
   /* transport + mode chips */
   .transport { display: flex; justify-content: center; gap: 22px; margin: 2px 0 14px; }

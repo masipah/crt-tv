@@ -18,6 +18,6 @@ jobs:
       - run: lua tools/test/startup.lua
       - run: luac -p scripts/*.lua scripts/startup/*.lua
       - run: for file in scripts/tv scripts/*.sh setup/*.sh setup/migrations/*.sh hat/*.sh; do bash -n "$file" || exit; done
-      - run: python3 -m py_compile hat/face.py
+      - run: python3 -m py_compile hat/face.py hat/prepare-mouth-clips.py
       - run: /usr/bin/python3 -m unittest discover -s hat
       - run: python3 tools/build-splash-frames.py && git diff --exit-code
