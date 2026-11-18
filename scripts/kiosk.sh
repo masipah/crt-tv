@@ -8,6 +8,10 @@
 set -euo pipefail
 
 URL=${KIOSK_URL:-http://127.0.0.1:8080/}
+# This selection belongs to the unprivileged kiosk. Read its URL as data.
+if IFS= read -r selection 2>/dev/null </run/crt-tv/kiosk.env && [[ $selection == KIOSK_URL=* ]]; then
+  URL=${selection#KIOSK_URL=}
+fi
 
 # Channel boots start directly in mpv, avoiding a browser/X restart at the cut.
 # A manual channel selection writes kiosk.env and always takes precedence.
@@ -61,10 +65,12 @@ if [[ $URL == *:8080* ]]; then
   # mediaVolume is pinned to 1 (100%) — ws4kp defaults to 0.75, which made
   # the weather quieter than the videos; the remote's slider is the one
   # volume control.
+  URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
   if [[ ${KIOSK_MUSIC:-on} != off ]]; then
-    URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaPlaying=[^&]*&?/\1/g; s/[?&]$//')
     URL=$(printf '%s' "$URL" | sed -E 's/([?&])mediaVolume=[^&]*&?/\1/g; s/[?&]$//')
     URL="$URL&mediaPlaying=true&mediaVolume=1"
+  else
+    URL="$URL&mediaPlaying=false"
   fi
 
   # Location last, and forced: strip whatever the URL carries (a permalink
@@ -115,6 +121,6 @@ until curl -fsS --max-time 2 -o /dev/null "$URL"; do
 done
 
 # Keep the console animation until the local opening/weather page is available.
-sudo -n /usr/local/lib/crt-tv/handoff-console.sh
+sudo -n systemctl stop crt-splash.service
 
 exec xinit /usr/local/lib/crt-tv/kiosk-x.sh -- :0 vt1 -nolisten tcp -nocursor

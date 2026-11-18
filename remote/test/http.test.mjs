@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { once } from 'node:events';
 
 test('shared TV controls, local volume, kiosk readiness and Muni work without receiver ownership', async () => {
@@ -12,8 +13,8 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
   const bin = path.join(dir, 'bin');
   await fs.mkdir(bin);
   process.env.CRT_TEST_LOG = path.join(dir, 'commands');
-  for (const cmd of ['sudo', 'amixer']) {
-    await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CRT_TEST_LOG"\n', { mode: 0o755 });
+  for (const cmd of ['tv', 'amixer']) {
+    await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nprintf "%s %s\\n" "$(basename "$0")" "$*" >> "$CRT_TEST_LOG"\n', { mode: 0o755 });
   }
   process.env.PATH = `${bin}:${oldPath}`;
   process.env.MEDIA_DIR = dir;
@@ -43,8 +44,8 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.deepEqual(controls.map(r => r.status), [200, 200]);
     assert.equal((await post('/api/audio/volume', {volume:25})).status, 200);
     const commands = await fs.readFile(process.env.CRT_TEST_LOG, 'utf8');
-    assert.match(commands, /\/usr\/local\/bin\/tv pause/);
-    assert.match(commands, /\/usr\/local\/bin\/tv next/);
+    assert.match(commands, /tv pause/);
+    assert.match(commands, /tv next/);
     assert.match(commands, /tv volume 25/);
     assert.equal((await post('/api/audio/volume', {volume:101})).status, 400);
     assert.equal((await post('/api/audio/volume', {volume:1.5})).status, 400);
@@ -135,6 +136,24 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     assert.deepEqual(media['on-demand'], ['manual.mp4']);
     const schedule = () => fs.readFile(path.join(dir, '.playorder.m3u'), 'utf8');
     assert.equal((await schedule()).trim(), path.join(dir, 'videos', 'Rez.mp4'));
+    const previous = await fs.stat(path.join(dir, '.playorder.m3u'));
+    const rename = Buffer.from(JSON.stringify({from:'on-demand/manual.mp4', name:'東京.mp4'}));
+    const split = rename.indexOf(Buffer.from('東')) + 1;
+    const renamed = await new Promise((resolve, reject) => {
+      const req = http.request(base + '/api/rename', {method:'POST'}, res => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => resolve(JSON.parse(body)));
+      });
+      req.on('error', reject);
+      req.write(rename.subarray(0, split));
+      setTimeout(() => req.end(rename.subarray(split)), 30);
+    });
+    assert.equal(renamed.name, '東京.mp4');
+    await fs.access(path.join(dir, 'on-demand', '東京.mp4'));
+    assert.equal((await fs.stat(path.join(dir, '.playorder.m3u'))).ino, previous.ino);
+
     assert.equal((await post('/api/move', {from:'videos/Rez.mp4', to:'on-demand'})).status, 200);
     assert.equal((await schedule()).trim(), '');
     assert.equal((await post('/api/play', {paths:['on-demand/Rez.mp4']})).status, 200);
@@ -144,7 +163,7 @@ test('shared TV controls, local volume, kiosk readiness and Muni work without re
     media = await (await fetch(base + '/api/media')).json();
     assert.deepEqual(media.videos, ['Rez.mp4']);
     assert.deepEqual(media.commercials, ['ad.mp4']);
-    assert.deepEqual(media['on-demand'], ['manual.mp4']);
+    assert.deepEqual(media['on-demand'], ['東京.mp4']);
     const page = await (await fetch(base)).text();
     assert.doesNotMatch(page, /airplay|owntone|receiver|turnHeaders/i);
     assert.match(page, /btn-muni/);

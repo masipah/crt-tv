@@ -79,20 +79,26 @@ echo "==> Installing WeatherStar 4000+ to /opt/ws4kp"
 # ("dubious ownership"), and the service runs as crt anyway.
 if [[ -d /opt/ws4kp/.git ]]; then
   chown -R crt:crt /opt/ws4kp
-  # Keep the tested installed revision unless an explicit revision is supplied.
+  default_revision=$(sudo -u crt git -C /opt/ws4kp rev-parse HEAD)
 else
   install -d -o crt -g crt /opt/ws4kp
   sudo -u crt git clone https://github.com/netbymatt/ws4kp /opt/ws4kp
+  default_revision=1af63f9e6c2978a68b393db2e8de6c1a076afd06 # WeatherStar 8.2.3
 fi
 install -d /etc/crt-tv
 ws_revision=${WS4KP_REVISION:-$(cat /etc/crt-tv/ws4kp-revision 2>/dev/null || true)}
-ws_revision=${ws_revision:-$(sudo -u crt git -C /opt/ws4kp rev-parse HEAD)}
+ws_revision=${ws_revision:-$default_revision}
 [[ $ws_revision =~ ^[a-fA-F0-9]{40}$ ]] || { echo 'WS4KP_REVISION must be a full commit SHA' >&2; exit 1; }
 if ! sudo -u crt git -C /opt/ws4kp cat-file -e "$ws_revision^{commit}" 2>/dev/null; then
   sudo -u crt git -C /opt/ws4kp fetch origin "$ws_revision"
 fi
-sudo -u crt git -C /opt/ws4kp reset --hard "$ws_revision"
-(cd /opt/ws4kp && sudo -u crt npm ci --no-audit --no-fund)
+if [[ $(sudo -u crt git -C /opt/ws4kp rev-parse HEAD) != "$ws_revision" ]]; then
+  sudo -u crt git -C /opt/ws4kp checkout --detach "$ws_revision"
+fi
+ws_node=$(bash "$REPO_DIR/setup/weatherstar-node.sh")
+(cd /opt/ws4kp && sudo -u crt env "PATH=$ws_node/bin:/usr/bin:/bin" "$ws_node/bin/npm" ci --omit=dev --no-audit --no-fund)
+install -d /etc/systemd/system/ws4kp.service.d
+printf '[Service]\nExecStart=\nExecStart=%s/bin/node index.mjs\n' "$ws_node" > /etc/systemd/system/ws4kp.service.d/50-node-runtime.conf
 printf '%s\n' "$ws_revision" >/etc/crt-tv/ws4kp-revision
 
 echo "==> Hardening for hard power-off"

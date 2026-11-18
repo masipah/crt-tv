@@ -8,10 +8,20 @@ KIOSK_ENV=$RUN_DIR/kiosk.env
 MPV_SOCK=$RUN_DIR/mpv.sock
 ENV_FILE=/etc/crt-tv/crt-tv.env
 
+# Older installs left root-owned files in this directory. Atomic replacement
+# lets the service user update them and readers always see a complete value.
+write_state() {
+  local file=$1 value=${2:-} tmp
+  tmp=$(mktemp "$RUN_DIR/.state.XXXXXX")
+  printf '%s\n' "$value" >"$tmp"
+  chmod 644 "$tmp"
+  mv -f -- "$tmp" "$file"
+}
+
 cancel_boot_video() {
   rm -f "$RUN_DIR/startup-loader"
-  systemctl stop crt-start-videos.timer 2>/dev/null || true
-  if [[ -e $RUN_DIR/weather-intro ]]; then printf 'cancelled\n' >"$RUN_DIR/weather-intro"; fi
+  sudo -n systemctl stop crt-start-videos.timer 2>/dev/null || true
+  if [[ -e $RUN_DIR/weather-intro ]]; then write_state "$RUN_DIR/weather-intro" cancelled; fi
 }
 
 # Don't source the env file — values like permalink KIOSK_URLs contain '&'
@@ -51,9 +61,9 @@ EOF
 }
 
 ARGS=("$@")
-as_root() {
-  if [[ $EUID -ne 0 ]]; then
-    exec sudo "$0" "${ARGS[@]}"
+as_crt() {
+  if [[ $(id -un) != crt ]]; then
+    exec sudo -u crt -- "$0" "${ARGS[@]}"
   fi
   mkdir -p "$RUN_DIR"
 }
@@ -68,12 +78,6 @@ mpv_cmd() {
 # Fire-and-forget mpv command: fine if the player isn't running
 mpv_try() {
   printf '%s\n' "$1" | socat - "UNIX-CONNECT:$MPV_SOCK" >/dev/null 2>&1 || true
-}
-
-mpv_get() {
-  { printf '{"command":["get_property","%s"]}\n' "$1" |
-    socat - "UNIX-CONNECT:$MPV_SOCK" 2>/dev/null |
-    sed -nE 's/.*"data":(true|false|[0-9][0-9.]*).*/\1/p' | head -n1; } || true
 }
 
 # ALSA mixer control for the Pi's local analogue jack. Try the card-addressed
@@ -129,7 +133,7 @@ mixer() {
       if [[ $1 == unmute ]]; then
         rm -f "$RUN_DIR/muted"
       else
-        : >"$RUN_DIR/muted"
+        write_state "$RUN_DIR/muted"
       fi
       ;;
   esac
@@ -141,7 +145,7 @@ mixer() {
 # file is the channel of record — every switch writes it, so a restart (or a
 # weather break) can never resurrect the page the last channel was on.
 kiosk_url_set() { # <url>
-  printf 'KIOSK_URL=%s\n' "$1" >"$KIOSK_ENV"
+  write_state "$KIOSK_ENV" "KIOSK_URL=$1"
 }
 
 # Which page is the kiosk on? No kiosk.env (fresh boot) means the unit's own
@@ -178,8 +182,8 @@ scope_url() { remote_url oscilloscope.html; }
 
 # A pending weather break must not outlive a manual mode change
 cancel_break() {
-  systemctl stop crt-weatherbreak.timer 2>/dev/null || true
-  systemctl stop crt-weatherbreak.service 2>/dev/null || true
+  sudo -n systemctl stop crt-weatherbreak.timer 2>/dev/null || true
+  sudo -n systemctl stop crt-weatherbreak.service 2>/dev/null || true
   rm -f "$RUN_DIR/resume"
 }
 
@@ -213,59 +217,58 @@ cmd=${1:-status}
 
 case $cmd in
   weather-ready)
-    as_root
+    as_crt
     # Called by the local kiosk only after its first weather screen is visible.
     [[ $(cat "$RUN_DIR/weather-intro" 2>/dev/null || true) == pending ]] || exit 0
     systemctl is-active --quiet weather-kiosk.service || exit 0
     if grep -Eq 'oscilloscope|fit\.html|muni\.html' "$KIOSK_ENV" 2>/dev/null; then exit 0; fi
     delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
     if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
-      systemd-run --quiet --unit=crt-start-videos --on-active="${delay}s" \
-        --timer-property=AccuracySec=1s /usr/local/bin/tv play
-      printf 'scheduled\n' >"$RUN_DIR/weather-intro"
+      sudo -n /usr/local/lib/crt-tv/schedule-tv.sh channel "$delay"
+      write_state "$RUN_DIR/weather-intro" scheduled
       echo "Weather started; videos in ${delay} seconds"
     fi
     ;;
   weather | 4000)
-    as_root
+    as_crt
     cancel_boot_video
     cancel_break
     kiosk_url_set "$(ws4kp_url)"
-    systemctl restart weather-kiosk.service
+    sudo -n systemctl restart weather-kiosk.service
     ;;
   scope | oscilloscope)
-    as_root
+    as_crt
     cancel_boot_video
     cancel_break
     kiosk_url_set "$(scope_url)"
-    systemctl restart weather-kiosk.service
+    sudo -n systemctl restart weather-kiosk.service
     ;;
   muni)
-    as_root
+    as_crt
     cancel_boot_video
     cancel_break
     kiosk_url_set "$(remote_url muni.html)"
-    systemctl restart weather-kiosk.service
+    sudo -n systemctl restart weather-kiosk.service
     ;;
   pattern | fit)
-    as_root
+    as_crt
     cancel_boot_video
     # overscan calibration grid — dial KIOSK_FIT_X/Y and KIOSK_SHIFT_X/Y in
     # /etc/crt-tv/crt-tv.env until the green box kisses the visible edges
     cancel_break
     kiosk_url_set "$(remote_url fit.html)"
-    systemctl restart weather-kiosk.service
+    sudo -n systemctl restart weather-kiosk.service
     echo "fit pattern up — tune KIOSK_FIT_X/Y, KIOSK_SHIFT_X/Y in $ENV_FILE,"
     echo "re-run 'tv pattern' to see each change, 'tv weather' when happy"
     ;;
   play)
-    as_root
+    as_crt
     cancel_boot_video
     # No arguments: play the whole videos bucket, in library order
     if [[ $# -eq 0 ]]; then
       set -- "$MEDIA_DIR/videos"
     fi
-    tmp=$(mktemp)
+    tmp=$(mktemp "$RUN_DIR/.playlist.XXXXXX")
     for p in "$@"; do
       # Bare names resolve against MEDIA_DIR
       if [[ ! -e $p && -n ${MEDIA_DIR:-} && -e $MEDIA_DIR/$p ]]; then
@@ -326,57 +329,53 @@ case $cmd in
     fi
     cancel_break
     if [[ $manual -eq 1 ]]; then
-      : >"$RUN_DIR/manual-playback"
+      write_state "$RUN_DIR/manual-playback"
     else
       rm -f "$RUN_DIR/manual-playback"
     fi
-    install -m 644 "$tmp" "$PLAYLIST"
-    rm -f "$tmp"
+    chmod 644 "$tmp"
+    mv -f -- "$tmp" "$PLAYLIST"
     if [[ ${CRT_STARTUP_LOADER:-0} == 1 && ! -e $KIOSK_ENV ]]; then
-      : >"$RUN_DIR/startup-loader"
+      write_state "$RUN_DIR/startup-loader"
     fi
-    systemctl restart crt-player.service
+    sudo -n systemctl restart crt-player.service
     ;;
   break | weatherbreak)
-    as_root
+    as_crt
     secs=${1:-120}
     if ! systemctl -q is-active crt-player.service; then
       echo "tv: no video playing — switching to weather instead" >&2
       exec "$0" weather
     fi
     cancel_break
-    pos=$(mpv_get playlist-pos)
-    time_pos=$(mpv_get time-pos)
-    printf '%s %s\n' "${pos:-0}" "${time_pos:-0}" >"$RUN_DIR/resume"
-    systemd-run --quiet --collect --unit=crt-weatherbreak \
-      --on-active="${secs}s" --timer-property=AccuracySec=1s \
-      /usr/local/bin/tv resume
+    node /usr/local/lib/crt-tv/remote/save-resume.mjs
+    sudo -n /usr/local/lib/crt-tv/schedule-tv.sh resume "$secs"
     # A break is the weather, whatever the kiosk showed last (the scope
     # channel leaves its own URL in kiosk.env)
     kiosk_url_set "$(ws4kp_url)"
     # Timer first, switch queued last with --no-block: when mpv's auto-break
     # script calls us, stopping the player kills this very process — make
     # sure everything is scheduled before that happens.
-    systemctl --no-block restart weather-kiosk.service
+    sudo -n systemctl --no-block restart weather-kiosk.service
     echo "weather for ${secs}s, then back to the video"
     ;;
   resume)
-    as_root
+    as_crt
     # Fired by the crt-weatherbreak timer; play-media-x.sh consumes the
     # resume file and picks up where the video left off
-    systemctl restart crt-player.service
+    sudo -n systemctl restart crt-player.service
     ;;
   autostart)
-    as_root
+    as_crt
     # Start Channel paused behind the native loader; weather-first is optional.
     # Both channels use the TV speaker unless silent boot is requested.
-    : >"$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
+    write_state "$RUN_DIR/shuffle" # boot default: the videos channel plays shuffled
     # Level once — no repeating sweep that could override a person's choice.
     boot_volume=$(env_get CRT_BOOT_VOLUME)
     boot_volume=${boot_volume:-75}
     [[ $boot_volume =~ ^(100|[1-9]?[0-9])$ ]] || boot_volume=75
     alsa_mixer_retry "${boot_volume}%"
-    : >"$RUN_DIR/volume-set" # preserve the configured level when unmuting
+    write_state "$RUN_DIR/volume-set" # preserve the configured level when unmuting
     if [[ $(env_get CRT_BOOT_MUTED) == 1 ]]; then
       mixer mute
     else
@@ -393,28 +392,28 @@ case $cmd in
     else
       delay=$(env_get CRT_VIDEO_DELAY_SECONDS)
       if [[ ${delay:-0} =~ ^[0-9]+$ ]] && (( ${delay:-0} > 0 )); then
-        printf 'pending\n' >"$RUN_DIR/weather-intro"
+        write_state "$RUN_DIR/weather-intro" pending
       fi
-      systemctl start weather-kiosk.service
+      sudo -n systemctl start weather-kiosk.service
     fi
     ;;
   normalize)
-    as_root
+    as_crt
     # an explicit reset: the user's volume choice yields to the defaults
     rm -f "$RUN_DIR/volume-set"
     normalize_outputs
     echo "volume reset: jack 75%"
     ;;
   pause)
-    as_root
+    as_crt
     mpv_cmd 'cycle pause'
     ;;
   mute)
-    as_root
+    as_crt
     mixer toggle
     ;;
   volume)
-    as_root
+    as_crt
     if [[ -n ${1:-} ]]; then
       if ! [[ $1 =~ ^[0-9]+$ ]] || (($1 > 100)); then
         echo "tv: volume must be 0-100" >&2
@@ -426,14 +425,14 @@ case $cmd in
       fi
       # record the choice — unmute then returns to this level instead of
       # re-landing at the defaults (see mixer unmute / normalize_outputs)
-      : >"$RUN_DIR/volume-set"
+      write_state "$RUN_DIR/volume-set"
       echo "volume: ${1}%"
     else
       alsa_status
     fi
     ;;
   shuffle)
-    as_root
+    as_crt
     # A mode, not a one-shot: the flag survives channel switches and new
     # plays until toggled off or reboot.
     if [[ -f $RUN_DIR/shuffle ]]; then
@@ -441,36 +440,36 @@ case $cmd in
       [[ -f $RUN_DIR/manual-playback ]] || mpv_try 'playlist-unshuffle'
       echo "shuffle: OFF"
     else
-      : >"$RUN_DIR/shuffle"
+      write_state "$RUN_DIR/shuffle"
       [[ -f $RUN_DIR/manual-playback ]] || mpv_try 'playlist-shuffle'
       echo "shuffle: ON"
     fi
     ;;
   commercials)
-    as_root
+    as_crt
     # The Lua script in mpv checks this flag at every injection point,
     # so the change applies live — no player restart needed
     if [[ -f $RUN_DIR/no-commercials ]]; then
       rm -f "$RUN_DIR/no-commercials"
       echo "commercials: ON (one random spot after every 4 videos)"
     else
-      : >"$RUN_DIR/no-commercials"
+      write_state "$RUN_DIR/no-commercials"
       echo "commercials: OFF"
     fi
     ;;
   next)
-    as_root
+    as_crt
     mpv_cmd 'playlist-next'
     ;;
   prev)
-    as_root
+    as_crt
     mpv_cmd 'playlist-prev'
     ;;
   stop)
-    as_root
+    as_crt
     cancel_boot_video
     cancel_break
-    systemctl stop crt-player.service weather-kiosk.service
+    sudo -n systemctl stop crt-player.service weather-kiosk.service
     ;;
   status)
     for u in ws4kp weather-kiosk crt-player; do
@@ -481,7 +480,7 @@ case $cmd in
     fi
     ;;
   doctor)
-    as_root
+    as_crt
     echo "== units =="
     for u in ws4kp weather-kiosk crt-player crt-remote crt-autostart crt-splash; do
       printf '%-15s active=%-10s enabled=%s\n' "$u" \
@@ -525,12 +524,12 @@ case $cmd in
       n=15
       [[ $u == crt-player ]] && n=50
       echo "--- $u"
-      journalctl -u "$u.service" -b --no-pager -n "$n" 2>/dev/null || true
+      sudo -n journalctl -u "$u.service" -b --no-pager -n "$n" 2>/dev/null || true
     done
     ;;
   reboot)
-    as_root
-    systemctl reboot
+    as_crt
+    sudo -n systemctl reboot
     ;;
   help | -h | --help)
     usage

@@ -1,7 +1,7 @@
 import { createMuniFeed } from './muni.mjs';
 // crt-tv web remote — zero-dependency Node server.
-// Runs as user 'crt'; privileged actions go through `sudo -n tv ...`
-// (see setup/sudoers-crt-tv), so the CLI and the web UI share one code path.
+// Runs as user 'crt'; only fixed system operations in the TV command use sudo.
+// The CLI and the web UI share the same controller.
 import http from 'node:http';
 import { tv, mpvSet, status } from './control.mjs';
 import path from 'node:path';
@@ -131,12 +131,21 @@ async function listBucket(bucket) {
 
 // The channel playlist tv plays from — the videos bucket only; commercials
 // are injected at play time by the mpv script.
-async function regeneratePlaylist() {
+async function regeneratePlaylist(...changedBuckets) {
+  if (!changedBuckets.includes('videos')) return;
   const files = (await listBucket('videos'))
     .map((n) => path.join(MEDIA_DIR, 'videos', n));
+  const contents = files.length ? `${files.join('\n')}\n` : '';
+  const previous = await fs.readFile(PLAYORDER_FILE, 'utf8').catch(error => {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  });
+  if (previous === contents) return;
   const tmp = `${PLAYORDER_FILE}.${randomUUID()}.tmp`;
-  await fs.writeFile(tmp, files.length ? `${files.join('\n')}\n` : '');
-  await fs.rename(tmp, PLAYORDER_FILE);
+  try {
+    await fs.writeFile(tmp, contents);
+    await fs.rename(tmp, PLAYORDER_FILE);
+  } finally { await fs.rm(tmp, { force: true }); }
 }
 
 // ---- loudness normalization ----------------------------------------------
@@ -292,7 +301,7 @@ async function handleUpload(req, res, url) {
     const dest = await libraryChange(async () => {
       const committed = await commitFile(tmp, destDir, name);
       await appendToDirOrder(dirRel, path.basename(committed));
-      await regeneratePlaylist();
+      await regeneratePlaylist(dirRel);
       queueAnalysis(`${dirRel}/${path.basename(committed)}`);
       return committed;
     }, true);
@@ -318,22 +327,24 @@ function resolveMedia(rel) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
+    const chunks = [];
+    let bytes = 0;
     let finished = false;
     const finish = (error) => {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
       if (error) reject(error);
-      else resolve(body);
+      else resolve(Buffer.concat(chunks, bytes).toString('utf8'));
     };
     // Control changes are serialized. A stalled JSON body must not hold the
     // command queue forever (large uploads use a separate streaming path).
     const timer = setTimeout(() => finish(Object.assign(new Error('request body timed out'), { status: 408 })), 10_000);
     req.on('data', (chunk) => {
       if (finished) return;
-      body += chunk;
-      if (body.length > 64 * 1024) finish(Object.assign(new Error('body too large'), { status: 413 }));
+      bytes += chunk.length;
+      if (bytes > 64 * 1024) return finish(Object.assign(new Error('body too large'), { status: 413 }));
+      chunks.push(chunk);
     });
     req.on('end', () => finish());
     req.on('error', finish);
@@ -446,7 +457,7 @@ async function handleRequest(req, res) {
     } else if (req.method === 'GET' && pathname === '/api/doctor') {
       // Same output as `tv doctor` — read-only, for troubleshooting over the LAN
       const out = await new Promise((resolve) => {
-        execFile('sudo', ['-n', '/usr/local/bin/tv', 'doctor'],
+        execFile('tv', ['doctor'],
           { timeout: 30_000, maxBuffer: 1024 * 1024 },
           (err, stdout, stderr) => resolve(`${stdout}${stderr ? `\n[stderr]\n${stderr}` : ''}`));
       });
@@ -484,7 +495,7 @@ async function handleRequest(req, res) {
       }
       await removeFromOrder(parentOf(rel), path.basename(rel));
       await dropLoudness(rel);
-      await regeneratePlaylist();
+      await regeneratePlaylist(path.relative(MEDIA_DIR, path.dirname(abs)));
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/move') {
       // Move a file between library sections
@@ -505,7 +516,7 @@ async function handleRequest(req, res) {
       await appendToDirOrder(to, path.basename(dest));
       await rekeyLoudness(from, `${to}/${path.basename(dest)}`);
       queueAnalysis(`${to}/${path.basename(dest)}`);
-      await regeneratePlaylist();
+      await regeneratePlaylist(path.relative(MEDIA_DIR, path.dirname(fromAbs)), to);
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/rename') {
       const { from, name } = JSON.parse(await readBody(req) || '{}');
@@ -519,8 +530,8 @@ async function handleRequest(req, res) {
       const st = await fs.stat(fromAbs).catch(() => null);
       if (!st?.isFile()) return sendJson(res, 400, { error: 'only files can be renamed' });
       let newName = path.basename(name.trim());
-      if (newName.startsWith('.')) {
-        return sendJson(res, 400, { error: 'hidden names not allowed' });
+      if (newName.startsWith('.') || /[\r\n\0]/.test(newName)) {
+        return sendJson(res, 400, { error: 'choose a visible, single-line filename' });
       }
       // keep the original extension unless the new name brings a valid one
       if (!VIDEO_EXT.has(path.extname(newName).toLowerCase())) {
@@ -539,7 +550,7 @@ async function handleRequest(req, res) {
       await saveOrder(order);
       await rekeyLoudness(from, `${dirRel}/${path.basename(dest)}`);
       queueAnalysis(`${dirRel}/${path.basename(dest)}`);
-      await regeneratePlaylist();
+      await regeneratePlaylist(path.relative(MEDIA_DIR, dirAbs));
       sendJson(res, 200, { ok: true, name: path.basename(dest) });
     } else if (req.method === 'POST' && pathname === '/api/order') {
       const { dir, names } = JSON.parse(await readBody(req) || '{}');
@@ -553,7 +564,7 @@ async function handleRequest(req, res) {
       const order = await loadOrder();
       order[dir] = names;
       await saveOrder(order);
-      await regeneratePlaylist();
+      await regeneratePlaylist(dir);
       sendJson(res, 200, { ok: true });
     } else if (req.method === 'POST' && pathname === '/api/play') {
       const { paths } = JSON.parse(await readBody(req) || '{}');
@@ -610,7 +621,7 @@ fs.readdir(MEDIA_DIR)
 // Make sure the buckets exist, then sync the persistent play order with
 // reality (files added/removed over ssh, etc.)
 const libraryReady = libraryChange(() => Promise.all(BUCKETS.map((b) => fs.mkdir(path.join(MEDIA_DIR, b), { recursive: true })))
-  .then(() => regeneratePlaylist())
+  .then(() => regeneratePlaylist('videos'))
   .then(() => syncLoudness()));
 
 libraryReady.then(() => server.listen(PORT, () => {

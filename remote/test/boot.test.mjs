@@ -24,6 +24,11 @@ test('Channel boots wait for the native player; manual Weather bypasses the load
     await fs.writeFile(path.join(dir,'kiosk.env'),'manual override');
     const manual=await start({KIOSK_URL:'http://127.0.0.1:8080/'});
     assert.match(manual,/8080/);assert.doesNotMatch(manual,/boot.html|crtSplashMin/);
+    await fs.writeFile(path.join(dir,'kiosk.env'),'KIOSK_URL=http://127.0.0.1:8080/?mediaPlaying=true&speed=2\n');
+    const muted = await start({KIOSK_MUSIC:'off'});
+    const mutedUrl = new URL(muted.trim().split('\n').at(-1));
+    assert.deepEqual(mutedUrl.searchParams.getAll('mediaPlaying'), ['false']);
+    assert.equal(mutedUrl.searchParams.get('speed'), '2');
     await fs.rm(path.join(dir,'kiosk.env'));
     const weather=await start({CRT_BOOT_MODE:'weather'});
     assert.match(weather,/8080/);assert.match(weather,/crtSplashMin=12/);

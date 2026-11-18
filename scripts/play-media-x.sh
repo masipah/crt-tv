@@ -16,7 +16,10 @@ if [[ -f /run/crt-tv/resume ]]; then
   read -r pos start _ </run/crt-tv/resume || true
   rm -f /run/crt-tv/resume
   if [[ -n ${pos:-} ]]; then PLAYER_ARGS+=("--playlist-start=$pos"); fi
-  if [[ -n ${start:-} ]]; then PLAYER_ARGS+=("--start=$start"); fi
+  if [[ -n ${start:-} ]]; then
+    export CRT_RESUME_SECONDS=$start
+    PLAYER_ARGS+=(--script=/usr/local/lib/crt-tv/resume.lua)
+  fi
 fi
 # Note: shuffle mode is baked into the playlist file by `tv play` — no
 # --shuffle here, so the first entry is always what the user picked and
