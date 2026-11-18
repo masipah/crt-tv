@@ -21,6 +21,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     await fs.writeFile(path.join(run, 'shuffle'), '');
     await fs.writeFile(path.join(dir, 'env'), `MEDIA_DIR=${media}\n`);
     for (const cmd of ['xset', 'xsetroot', 'socat', 'amixer']) await fs.writeFile(path.join(bin, cmd), '#!/bin/sh\nexit 0\n', {mode:0o755});
+    await fs.writeFile(path.join(bin, 'sudo'), '#!/bin/sh\n[ "$1" = -n ] || exit 1\nshift\nexec "$@"\n', {mode:0o755});
     await fs.writeFile(path.join(bin, 'systemctl'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CRT_TEST_SYSTEMCTL"\n', {mode:0o755});
     // Deterministic shuf double (macOS has no coreutils shuf).
     await fs.writeFile(path.join(bin, 'shuf'), '#!/bin/sh\nawk \'{a[NR]=$0} END {for(i=NR;i>0;i--) print a[i]}\' "$@"\n', {mode:0o755});
@@ -30,7 +31,7 @@ test('manual Videos play once without broadcast scripts; Channel keeps its rotat
     const tv = (await fs.readFile(new URL('../../scripts/tv', import.meta.url), 'utf8'))
       .replace('RUN_DIR=/run/crt-tv', `RUN_DIR=${run}`)
       .replace('ENV_FILE=/etc/crt-tv/crt-tv.env', `ENV_FILE=${dir}/env`)
-      .replace('[[ $EUID -ne 0 ]]', 'false');
+      .replace('[[ $(id -un) != crt ]]', 'false');
     const player = (await fs.readFile(new URL('../../scripts/play-media-x.sh', import.meta.url), 'utf8'))
       .replaceAll('/run/crt-tv', run);
     await fs.writeFile(path.join(dir, 'tv'), tv, {mode:0o755});

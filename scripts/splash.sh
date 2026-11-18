@@ -2,13 +2,20 @@
 # Continuous station loader for tty1; the same frames run inside the player.
 # Never clear between frames: the logo stays visible while the loading rail moves.
 
-TTY=${SPLASH_TTY:-/dev/tty1}
-exec >"$TTY" 2>/dev/null || exit 0
-
 ROWS=30 COLS=90 # 720x480 composite console default
-if size=$(stty size <"$TTY" 2>/dev/null); then
-  ROWS=${size% *}
-  COLS=${size#* }
+frame_format='%s'
+export_frames=0
+if [[ ${1:-} == --export ]]; then
+  export_frames=1
+  frame_format='%s\0'
+  set -- --once
+else
+  TTY=${SPLASH_TTY:-/dev/tty1}
+  exec >"$TTY" 2>/dev/null || exit 0
+  if size=$(stty size <"$TTY" 2>/dev/null); then
+    ROWS=${size% *}
+    COLS=${size#* }
+  fi
 fi
 
 # Compose on a virtual 24-row canvas. Typical CRT overscan crops the blank
@@ -45,11 +52,17 @@ blank_frame() {
 }
 
 present() {
-  printf '%s' "$FRAME"
+  printf "$frame_format" "$FRAME"
 }
 
 pause() {
-  [[ ${SPLASH_FAST:-0} == 1 ]] && sleep 0.01 || sleep "$1"
+  if (( export_frames )); then
+    printf '%s\0' "$1"
+  elif [[ ${SPLASH_FAST:-0} == 1 ]]; then
+    sleep 0.01
+  else
+    sleep "$1"
+  fi
 }
 
 center_col() {

@@ -4,7 +4,7 @@ import random
 from tempfile import TemporaryDirectory
 from threading import Event
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import face
 
@@ -33,6 +33,32 @@ class MouthClipsTests(unittest.TestCase):
         self.assertEqual(set(played), set(clips["lick"] + clips["talk"]))
         self.assertTrue(all(first != second for first, second in zip(played, played[1:])))
 
+    def test_complete_frames_replay_once_decoded_and_obey_the_budget(self):
+        from io import BytesIO
+        size = face.MOUTH_WIDTH * face.MOUTH_HEIGHT * 2
+        frame = bytes([17]) * size
+        with TemporaryDirectory() as temp:
+            clip = Path(temp) / 'sample.mp4'
+            clip.touch()
+            lcd, eyes = MagicMock(), MagicMock()
+            eyes.done.return_value = False
+            decoder = MagicMock()
+            decoder.wait.return_value = 0
+            process = MagicMock()
+            process.__enter__.return_value = decoder
+            with patch.object(face.subprocess, 'Popen', return_value=process) as start:
+                cache = face.MouthFrameCache(max_bytes=size)
+                decoder.stdout = BytesIO(frame)
+                face.play_mouth_clip(lcd, clip, Event(), eyes, cache=cache)
+                face.play_mouth_clip(lcd, clip, Event(), eyes, cache=cache)
+                self.assertEqual(start.call_count, 1)
+                self.assertEqual([args.args[0] for args in lcd.display.call_args_list], [frame, frame])
+                clip.write_bytes(b'new clip')
+                decoder.stdout = BytesIO(frame * 2)
+                face.play_mouth_clip(lcd, clip, Event(), eyes, cache=cache)
+                self.assertEqual(cache.remaining, 1)
+                self.assertFalse(cache.clips)
+
     def test_mode_changes_at_clip_boundary_and_fallback_hides_selector(self):
         with TemporaryDirectory() as temp:
             root = Path(temp)
@@ -47,7 +73,7 @@ class MouthClipsTests(unittest.TestCase):
             stop = Event()
             played = []
 
-            def finish_clip(_lcd, path, stop, _eyes, *, loop=False):
+            def finish_clip(_lcd, path, stop, _eyes, *, loop=False, cache=None):
                 self.assertEqual(json.loads(status.read_text()), not loop)
                 played.append((path.name, loop))
                 if len(played) == 1:

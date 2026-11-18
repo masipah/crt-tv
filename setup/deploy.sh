@@ -46,7 +46,7 @@ install -m 755 "$REPO_DIR/scripts/play-media.sh" /usr/local/lib/crt-tv/play-medi
 install -m 755 "$REPO_DIR/scripts/play-media-x.sh" /usr/local/lib/crt-tv/play-media-x.sh
 install -m 644 "$REPO_DIR/scripts/commercials.lua" /usr/local/lib/crt-tv/commercials.lua
 install -d /usr/local/lib/crt-tv/startup
-install -m 644 "$REPO_DIR"/scripts/startup/*.lua /usr/local/lib/crt-tv/startup/
+install -m 644 "$REPO_DIR/scripts/startup/main.lua" /usr/local/lib/crt-tv/startup/
 install -m 644 "$REPO_DIR/scripts/loudness.lua" /usr/local/lib/crt-tv/loudness.lua
 install -m 644 "$REPO_DIR/scripts/reshuffle.lua" /usr/local/lib/crt-tv/reshuffle.lua
 rm -f /usr/local/lib/crt-tv/weather-break.lua
@@ -56,6 +56,9 @@ install -m 755 "$REPO_DIR/scripts/splash.sh" /usr/local/lib/crt-tv/splash.sh
 rm -f /usr/local/lib/crt-tv/splash.txt
 install -d /usr/local/lib/crt-tv/kiosk-ext
 install -m 644 "$REPO_DIR"/scripts/kiosk-ext/* /usr/local/lib/crt-tv/kiosk-ext/
+python3 "$REPO_DIR/tools/build-splash-frames.py" /usr/local/lib/crt-tv
+install -m 755 "$REPO_DIR/scripts/schedule-tv.sh" /usr/local/lib/crt-tv/schedule-tv.sh
+install -m 644 "$REPO_DIR/scripts/resume.lua" /usr/local/lib/crt-tv/resume.lua
 install -m 755 "$REPO_DIR/scripts/tv" /usr/local/bin/tv
 
 echo "==> Installing web remote"
@@ -73,8 +76,7 @@ rm -f /usr/local/lib/crt-tv/remote/public/boot.html
 install -d /usr/local/lib/crt-tv/remote/public/muni
 install -m 644 "$REPO_DIR"/remote/public/muni/* /usr/local/lib/crt-tv/remote/public/muni/
 
-# The remote runs unprivileged as 'crt'; this lets it (and the crt user
-# generally) run the tv command without a password.
+# The controller runs as crt. Only the listed system operations elevate.
 visudo -cf "$REPO_DIR/setup/sudoers-crt-tv"
 install -m 440 "$REPO_DIR/setup/sudoers-crt-tv" /etc/sudoers.d/crt-tv
 

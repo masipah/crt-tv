@@ -1,7 +1,17 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import vm from 'node:vm';
+
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const generated = mkdtempSync(path.join(tmpdir(), 'crt-splash-'));
+after(() => rmSync(generated, {recursive: true, force: true}));
+execFileSync('python3', [fileURLToPath(new URL('../../tools/build-splash-frames.py', import.meta.url)), generated]);
+const frames = readFileSync(path.join(generated, 'kiosk-ext/splash-frames.js'), 'utf8');
 
 function fixture(search='?crtSplashMin=0', port='8080', pathname='/') {
   let removed=0,rectangles=0,now=0,id=0;
@@ -12,7 +22,8 @@ function fixture(search='?crtSplashMin=0', port='8080', pathname='/') {
     document:{createElement:()=>canvas,documentElement:{appendChild:()=>{}}},
     requestAnimationFrame:fn=>paints.push(fn),
     setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:n=>timers.delete(n)});
-  for(const name of ['splash-frames.js','splash.js'])vm.runInContext(readFileSync(new URL(`../../scripts/kiosk-ext/${name}`,import.meta.url),'utf8'),context);
+  vm.runInContext(frames, context);
+  vm.runInContext(readFileSync(new URL('../../scripts/kiosk-ext/splash.js', import.meta.url), 'utf8'), context);
   const advance=()=>{const [key,timer]=[...timers][0];now+=timer.ms;timers.delete(key);timer.fn();};
   return {context,timers,paints,advance,removed:()=>removed,rectangles:()=>rectangles,setTime:t=>{now=t;},
     paint:()=>{while(paints.length)paints.shift()();}};

@@ -73,3 +73,5 @@ Use the last command to turn off the face and remove it from boot.
 Waveshare documents SPI0 CE0 for the ST7789 and I²C addresses `0x3c` and
 `0x3d` for the SSD1315 pair. The LCD control pins are BCM 22 (data/command),
 27 (reset), and 18 (backlight). [Waveshare manual and demo](https://www.waveshare.com/wiki/OLED/LCD_HAT_(A))
+
+The face caches complete clips in RAM after their first play, up to 112 MiB. Changed clips are decoded again. The original mouth loop streams directly.

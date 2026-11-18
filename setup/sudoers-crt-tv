@@ -1,3 +1,18 @@
-# Let the crt-tv web remote (running as user 'crt') drive the tv command.
-# Installed to /etc/sudoers.d/crt-tv by setup/install.sh.
-crt ALL=(root) NOPASSWD: /usr/local/bin/tv, /usr/local/lib/crt-tv/handoff-console.sh
+# The TV CLI, media files, IPC and channel state run as crt. Only these fixed
+# systemd operations and the two validated timer jobs need elevation.
+Cmnd_Alias CRT_DISPLAY = /usr/bin/systemctl restart crt-player.service, \
+    /usr/bin/systemctl restart weather-kiosk.service, \
+    /usr/bin/systemctl --no-block restart weather-kiosk.service, \
+    /usr/bin/systemctl start weather-kiosk.service, \
+    /usr/bin/systemctl stop crt-player.service weather-kiosk.service, \
+    /usr/bin/systemctl stop crt-splash.service, /usr/bin/systemctl reboot
+Cmnd_Alias CRT_TIMERS = /usr/bin/systemctl stop crt-start-videos.timer, \
+    /usr/bin/systemctl stop crt-weatherbreak.timer, \
+    /usr/bin/systemctl stop crt-weatherbreak.service, \
+    /usr/local/lib/crt-tv/schedule-tv.sh
+Cmnd_Alias CRT_LOGS = /usr/bin/journalctl -u ws4kp.service -b --no-pager -n 15, \
+    /usr/bin/journalctl -u weather-kiosk.service -b --no-pager -n 15, \
+    /usr/bin/journalctl -u crt-player.service -b --no-pager -n 50, \
+    /usr/bin/journalctl -u crt-remote.service -b --no-pager -n 15, \
+    /usr/bin/journalctl -u crt-autostart.service -b --no-pager -n 15
+crt ALL=(root) NOPASSWD: CRT_DISPLAY, CRT_TIMERS, CRT_LOGS

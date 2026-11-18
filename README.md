@@ -368,12 +368,14 @@ weather-to-video transition. Boot starts with the MASIPAH loader followed by Cha
 
 ### Development checks
 
-Run `node --test remote/test/*.test.mjs`, `lua tools/test/startup.lua`, and
-`bash -n scripts/*.sh setup/*.sh setup/migrations/*.sh`. Regenerate loader assets
-with `python3 tools/build-splash-frames.py`; committed assets should remain
-unchanged. GitHub Actions runs these checks for pull requests.
+Generate the loader from the console animation with `python3 tools/build-splash-frames.py`.
+Run `node --test remote/test/*.test.mjs`, `lua tools/test/startup.lua` and the
+Python HAT tests with `python3 -B -m unittest discover -s hat`. With mpv installed,
+`python3 tools/test/resume.py` checks a complete weather break headlessly. The deployer
+generates the same loader assets in the installed runtime.
 
-Full provisioning records the installed WeatherStar commit in
-`/etc/crt-tv/ws4kp-revision` and uses its lockfile with `npm ci`. To intentionally
-change it, run provisioning with `WS4KP_REVISION` set to a full tested commit SHA.
-App-only updates do not access the WeatherStar checkout.
+Fresh provisioning installs WeatherStar 8.2.3 with its private Node 24 runtime
+and production dependencies. The selected commit is recorded in
+`/etc/crt-tv/ws4kp-revision`. To choose a different revision, set
+`WS4KP_REVISION` to a full tested commit SHA during provisioning.
+App-only updates leave the WeatherStar checkout in place.

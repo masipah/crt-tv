@@ -4,7 +4,7 @@ import net from 'node:net';
 import {promises as fs} from 'node:fs';
 import {once} from 'node:events';
 import vm from 'node:vm';
-import {mpvSet} from '../control.mjs';
+import {mpvSet, mpvQuery} from '../control.mjs';
 test('mpv property writes wait for acknowledgement and reject player errors',async()=>{
  const dir=await fs.mkdtemp('/tmp/crt-ipc-'),socket=dir+'/s';
  let accept=false,commands=[];
@@ -24,4 +24,24 @@ test('all browser channels share bounded CRT geometry parsing',async()=>{
  vm.runInContext(await fs.readFile(new URL('../../scripts/kiosk-ext/display-fit.js',import.meta.url),'utf8'),context);
  assert.deepEqual(JSON.parse(JSON.stringify(context.crtDisplayFit('?crtFit=0.943x1&crtShift=6,0'))),{fitX:.943,fitY:1,shiftX:6,shiftY:0});
  assert.deepEqual(JSON.parse(JSON.stringify(context.crtDisplayFit('?crtFit=garbage&crtShift=999,-999'))),{fitX:1,fitY:1,shiftX:100,shiftY:-100});
+});
+
+test('a clean mid-query player exit releases the socket and the next query succeeds', {timeout:3000}, async () => {
+  const dir = await fs.mkdtemp('/tmp/crt-query-');
+  const socket = dir + '/s';
+  let disconnect = true;
+  const server = net.createServer(client => client.once('data', () => {
+    if (disconnect) return client.end();
+    client.end(JSON.stringify({request_id:1, error:'success', data:'東京'}) + '\n');
+  }));
+  server.listen(socket);
+  await once(server, 'listening');
+  try {
+    assert.equal(await mpvQuery(['media-title'], socket), null);
+    disconnect = false;
+    assert.deepEqual(await mpvQuery(['media-title'], socket), {'media-title':'東京'});
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await fs.rm(dir, {recursive:true, force:true});
+  }
 });

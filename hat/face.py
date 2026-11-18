@@ -444,7 +444,48 @@ class MouthDecodeError(RuntimeError):
     pass
 
 
-def play_mouth_clip(lcd, path, stop, eyes, *, loop=False):
+class MouthFrameCache:
+    """Keep complete decoded clips within a fixed RAM budget."""
+    def __init__(self, max_bytes=112 * 1024 * 1024):
+        self.remaining = max_bytes // (MOUTH_WIDTH * MOUTH_HEIGHT * 2)
+        self.clips = {}
+
+    def lookup(self, path, signature):
+        entry = self.clips.get(path)
+        if entry:
+            previous, frames = entry
+            if previous == signature:
+                return frames
+            self.remaining += len(frames)
+            del self.clips[path]
+        return None
+
+    def store(self, path, signature, frames):
+        self.clips[path] = signature, frames
+        self.remaining -= len(frames)
+
+
+def play_mouth_clip(lcd, path, stop, eyes, *, loop=False, cache=None):
+    if cache is not None:
+        try:
+            stat = path.stat()
+        except OSError as error:
+            raise MouthDecodeError(f"Cannot read {path.name}") from error
+        signature = (stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        remembered = cache.lookup(path, signature)
+        if remembered is not None:
+            deadline = monotonic()
+            for frame in remembered:
+                if stop.is_set():
+                    return
+                if eyes.done():
+                    eyes.result()
+                lcd.display(frame)
+                deadline = max(deadline + 1 / MOUTH_FPS, monotonic())
+                stop.wait(deadline - monotonic())
+            return
+
+    frames = [] if cache is not None else None
     frame_bytes = MOUTH_WIDTH * MOUTH_HEIGHT * 2
     command = mouth_decoder(path, loop=loop)
     with subprocess.Popen(command, stdout=subprocess.PIPE) as decoder:
@@ -458,10 +499,17 @@ def play_mouth_clip(lcd, path, stop, eyes, *, loop=False):
                     eyes.result()
                 if len(frame) != frame_bytes:
                     if not loop and not frame and displayed and decoder.wait() == 0:
+                        if frames is not None:
+                            cache.store(path, signature, frames)
                         return
                     raise MouthDecodeError(f"FFmpeg stopped producing LCD frames for {path.name}")
                 lcd.display(frame)
                 displayed = True
+                if frames is not None:
+                    if len(frames) < cache.remaining:
+                        frames.append(frame)
+                    else:
+                        frames = None
         finally:
             if decoder.poll() is None:
                 decoder.terminate()
@@ -473,10 +521,11 @@ def animate_mouth(lcd, clip, stop, eyes):
         if clips is not None:
             publish_runtime_json(MOUTH_STATUS_FILE, True)
             print("Playing shuffled mouth clips", flush=True)
+            cache = MouthFrameCache()
             while not stop.is_set():
                 # The LCD holds the last closed frame while the next clip opens.
                 mode = read_runtime_json(MOUTH_SELECTION_FILE)
-                play_mouth_clip(lcd, clips.choose(mode), stop, eyes)
+                play_mouth_clip(lcd, clips.choose(mode), stop, eyes, cache=cache)
     except MouthDecodeError as error:
         print(f"{error}; playing the original mouth loop", file=sys.stderr)
     finally:

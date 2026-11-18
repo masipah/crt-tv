@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 const MPV_SOCK = '/run/crt-tv/mpv.sock';
 const tv = (...args) => new Promise((resolve, reject) => {
-  execFile('sudo', ['-n', '/usr/local/bin/tv', ...args], { timeout: 30_000 },
+  execFile('tv', args, { timeout: 30_000 },
     (err, stdout, stderr) => {
       if (err) reject(new Error(stderr.trim() || err.message));
       else { invalidateStatus(); resolve(stdout); }
@@ -60,62 +60,55 @@ const mpvSet = async (prop, value, socketPath = MPV_SOCK) => {
   if (reply?.error !== 'success') return false;
   invalidateStatus(); return true;
 };
-// Wait for mpv's acknowledgement rather than reporting a successful connection.
-export function mpvRequest(command, socketPath = MPV_SOCK) {
+// A single socket keeps replies ordered against the same running player. A
+// player can exit between any two replies, including before the first one.
+function playerReplies(commands, socketPath) {
   return new Promise(resolve => {
-    const sock = net.createConnection(socketPath);
-    let buffer = '', done = false;
-    const finish = value => { if (done) return; done=true; sock.destroy(); resolve(value); };
-    sock.setTimeout(1000, () => finish(null));
-    sock.on('error', () => finish(null));
-    sock.on('end', () => finish(null));
-    sock.on('connect', () => sock.write(JSON.stringify({command,request_id:1})+'\n'));
-    sock.on('data', chunk => {
+    const socket = net.createConnection(socketPath);
+    const replies = new Map();
+    let buffer = '';
+    const finish = () => {
+      clearTimeout(deadline);
+      socket.destroy();
+      resolve(replies);
+    };
+    const deadline = setTimeout(finish, 1000);
+    socket.setEncoding('utf8');
+    socket.once('error', finish);
+    socket.once('close', finish);
+    socket.once('connect', () => {
+      socket.write(commands.map((command, i) =>
+        JSON.stringify({ command, request_id: i + 1 }) + '\n').join(''));
+    });
+    socket.on('data', chunk => {
       buffer += chunk;
-      let line;
-      while ((line=buffer.indexOf('\n')) >= 0) {
-        const text=buffer.slice(0,line);buffer=buffer.slice(line+1);
-        try { const reply=JSON.parse(text);if(reply.request_id===1)finish(reply); } catch {}
+      let end;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 1);
+        let reply;
+        try { reply = JSON.parse(line); } catch { continue; }
+        const id = reply?.request_id;
+        if (!Number.isInteger(id) || id < 1 || id > commands.length) continue;
+        replies.set(id, reply);
+        if (replies.size === commands.length) return finish();
       }
     });
   });
 }
 
-// Ask mpv for properties over its IPC socket; null if the player isn't up.
-function mpvQuery(props) {
-  return new Promise((resolve) => {
-    const sock = net.createConnection(MPV_SOCK);
-    const out = {};
-    let buf = '';
-    let pending = props.length;
-    let settled = false;
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      sock.destroy();
-      resolve(value);
-    };
-    sock.setTimeout(1000, () => finish(out));
-    sock.on('error', () => finish(null));
-    sock.on('connect', () => {
-      props.forEach((p, i) => {
-        sock.write(`${JSON.stringify({ command: ['get_property', p], request_id: i })}\n`);
-      });
-    });
-    sock.on('data', (chunk) => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
-        let msg;
-        try { msg = JSON.parse(line); } catch { continue; }
-        if (msg.request_id === undefined) continue; // event, not a reply
-        if (msg.error === 'success') out[props[msg.request_id]] = msg.data;
-        if (--pending === 0) finish(out);
-      }
-    });
-  });
+export async function mpvRequest(command, socketPath = MPV_SOCK) {
+  return (await playerReplies([command], socketPath)).get(1) ?? null;
+}
+
+export async function mpvQuery(props, socketPath = MPV_SOCK) {
+  const replies = await playerReplies(props.map(p => ['get_property', p]), socketPath);
+  if (!replies.size) return null;
+  const values = {};
+  for (const [id, reply] of replies) {
+    if (reply.error === 'success') values[props[id - 1]] = reply.data;
+  }
+  return values;
 }
 
 async function readStatus() {
